@@ -146,6 +146,14 @@ it, and neither path can delay authoritative state. Reduced-motion preference is
 honored inside Pixi as well as CSS. The engine now emits exact
 `front_control_resolved` events with both Presence totals during scoring.
 
+Lab Build 06 adds an auto-opening, keyboard-operable Field Guide. Four short
+lessons teach and test the shared Timeline, Presence scoring, bounded Response
+chain, and dual victory routes. Wrong answers explain the misconception;
+correct answers advance the guide. Attempts and score remain in session storage
+and appear on the Guide control after completion. No analytics leave the local
+browser. Chromium completes the scored 4/4 path before running the existing
+match, event-presentation, and hot-seat privacy smoke.
+
 A production-browser smoke test drives Chromium through mulligan, bot handoff,
 card selection, inspection, legal-action discovery, and action resolution. It
 then switches modes and verifies both hot-seat mulligans, hand blanking during
@@ -156,7 +164,8 @@ first screenshot review confirms that all three Fronts and the Timeline remain
 readable at 1440×1000.
 
 The internal all-Aspect proof Leader and generated Token are not counted toward
-the sixty-card prototype target. The remaining Milestone 2 gate is a real
-new-player comprehension pass and any clarity fixes it exposes. Kernel additions
-remain driven by those concrete prototype requirements rather than speculative
-universal-engine work.
+the sixty-card prototype target. Milestone 2 implementation is complete. Its
+remaining exit gate is an external new player completing the Field Guide and a
+match without developer coaching, followed by any clarity fixes that observation
+exposes. Kernel additions remain driven by concrete prototype requirements
+rather than speculative universal-engine work.

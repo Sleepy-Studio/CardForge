@@ -5,6 +5,7 @@ import type { FrontId, PlayerId } from "@cardforge/card-schema";
 import type { Command, GameState } from "@cardforge/rules-kernel";
 import { generateRulesText } from "@cardforge/rules-tempofront";
 import { BoardCanvas, type BoardIntent } from "./board-canvas";
+import { FieldGuide, type FieldGuideResult } from "./field-guide";
 import {
   activePlayer,
   browserCardPoolSize,
@@ -116,6 +117,8 @@ export function MatchLab() {
   );
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(true);
+  const [guideResult, setGuideResult] = useState<FieldGuideResult | null>(null);
 
   const active = activePlayer(state);
   const rivalId = opponentOf(viewerId);
@@ -345,7 +348,7 @@ export function MatchLab() {
         <div className="brand-lockup">
           <span className="brand-mark">CF</span>
           <div>
-            <p>CARD FORGE // LAB BUILD 05 // {browserCardPoolSize} CARD POOL</p>
+            <p>CARD FORGE // LAB BUILD 06 // {browserCardPoolSize} CARD POOL</p>
             <h1>TempoFront</h1>
           </div>
         </div>
@@ -377,6 +380,15 @@ export function MatchLab() {
                 : active === viewerId
                   ? `${playerName(viewerId).toUpperCase()} PRIORITY`
                   : `AWAITING ${active ? playerName(active).toUpperCase() : "RESOLUTION"}`}
+          <button
+            className="button button--quiet guide-button"
+            onClick={() => setGuideOpen(true)}
+            type="button"
+          >
+            {guideResult
+              ? `GUIDE ${guideResult.score}/${guideResult.total}`
+              : "FIELD GUIDE"}
+          </button>
           <button
             className={`button button--quiet fx-toggle ${effectsEnabled ? "is-active" : ""}`}
             data-fx={effectsEnabled ? "on" : "off"}
@@ -758,6 +770,13 @@ export function MatchLab() {
             </button>
           </div>
         </div>
+      ) : null}
+
+      {guideOpen ? (
+        <FieldGuide
+          onClose={() => setGuideOpen(false)}
+          onComplete={setGuideResult}
+        />
       ) : null}
 
       <p className="sr-only" aria-live="polite">

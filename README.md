@@ -95,6 +95,7 @@ The first browser slice is now runnable in `apps/web`:
 - four selectable dual-Aspect Leaders with distinct executable Commands and legal forty-card starter decks;
 - a complete sixty-card prototype pool across all six Aspects, excluding internal proof fixtures;
 - complete headless match and exact replay coverage for every prototype Leader;
+- an auto-opening four-concept Field Guide with scored Timeline, Front-control, Response, and victory checks stored only for the browser session;
 - keyboard-operable legal actions and screen-reader board summaries;
 - reduced-motion, Skip FX, and responsive layouts; presentation never gates engine resolution;
 - production build, HTTP smoke, screenshot review, and CDP interaction smoke.
@@ -108,5 +109,6 @@ The sixty-card Milestone 2 content target is complete: four Leaders, twenty-nine
 Entities, fifteen Tactics, five Reactions, three Attachments, two Relics, and two
 Sites. The internal all-Aspect proof Leader and generated Token are excluded.
 
-Milestone 2 is not complete yet. The implementation target is met; a real
-new-player comprehension pass and any resulting clarity fixes remain.
+Milestone 2 implementation is complete. The remaining exit gate is an external
+new-player running the Field Guide and a match without developer coaching,
+followed by any clarity fixes that observation exposes.

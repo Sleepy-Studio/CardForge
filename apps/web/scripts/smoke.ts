@@ -32,6 +32,12 @@ interface LeaderSetup {
   readonly p2Leader: string;
 }
 
+interface GuideResult {
+  readonly score: string;
+  readonly completeStep: string;
+  readonly closed: boolean;
+}
+
 interface SmokeSelection {
   readonly inspectorName: string;
   readonly actionCount: number;
@@ -144,7 +150,7 @@ const initialLeaders = await evaluate<LeaderSetup>(`({
 })`);
 if (
   !initialLeaders.poolLabel.includes("60 CARD POOL") ||
-  !initialLeaders.poolLabel.includes("LAB BUILD 05") ||
+  !initialLeaders.poolLabel.includes("LAB BUILD 06") ||
   !initialLeaders.fxLabel.includes("FX REDUCED") ||
   initialLeaders.selectors !== 2 ||
   initialLeaders.p1Options !== 4 ||
@@ -153,6 +159,37 @@ if (
   throw new Error(
     `Leader setup smoke failed: ${JSON.stringify(initialLeaders)}`,
   );
+
+const initialGuideStep = await evaluate<string>(
+  `document.querySelector('.field-guide')?.getAttribute('data-guide-step') ?? ''`,
+);
+if (initialGuideStep !== "1")
+  throw new Error(
+    `Field Guide did not open at lesson one: ${initialGuideStep}`,
+  );
+for (let lesson = 0; lesson < 4; lesson += 1) {
+  await evaluate(
+    `document.querySelector('.field-guide__answers button[data-correct="true"]')?.click()`,
+  );
+  await delay(25);
+  await evaluate(`document.querySelector('.field-guide__next')?.click()`);
+  await delay(25);
+}
+const guideResult = await evaluate<GuideResult>(`({
+  score: document.querySelector('[data-guide-score]')?.getAttribute('data-guide-score') ?? '',
+  completeStep: document.querySelector('.field-guide')?.getAttribute('data-guide-step') ?? '',
+  closed: false
+})`);
+if (guideResult.score !== "4/4" || guideResult.completeStep !== "complete")
+  throw new Error(
+    `Field Guide comprehension failed: ${JSON.stringify(guideResult)}`,
+  );
+await evaluate(`document.querySelector('.field-guide__finish')?.click()`);
+await delay(25);
+const guideClosed = await evaluate<boolean>(
+  `!document.querySelector('.field-guide') && document.querySelector('.guide-button')?.textContent?.includes('4/4') === true`,
+);
+if (!guideClosed) throw new Error("Field Guide did not release the match UI");
 
 await evaluate(`{
   const select = document.querySelector('select[data-player="p1"]');
@@ -332,6 +369,7 @@ console.log(
   JSON.stringify(
     {
       enteredMatch,
+      guide: { ...guideResult, closed: guideClosed },
       initialLeaders,
       selectedLeader,
       inspectedLeader,
