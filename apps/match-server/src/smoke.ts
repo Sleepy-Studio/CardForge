@@ -10,6 +10,7 @@ interface SnapshotMessage {
       { readonly hand?: readonly unknown[]; readonly handCount: number }
     >;
   };
+  readonly legalIntents: readonly Record<string, unknown>[];
 }
 
 interface CommandErrorMessage {
@@ -71,7 +72,15 @@ if (rejected.code !== "INVALID_INTENT")
 
 const firstSnapshot = nextMessage<SnapshotMessage>(firstRoom, "snapshot");
 const secondSnapshot = nextMessage<SnapshotMessage>(secondRoom, "snapshot");
-firstRoom.send("command", { type: "mulligan", instanceIds: [] });
+const firstMulligan = firstInitialSnapshot.legalIntents.find(
+  (intent) =>
+    intent.type === "mulligan" &&
+    Array.isArray(intent.instanceIds) &&
+    intent.instanceIds.length === 0,
+);
+if (!firstMulligan || "playerId" in firstMulligan)
+  throw new Error("Projected legal intents omitted a safe empty mulligan");
+firstRoom.send("command", firstMulligan);
 const [p1, p2] = await Promise.all([firstSnapshot, secondSnapshot]);
 if (p1.seat !== "p1" || p2.seat !== "p2")
   throw new Error(`Unexpected seats: ${p1.seat}, ${p2.seat}`);

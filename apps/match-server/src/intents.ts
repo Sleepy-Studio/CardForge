@@ -66,6 +66,12 @@ export const clientIntentSchema = z.discriminatedUnion("type", [
 
 export type ClientIntent = z.infer<typeof clientIntentSchema>;
 
+export function intentFromCommand(command: Command): ClientIntent {
+  const wireCommand: Record<string, unknown> = { ...command };
+  delete wireCommand.playerId;
+  return clientIntentSchema.parse(wireCommand);
+}
+
 export function commandFromIntent(
   playerId: PlayerId,
   intent: ClientIntent,

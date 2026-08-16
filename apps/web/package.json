@@ -7,12 +7,14 @@
     "dev": "next dev",
     "build": "next build",
     "smoke": "node scripts/smoke.ts",
+    "smoke:online": "node scripts/online-smoke.ts",
     "start": "next start"
   },
   "dependencies": {
     "@cardforge/card-schema": "workspace:*",
     "@cardforge/rules-kernel": "workspace:*",
     "@cardforge/rules-tempofront": "workspace:*",
+    "@colyseus/sdk": "^0.17.43",
     "next": "^16.3.1",
     "pixi.js": "^8.19.0",
     "react": "^19.2.8",

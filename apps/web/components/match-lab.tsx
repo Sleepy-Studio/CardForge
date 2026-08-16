@@ -389,6 +389,9 @@ export function MatchLab() {
               ? `GUIDE ${guideResult.score}/${guideResult.total}`
               : "FIELD GUIDE"}
           </button>
+          <a className="button button--quiet online-link" href="/online">
+            ONLINE ALPHA
+          </a>
           <button
             className={`button button--quiet fx-toggle ${effectsEnabled ? "is-active" : ""}`}
             data-fx={effectsEnabled ? "on" : "off"}

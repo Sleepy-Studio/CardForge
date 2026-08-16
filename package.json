@@ -15,6 +15,7 @@
     "sim": "pnpm build && node apps/simulator/dist/cli.js",
     "smoke:web": "pnpm --filter @cardforge/web smoke",
     "smoke:server": "pnpm --filter @cardforge/match-server smoke",
+    "smoke:online": "pnpm --filter @cardforge/web smoke:online",
     "test": "pnpm build && node --test apps/simulator/dist/*.test.js apps/match-server/dist/*.test.js"
   },
   "devDependencies": {

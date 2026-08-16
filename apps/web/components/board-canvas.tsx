@@ -19,7 +19,7 @@ export interface BoardIntent {
 }
 
 interface BoardCanvasProps {
-  readonly state: GameState;
+  readonly state: Pick<GameState, "fronts">;
   readonly viewerId: PlayerId;
   readonly selectedId: string | null;
   readonly legalSlots: ReadonlySet<string>;

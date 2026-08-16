@@ -84,6 +84,9 @@ importers:
       '@cardforge/rules-tempofront':
         specifier: workspace:*
         version: link:../../packages/rules-tempofront
+      '@colyseus/sdk':
+        specifier: ^0.17.43
+        version: 0.17.43(@colyseus/core@0.17.50)(typescript@5.9.3)(zod@4.4.3)
       next:
         specifier: ^16.3.1
         version: 16.3.1(@types/node@24.13.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)

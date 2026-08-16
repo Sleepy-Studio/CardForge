@@ -53,6 +53,8 @@ void describe("authoritative match session", () => {
     });
     const alpha = session.snapshot("alpha", events);
     const bravo = session.snapshot("bravo", events);
+    assert.ok(alpha.legalIntents.every((intent) => !("playerId" in intent)));
+    assert.equal(bravo.legalIntents[0]?.type, "mulligan");
     assert.equal(alpha.view.players.p1.hand?.length, 5);
     assert.equal(alpha.view.players.p2.hand, undefined);
     assert.equal(bravo.view.players.p2.hand?.length, 5);

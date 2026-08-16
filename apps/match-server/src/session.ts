@@ -15,7 +15,12 @@ import {
   type PrototypeLeaderId,
 } from "@cardforge/rules-tempofront";
 import { ZodError } from "zod";
-import { clientIntentSchema, commandFromIntent } from "./intents.js";
+import {
+  clientIntentSchema,
+  commandFromIntent,
+  intentFromCommand,
+  type ClientIntent,
+} from "./intents.js";
 
 export type SessionErrorCode =
   "MATCH_FULL" | "NOT_SEATED" | "INVALID_INTENT" | "ILLEGAL_COMMAND";
@@ -36,6 +41,7 @@ export interface MatchSnapshot {
   readonly hash: string;
   readonly view: ProjectedGameView;
   readonly events: readonly GameEvent[];
+  readonly legalIntents: readonly ClientIntent[];
 }
 
 export interface MatchSessionOptions {
@@ -122,6 +128,9 @@ export class AuthoritativeMatchSession {
       hash: stateHash(this.#state),
       view: this.engine.projectView(this.#state, seat),
       events: projectEvents(events, seat),
+      legalIntents: this.engine
+        .getLegalCommands(this.#state, seat)
+        .map(intentFromCommand),
     };
   }
 

@@ -200,3 +200,18 @@ connects two clients to the live room, completes the ready handshake, proves a
 forged seat fails, submits a mulligan, and verifies matching hashes with separate
 private hands. Browser online-mode integration, action clocks, durable records,
 and matchmaking remain in subsequent Milestone 3 slices.
+
+The browser now consumes this boundary at `/online`. It joins or creates a room,
+performs the explicit ready handshake, and renders the existing Pixi board from
+`ProjectedGameView`; it never manufactures a full `GameState`. Every snapshot
+includes legal seatless intents computed by the authoritative engine. The client
+can submit one of those intents but cannot attach a player identity. Connection,
+drop, automatic reconnect, command rejection, room ID, command number, and a
+short canonical hash are visible in the UI.
+
+A two-browser Chromium smoke launches independent profiles, joins one room as
+opposite seats, verifies both projected private hands and the shared hash, then
+submits the server-projected empty mulligan. Both clients advance from command
+zero to one with a new identical hash. The server CORS policy permits only
+configured browser origins. Action clocks, durable match records, deck storage,
+and production authentication remain.
