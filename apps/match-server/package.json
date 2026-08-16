@@ -11,10 +11,13 @@
     "build": "tsc -b",
     "dev": "node --watch dist/index.js",
     "smoke": "node dist/smoke.js",
+    "smoke:storage": "node dist/storage-smoke.js",
+    "smoke:selected-decks": "node dist/selected-deck-smoke.js",
     "start": "node dist/index.js"
   },
   "dependencies": {
     "@cardforge/card-schema": "workspace:*",
+    "@cardforge/persistence": "workspace:*",
     "@cardforge/rules-kernel": "workspace:*",
     "@cardforge/rules-tempofront": "workspace:*",
     "@colyseus/core": "^0.17.50",

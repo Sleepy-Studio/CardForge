@@ -74,4 +74,18 @@ void describe("authoritative match session", () => {
     assert.deepEqual(session.activePlayers(), ["p2"]);
     assert.equal(session.verifyReplay(), true);
   });
+
+  void it("recovers exact state from a durable replay record", () => {
+    const original = createSession();
+    original.join("alpha");
+    original.join("bravo");
+    original.submit("alpha", { type: "mulligan", instanceIds: [] });
+    original.submit("bravo", { type: "mulligan", instanceIds: [] });
+    const restored = AuthoritativeMatchSession.restore(original.replay());
+    assert.equal(
+      restored.replay().finalStateHash,
+      original.replay().finalStateHash,
+    );
+    assert.deepEqual(restored.acceptedCommands, original.acceptedCommands);
+  });
 });

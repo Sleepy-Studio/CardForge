@@ -48,6 +48,7 @@ export interface MatchSessionOptions {
   readonly matchId: string;
   readonly seed: number;
   readonly leaders?: Readonly<Record<PlayerId, PrototypeLeaderId>>;
+  readonly decks?: Readonly<Record<PlayerId, readonly string[]>>;
 }
 
 function projectEvents(
@@ -75,7 +76,7 @@ export class AuthoritativeMatchSession {
     this.matchId = options.matchId;
     this.seed = options.seed >>> 0;
     this.leaders = options.leaders ?? defaultPrototypeLeaders;
-    this.decks = {
+    this.decks = options.decks ?? {
       p1: prototypeDecks[this.leaders.p1],
       p2: prototypeDecks[this.leaders.p2],
     };
@@ -85,6 +86,36 @@ export class AuthoritativeMatchSession {
       decks: this.decks,
       leaders: this.leaders,
     });
+  }
+
+  static restore(replay: ReplayRecord): AuthoritativeMatchSession {
+    const leaders = replay.leaders;
+    if (!leaders)
+      throw new Error("Stored match is missing its pinned Leader revisions");
+    const known = new Set(Object.keys(prototypeDecks));
+    if (!known.has(leaders.p1) || !known.has(leaders.p2))
+      throw new Error("Stored match references an unavailable Leader");
+    const session = new AuthoritativeMatchSession({
+      matchId: replay.matchId,
+      seed: replay.seed,
+      leaders: leaders as Readonly<Record<PlayerId, PrototypeLeaderId>>,
+      decks: replay.decks,
+    });
+    if (
+      replay.rulesetRevision !== session.#state.rulesetRevision ||
+      replay.formatId !== session.#state.formatId ||
+      replay.formatRevision !== session.#state.formatRevision ||
+      replay.contentHash !== session.#state.contentHash
+    )
+      throw new Error("Stored match revisions are unavailable");
+    for (const command of replay.acceptedCommands) {
+      const result = session.engine.applyCommand(session.#state, command);
+      session.#state = result.state;
+      session.acceptedCommands.push(command);
+    }
+    if (stateHash(session.#state) !== replay.finalStateHash)
+      throw new Error("Stored match replay hash does not match");
+    return session;
   }
 
   get state(): GameState {

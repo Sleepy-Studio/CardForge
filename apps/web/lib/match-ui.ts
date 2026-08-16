@@ -20,6 +20,7 @@ import {
 } from "@cardforge/rules-tempofront";
 
 export const browserEngine = new TempoFrontEngine();
+export const browserStarterDecks = prototypeDecks;
 export const browserLeaderOptions = prototypeLeaderOptions;
 export const browserCardPoolSize = prototypeCards.length;
 

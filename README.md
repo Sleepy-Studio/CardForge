@@ -1,6 +1,6 @@
 # CardForge
 
-CardForge is a deterministic, rebrandable web TCG framework. This repository contains the completed **Milestone 1 engine**, the **Milestone 2 browser implementation**, and the first authoritative **Milestone 3 online-room slice** for its reference game, TempoFront.
+CardForge is a deterministic, rebrandable web TCG framework. This repository contains the completed **Milestone 1 engine**, **Milestone 2 browser implementation**, and **Milestone 3 authoritative online alpha** for its reference game, TempoFront.
 
 The proof is intentionally headless. It establishes the expensive invariants before UI work begins:
 
@@ -32,6 +32,7 @@ The simulator runs complete matches, immediately replays each command log, and f
 apps/simulator              CLI, random bot, invariants, replay verification
 apps/web                    React/Next application shell and Pixi match client
 apps/match-server           Authoritative sessions and Colyseus room transport
+packages/persistence       PostgreSQL schema, migrations, and storage contracts
 packages/card-schema       Semantic card, ability, format, and theme contracts
 packages/rules-kernel      Commands, events, game state, PRNG, canonical hashing
 packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
@@ -115,7 +116,7 @@ Milestone 2 implementation is complete. The remaining exit gate is an external
 new-player running the Field Guide and a match without developer coaching,
 followed by any clarity fixes that observation exposes.
 
-## Milestone 3 progress
+## Milestone 3 complete
 
 `apps/match-server` now provides the first authoritative online boundary:
 
@@ -132,9 +133,20 @@ followed by any clarity fixes that observation exposes.
 - a two-browser Chromium smoke proves opposite seats, private five-card hands, synchronized command numbers, and matching authoritative hashes;
 - server-owned thirty-second action clocks expose synchronized deadlines without entering deterministic game state;
 - timed-out seats submit a deterministic legal fallback—empty mulligan, passed Response, passed Cycle, or the first bounded choice—and that command remains replayable.
+- PostgreSQL migrations persist account-scoped decks and searchable match records with exact replay JSONB;
+- every room is stored at creation and after accepted commands, and stored replays restore to the same canonical hash;
+- alpha account and deck APIs validate scope, payloads, Format legality, Leader identity, and forty-card lists server-side;
+- the browser provisions a starter deck, lists saved decks, and sends the selected deck IDs to matchmaking;
+- two accounts may safely use the same human-friendly deck ID because storage identity is `(account_id, deck_id)`;
+- a live selected-deck smoke proves distinct stored Leaders enter the same room and a process-independent restore reproduces their shared hash.
 
 Run `pnpm dev:server` for the room service on port 2567 and `pnpm smoke:server`
 to exercise it. With the web server running, `pnpm smoke:online` drives two
 independent browser clients. Configure the action deadline with
-`CARDFORGE_ACTION_CLOCK_MS`. Durable match records and saved deck selection are
-the next Milestone 3 slice.
+`CARDFORGE_ACTION_CLOCK_MS`.
+
+For durable local development, run `docker compose up -d postgres`, copy the
+values from `.env.example`, and start the match server with `DATABASE_URL` set.
+Without that variable the server deliberately uses an in-memory test adapter.
+The alpha account header is a scope boundary, not production authentication;
+real identity-provider integration remains a launch hardening task.

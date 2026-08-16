@@ -1339,7 +1339,31 @@ button:focus-visible {
 }
 
 .online-lobby__actions {
+  flex-wrap: wrap;
   margin-top: 24px;
+}
+
+.online-deck-select {
+  display: grid;
+  flex: 1 0 100%;
+  gap: 7px;
+  color: var(--muted);
+  font:
+    800 9px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.online-deck-select select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  background: #091725;
 }
 
 .online-lobby__actions a,

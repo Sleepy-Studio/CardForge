@@ -9,7 +9,7 @@ import type {
   ProjectedGameView,
 } from "@cardforge/rules-kernel";
 import { BoardCanvas } from "./board-canvas";
-import { browserEngine, eventLabel } from "@/lib/match-ui";
+import { browserEngine, browserStarterDecks, eventLabel } from "@/lib/match-ui";
 
 type ClientIntent = Command extends infer Candidate
   ? Candidate extends { readonly playerId: PlayerId }
@@ -30,6 +30,12 @@ interface OnlineSnapshot {
     readonly deadlines: Readonly<Record<PlayerId, number | null>>;
   };
   readonly receivedAtMs: number;
+}
+
+interface SavedDeck {
+  readonly deckId: string;
+  readonly name: string;
+  readonly leaderId: string;
 }
 
 type ConnectionState =
@@ -83,6 +89,10 @@ export function OnlineMatch() {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [clientNowMs, setClientNowMs] = useState(() => Date.now());
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [decks, setDecks] = useState<readonly SavedDeck[]>([]);
+  const [selectedDeckId, setSelectedDeckId] = useState<string>("");
+  const [storageReady, setStorageReady] = useState(false);
   const roomRef = useRef<Room | null>(null);
   const endpoint =
     process.env.NEXT_PUBLIC_MATCH_SERVER_URL ?? "http://localhost:2567";
@@ -93,7 +103,71 @@ export function OnlineMatch() {
     return () => window.clearInterval(timer);
   }, [snapshot]);
 
+  useEffect(() => {
+    let active = true;
+    const provision = async () => {
+      const storedAccount = window.localStorage.getItem(
+        "cardforge.alpha.account",
+      );
+      const localAccount =
+        storedAccount ?? `guest-${window.crypto.randomUUID()}`;
+      window.localStorage.setItem("cardforge.alpha.account", localAccount);
+      const headers = {
+        "content-type": "application/json",
+        "x-cardforge-account-id": localAccount,
+      };
+      await fetch(`${endpoint}/api/accounts/${localAccount}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ displayName: "Alpha Player" }),
+      });
+      let response = await fetch(
+        `${endpoint}/api/accounts/${localAccount}/decks`,
+        { headers },
+      );
+      let payload = (await response.json()) as { decks: SavedDeck[] };
+      if (!payload.decks.length) {
+        await fetch(
+          `${endpoint}/api/accounts/${localAccount}/decks/starter-vanguard`,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({
+              gameId: "cardforge-proof",
+              formatId: "proof-constructed",
+              leaderId: "leader.vanguard",
+              name: "Vanguard Starter",
+              revision: 1,
+              cardIds: browserStarterDecks["leader.vanguard"],
+            }),
+          },
+        );
+        response = await fetch(
+          `${endpoint}/api/accounts/${localAccount}/decks`,
+          { headers },
+        );
+        payload = (await response.json()) as { decks: SavedDeck[] };
+      }
+      if (!active) return;
+      setAccountId(localAccount);
+      setDecks(payload.decks);
+      setSelectedDeckId(payload.decks[0]?.deckId ?? "");
+      setStorageReady(true);
+    };
+    void provision().catch((caught) => {
+      if (!active) return;
+      setError(
+        caught instanceof Error ? caught.message : "Deck storage failed.",
+      );
+      setStorageReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [endpoint]);
+
   const connect = async () => {
+    if (!accountId || !selectedDeckId) return;
     setConnection("matching");
     setError(null);
     try {
@@ -102,8 +176,14 @@ export function OnlineMatch() {
         "room",
       );
       const room = requestedRoom
-        ? await client.joinById(requestedRoom)
-        : await client.joinOrCreate("tempofront");
+        ? await client.joinById(requestedRoom, {
+            accountId,
+            deckId: selectedDeckId,
+          })
+        : await client.joinOrCreate("tempofront", {
+            accountId,
+            deckId: selectedDeckId,
+          });
       roomRef.current = room;
       setRoomId(room.roomId);
       room.onMessage("snapshot", (message) => {
@@ -168,9 +248,28 @@ export function OnlineMatch() {
             legal actions, hidden information, and replay log.
           </p>
           <div className="online-lobby__actions">
+            <label className="online-deck-select">
+              <span>Saved deck</span>
+              <select
+                disabled={!storageReady || connection === "matching"}
+                onChange={(event) => setSelectedDeckId(event.target.value)}
+                value={selectedDeckId}
+              >
+                {decks.map((deck) => (
+                  <option key={deck.deckId} value={deck.deckId}>
+                    {deck.name} // {deck.leaderId.replace("leader.", "")}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               className="button button--primary online-connect"
-              disabled={connection === "matching"}
+              disabled={
+                connection === "matching" ||
+                !storageReady ||
+                !accountId ||
+                !selectedDeckId
+              }
               onClick={() => void connect()}
               type="button"
             >

@@ -19,6 +19,7 @@ interface Seat {
   readonly hand: number;
   readonly hash: string;
   readonly connection: string;
+  readonly error: string;
 }
 
 async function connect(endpoint: string) {
@@ -79,6 +80,7 @@ async function readSeat(browser: Awaited<ReturnType<typeof connect>>) {
     hand: document.querySelectorAll('.online-hand .hand-card').length,
     hash: document.querySelector('.online-scorebar code')?.textContent ?? '',
     connection: document.querySelector('.online-shell')?.getAttribute('data-connection') ?? ''
+    ,error: document.querySelector('.online-error')?.textContent ?? ''
   })`);
 }
 
@@ -87,6 +89,23 @@ const first = await connect(
 );
 const second = await connect(
   process.env.CARDFORGE_CDP_TWO ?? "http://127.0.0.1:9223",
+);
+await Promise.all(
+  [first, second].map((browser) =>
+    browser.evaluate(`new Promise((resolve, reject) => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        const button = document.querySelector('.online-connect');
+        if (button && !button.disabled) {
+          clearInterval(timer);
+          resolve(true);
+        } else if (Date.now() - started > 5000) {
+          clearInterval(timer);
+          reject(new Error('Saved deck provisioning timed out'));
+        }
+      }, 50);
+    })`),
+  ),
 );
 await first.evaluate(`document.querySelector('.online-connect')?.click()`);
 await delay(250);

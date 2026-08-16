@@ -213,7 +213,7 @@ opposite seats, verifies both projected private hands and the shared hash, then
 submits the server-projected empty mulligan. Both clients advance from command
 zero to one with a new identical hash. The server CORS policy permits only
 configured browser origins. Durable match records, deck storage,
-and production authentication remain.
+and saved-deck selection are implemented; production authentication remains.
 
 Action deadlines live beside the match rather than inside `GameState`. The room
 publishes server timestamps and per-seat deadlines, while the browser derives a
@@ -221,3 +221,24 @@ local countdown without trusting its own clock for enforcement. Expiry selects
 an already legal deterministic fallback command and records it in the ordinary
 command log. Wall time can therefore cause a command, but it cannot alter state
 math, hashes, RNG, or replay semantics.
+
+## Alpha persistence
+
+`packages/persistence` defines one storage contract with in-memory and
+PostgreSQL adapters. The PostgreSQL schema keeps accounts, decks, and ordered
+deck cards relational. Match indexing fields are columns while the immutable
+replay payload is JSONB. Migrations are versioned and transactional. Deck keys
+are account-scoped, preventing two players' identically named starter deck IDs
+from overwriting each other.
+
+Rooms persist their replay at creation and after every accepted command. A
+stored record reconstructs a new `AuthoritativeMatchSession` by replaying the
+pinned seed, decks, Leaders, and commands, then rejecting the restore unless its
+canonical hash matches. The selected-deck network smoke performs this recovery
+through a separate database connection.
+
+The current REST surface provides basic alpha account registration and
+server-validated deck storage. `X-CardForge-Account-Id` prevents accidental
+cross-account operations but is explicitly not an authentication credential.
+Replacing it with verified identity is required before exposing the service to
+untrusted users.
