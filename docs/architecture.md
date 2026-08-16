@@ -288,3 +288,11 @@ completion locks both profiles in a PostgreSQL transaction, calculates the
 settlement from their current ratings, writes progression and telemetry, and
 commits the receipt together. A repeated completion attempt returns no award.
 The in-memory adapter implements the same contract for tests and local work.
+
+The match service registers separate casual and ranked room names. Ranked joins
+require two distinct persisted accounts, legal saved decks, the active season,
+and Leaders unlocked by the player's profile. On victory, the room derives
+telemetry from its accepted replay and commits the ranked settlement; no client
+message can claim a result or award progression. Public season and aggregate
+balance endpoints plus an account-scoped profile endpoint feed the
+`/competitive` operations screen.

@@ -9,6 +9,7 @@
     "smoke": "node scripts/smoke.ts",
     "smoke:online": "node scripts/online-smoke.ts",
     "smoke:studio": "node scripts/studio-smoke.ts",
+    "smoke:competitive": "node scripts/competitive-smoke.ts",
     "start": "next start"
   },
   "dependencies": {

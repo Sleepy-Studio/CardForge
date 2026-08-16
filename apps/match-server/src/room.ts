@@ -11,6 +11,15 @@ import {
   type PrototypeLeaderId,
 } from "@cardforge/rules-tempofront";
 import type { DeckRecord } from "@cardforge/persistence";
+import {
+  createCompetitiveProfile,
+  createMatchTelemetry,
+  seasonOne,
+  type RankedParticipant,
+  type RankedSettlement,
+} from "@cardforge/competitive";
+import type { PlayerId } from "@cardforge/card-schema";
+import { proofCardMap } from "@cardforge/rules-tempofront";
 
 const joinOptionsSchema = z
   .object({
@@ -25,11 +34,15 @@ function serverSeed(): number {
 
 export class TempoFrontRoom extends Room {
   override maxClients = 2;
+  protected readonly queue: "casual" | "ranked" = "casual";
   #match!: AuthoritativeMatchSession;
   #actionClock!: ActionClock;
   #clockTimer: { clear(): void } | null = null;
   #seed!: number;
   readonly #selectedDecks = new Map<string, DeckRecord>();
+  #startingInitiative: PlayerId = "p1";
+  #settlement: RankedSettlement | null = null;
+  #telemetryStored = false;
 
   override messages = {
     ready: (client: Client) => {
@@ -95,7 +108,26 @@ export class TempoFrontRoom extends Room {
           `Selected deck does not exist: ${selection.data.accountId}/${selection.data.deckId}`,
         );
       this.#selectedDecks.set(client.sessionId, deck);
+      if (this.queue === "ranked") {
+        let profile = await cardForgeStore.getCompetitiveProfile(
+          deck.accountId,
+          seasonOne.seasonId,
+        );
+        if (!profile) {
+          profile = createCompetitiveProfile(
+            deck.accountId,
+            seasonOne.seasonId,
+          );
+          await cardForgeStore.saveCompetitiveProfile(profile);
+        }
+        if (!profile.unlockedLeaderIds.includes(deck.leaderId))
+          throw new Error(
+            `Leader is not unlocked for ranked play: ${deck.leaderId}`,
+          );
+      }
     }
+    if (this.queue === "ranked" && !selection.success)
+      throw new Error("Ranked matchmaking requires a saved deck");
     this.#match.join(client.sessionId);
     if (this.clients.length >= this.maxClients) {
       const selectedBySeat = new Map(
@@ -106,6 +138,8 @@ export class TempoFrontRoom extends Room {
       );
       const p1 = selectedBySeat.get("p1");
       const p2 = selectedBySeat.get("p2");
+      if (this.queue === "ranked" && p1?.accountId === p2?.accountId)
+        throw new Error("Ranked opponents must use different accounts");
       const leaderIds = {
         p1: (p1?.leaderId ?? defaultPrototypeLeaders.p1) as PrototypeLeaderId,
         p2: (p2?.leaderId ?? defaultPrototypeLeaders.p2) as PrototypeLeaderId,
@@ -124,6 +158,7 @@ export class TempoFrontRoom extends Room {
           p2: p2?.cardIds ?? prototypeDecks[leaderIds.p2],
         },
       });
+      this.#startingInitiative = this.#match.state.initiative;
       for (const roomClient of this.clients)
         this.#match.join(roomClient.sessionId);
       await this.#persist();
@@ -153,6 +188,11 @@ export class TempoFrontRoom extends Room {
           ? matchSnapshot.legalIntents
           : [],
       clock: this.#actionClock.snapshot(),
+      competitive: {
+        queue: this.queue,
+        ...(this.queue === "ranked" ? { season: seasonOne } : {}),
+        settlement: this.#settlement,
+      },
     };
   }
 
@@ -184,5 +224,51 @@ export class TempoFrontRoom extends Room {
       status: this.#match.state.winner ? "complete" : "active",
       replay: this.#match.replay(),
     });
+    if (!this.#match.state.winner || this.#telemetryStored) return;
+    const participants = this.#participants();
+    const victoryReason = this.#match.state.victoryReason;
+    if (!victoryReason) return;
+    const telemetry = createMatchTelemetry({
+      replay: this.#match.replay(),
+      queue: this.queue,
+      ...(this.queue === "ranked" ? { seasonId: seasonOne.seasonId } : {}),
+      participants,
+      winnerId: this.#match.state.winner,
+      victoryReason,
+      startingInitiative: this.#startingInitiative,
+      cycles: this.#match.state.cycle,
+    });
+    if (this.queue === "ranked")
+      this.#settlement = await cardForgeStore.completeRankedMatch({
+        matchId: this.roomId,
+        seasonId: seasonOne.seasonId,
+        participants,
+        winnerId: this.#match.state.winner,
+        cycles: this.#match.state.cycle,
+        telemetry,
+      });
+    else await cardForgeStore.saveTelemetry(telemetry);
+    this.#telemetryStored = true;
   }
+
+  #participants(): Readonly<Record<PlayerId, RankedParticipant>> {
+    const result = {} as Record<PlayerId, RankedParticipant>;
+    for (const client of this.clients) {
+      const playerId = this.#match.seatFor(client.sessionId);
+      const deck = this.#selectedDecks.get(client.sessionId);
+      const leaderId = this.#match.state.players[playerId].leader.cardId;
+      const leader = proofCardMap.get(leaderId);
+      result[playerId] = {
+        playerId,
+        accountId: deck?.accountId ?? `guest-${client.sessionId}`,
+        leaderId,
+        aspects: leader?.aspects ?? [],
+      };
+    }
+    return result;
+  }
+}
+
+export class TempoFrontRankedRoom extends TempoFrontRoom {
+  protected override readonly queue = "ranked" as const;
 }

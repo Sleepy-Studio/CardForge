@@ -35,6 +35,9 @@ importers:
       '@cardforge/card-schema':
         specifier: workspace:*
         version: link:../../packages/card-schema
+      '@cardforge/competitive':
+        specifier: workspace:*
+        version: link:../../packages/competitive
       '@cardforge/persistence':
         specifier: workspace:*
         version: link:../../packages/persistence

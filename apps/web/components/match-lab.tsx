@@ -424,6 +424,9 @@ export function MatchLab() {
           <a className="button button--quiet online-link" href="/studio">
             CARD STUDIO
           </a>
+          <a className="button button--quiet online-link" href="/competitive">
+            COMPETITIVE
+          </a>
           <button
             className={`button button--quiet fx-toggle ${effectsEnabled ? "is-active" : ""}`}
             data-fx={effectsEnabled ? "on" : "off"}

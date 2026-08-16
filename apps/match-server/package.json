@@ -13,10 +13,12 @@
     "smoke": "node dist/smoke.js",
     "smoke:storage": "node dist/storage-smoke.js",
     "smoke:selected-decks": "node dist/selected-deck-smoke.js",
+    "smoke:ranked": "node dist/ranked-smoke.js",
     "start": "node dist/index.js"
   },
   "dependencies": {
     "@cardforge/card-schema": "workspace:*",
+    "@cardforge/competitive": "workspace:*",
     "@cardforge/persistence": "workspace:*",
     "@cardforge/rules-kernel": "workspace:*",
     "@cardforge/rules-tempofront": "workspace:*",

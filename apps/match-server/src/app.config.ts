@@ -8,7 +8,13 @@ import {
   validateDeck,
 } from "@cardforge/rules-tempofront";
 import { defaultTheme } from "@cardforge/theme-default";
-import { TempoFrontRoom } from "./room.js";
+import {
+  aggregateBalanceOverview,
+  competitivePatches,
+  createCompetitiveProfile,
+  seasonOne,
+} from "@cardforge/competitive";
+import { TempoFrontRankedRoom, TempoFrontRoom } from "./room.js";
 import { cardForgeStore } from "./store.js";
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_-]{3,80}$/);
@@ -154,7 +160,52 @@ export const server = new Server({
         response.sendStatus(204);
       },
     );
+    app.get("/api/competitive/season", (_request, response) => {
+      response.json({ season: seasonOne, patches: competitivePatches });
+    });
+    app.get(
+      "/api/accounts/:accountId/competitive-profile",
+      async (request: Request, response: Response) => {
+        if (!ownsAccount(request, response)) return;
+        const accountId = identifier.safeParse(request.params.accountId);
+        if (!accountId.success) {
+          response.status(400).json({ error: "INVALID_ACCOUNT" });
+          return;
+        }
+        let profile = await cardForgeStore.getCompetitiveProfile(
+          accountId.data,
+          seasonOne.seasonId,
+        );
+        if (!profile) {
+          profile = createCompetitiveProfile(
+            accountId.data,
+            seasonOne.seasonId,
+          );
+          try {
+            await cardForgeStore.saveCompetitiveProfile(profile);
+          } catch {
+            response.status(404).json({ error: "ACCOUNT_NOT_FOUND" });
+            return;
+          }
+        }
+        response.json({ profile });
+      },
+    );
+    app.get(
+      "/api/competitive/overview",
+      async (_request: Request, response: Response) => {
+        const telemetry = await cardForgeStore.listTelemetry(
+          seasonOne.seasonId,
+          10_000,
+        );
+        response.json({
+          season: seasonOne,
+          overview: aggregateBalanceOverview(telemetry),
+        });
+      },
+    );
   },
 });
 
 server.define("tempofront", TempoFrontRoom);
+server.define("tempofront-ranked", TempoFrontRankedRoom);

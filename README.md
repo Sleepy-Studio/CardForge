@@ -190,6 +190,10 @@ The competitive content target is now executable:
 - the browser exposes all twelve Leaders and Card Studio compiles 121 definitions under both complete Theme Packs.
 - a pure competitive domain pins seasons to immutable patch and Format revisions, calculates Elo-style ratings, grants account and Aspect mastery, unlocks Leaders through deterministic starter progression, and aggregates replay-derived balance telemetry.
 - PostgreSQL stores seasonal profiles and replay-derived telemetry, while one transaction locks both competitors and makes rating, XP, mastery, unlocks, telemetry, and the settlement receipt idempotent by match ID.
+- `tempofront-ranked` is a distinct authoritative queue requiring saved legal decks, different accounts, the active season, and an unlocked Leader; its snapshots identify the queue and carry the server settlement.
+- `/competitive` displays the live season lock, profile progression, victory routes, Initiative rate, action volume, and per-Leader performance directly from server APIs, with explicit low-sample caution.
 
-Ranked seasons, match analytics, the balance dashboard, versioned patches, and
-starter progression are the next competitive-beta slice.
+The remaining competitive-beta gate is evidence rather than another feature:
+run larger archetype simulations and collect external playtest telemetry before
+claiming Initiative neutrality, broad archetype viability, or zero recurring
+rules confusion.

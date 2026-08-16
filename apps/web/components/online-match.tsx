@@ -31,6 +31,14 @@ interface OnlineSnapshot {
     readonly deadlines: Readonly<Record<PlayerId, number | null>>;
   };
   readonly receivedAtMs: number;
+  readonly competitive: {
+    readonly queue: "casual" | "ranked";
+    readonly season?: { readonly name: string };
+    readonly settlement?: {
+      readonly ratingDelta: Readonly<Record<PlayerId, number>>;
+      readonly xpGained: Readonly<Record<PlayerId, number>>;
+    } | null;
+  };
 }
 
 interface SavedDeck {
@@ -97,6 +105,7 @@ export function OnlineMatch() {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [decks, setDecks] = useState<readonly SavedDeck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string>("");
+  const [queue, setQueue] = useState<"casual" | "ranked">("casual");
   const [storageReady, setStorageReady] = useState(false);
   const roomRef = useRef<Room | null>(null);
   const endpoint =
@@ -133,17 +142,17 @@ export function OnlineMatch() {
       let payload = (await response.json()) as { decks: SavedDeck[] };
       if (!payload.decks.length) {
         await fetch(
-          `${endpoint}/api/accounts/${localAccount}/decks/starter-vanguard`,
+          `${endpoint}/api/accounts/${localAccount}/decks/starter-ember`,
           {
             method: "PUT",
             headers,
             body: JSON.stringify({
               gameId: "cardforge-proof",
               formatId: "proof-constructed",
-              leaderId: "leader.vanguard",
-              name: "Vanguard Starter",
+              leaderId: "leader.ember",
+              name: "Breakthrough Starter",
               revision: 1,
-              cardIds: browserStarterDecks["leader.vanguard"],
+              cardIds: browserStarterDecks["leader.ember"],
             }),
           },
         );
@@ -185,10 +194,13 @@ export function OnlineMatch() {
             accountId,
             deckId: selectedDeckId,
           })
-        : await client.joinOrCreate("tempofront", {
-            accountId,
-            deckId: selectedDeckId,
-          });
+        : await client.joinOrCreate(
+            queue === "ranked" ? "tempofront-ranked" : "tempofront",
+            {
+              accountId,
+              deckId: selectedDeckId,
+            },
+          );
       roomRef.current = room;
       setRoomId(room.roomId);
       room.onMessage("snapshot", (message) => {
@@ -259,6 +271,19 @@ export function OnlineMatch() {
           </p>
           <div className="online-lobby__actions">
             <label className="online-deck-select">
+              <span>Queue</span>
+              <select
+                disabled={connection === "matching"}
+                onChange={(event) =>
+                  setQueue(event.target.value as "casual" | "ranked")
+                }
+                value={queue}
+              >
+                <option value="casual">Casual Constructed</option>
+                <option value="ranked">Ranked // The First Frontier</option>
+              </select>
+            </label>
+            <label className="online-deck-select">
               <span>Saved deck</span>
               <select
                 disabled={!storageReady || connection === "matching"}
@@ -291,6 +316,9 @@ export function OnlineMatch() {
             <a className="button button--quiet" href="/studio">
               Card Studio
             </a>
+            <a className="button button--quiet" href="/competitive">
+              Competitive
+            </a>
           </div>
           {error ? <p className="online-error">{error}</p> : null}
         </section>
@@ -312,7 +340,9 @@ export function OnlineMatch() {
     >
       <header className="online-header">
         <div>
-          <p className="eyebrow">ONLINE ALPHA // ROOM {roomId}</p>
+          <p className="eyebrow">
+            {snapshot.competitive.queue.toUpperCase()} // ROOM {roomId}
+          </p>
           <h1>
             {theme.themeId === "aetherfront"
               ? "Aetherfront"
