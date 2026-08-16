@@ -149,7 +149,7 @@ const initialLeaders = await evaluate<LeaderSetup>(`({
   p2Leader: document.querySelector('select[data-player="p2"]')?.value ?? ''
 })`);
 if (
-  !initialLeaders.poolLabel.includes("120 CARD POOL") ||
+  !initialLeaders.poolLabel.includes("180 CARD POOL") ||
   !initialLeaders.poolLabel.includes("LAB BUILD 08") ||
   !initialLeaders.fxLabel.includes("FX REDUCED") ||
   initialLeaders.selectors !== 2 ||

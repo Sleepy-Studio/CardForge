@@ -1,6 +1,7 @@
 import type { CardDefinition, PlayerId } from "@cardforge/card-schema";
 import { stateHash } from "@cardforge/rules-kernel";
 import { competitiveExpansionCards } from "./competitive-cards.js";
+import { launchExpansionCards } from "./launch-cards.js";
 
 const rawProofCards = [
   {
@@ -1088,14 +1089,55 @@ const rawProofCards = [
   },
 ] as const satisfies readonly CardDefinition[];
 
-export const proofCards: readonly CardDefinition[] = [
+const completeCardSource: readonly CardDefinition[] = [
   ...rawProofCards,
   ...competitiveExpansionCards,
-].map((card) => ({
-  ...card,
-  setId: "core-prototype",
-  release: { state: "published", availableFrom: "2026-08-16" },
-}));
+  ...launchExpansionCards,
+];
+
+const ordinaryCollectibles = completeCardSource.filter(
+  (card) =>
+    card.type !== "leader" && !card.generatedOnly && card.rarity !== "unique",
+);
+if (ordinaryCollectibles.length !== 152)
+  throw new Error("Launch rarity curve requires 152 ordinary collectibles");
+const ordinaryRarity = new Map(
+  ordinaryCollectibles.map(
+    (card, index) =>
+      [
+        card.cardId,
+        index < 72 ? "common" : index < 120 ? "uncommon" : "rare",
+      ] as const,
+  ),
+);
+let collectorNumber = 0;
+export const proofCards: readonly CardDefinition[] = completeCardSource.map(
+  (card) => {
+    const productionCard =
+      card.cardId !== "leader.proof" && !card.generatedOnly;
+    if (productionCard) collectorNumber += 1;
+    return {
+      ...card,
+      ...(card.type === "leader" || card.generatedOnly
+        ? {}
+        : { rarity: card.rarity ?? ordinaryRarity.get(card.cardId)! }),
+      ...(productionCard
+        ? { collectorNumber: String(collectorNumber).padStart(3, "0") }
+        : {}),
+      budgetScore:
+        card.focusCost +
+        (card.power ?? 0) +
+        (card.vitality ?? 0) * 0.8 +
+        (card.presence ?? 0) * 1.3,
+      complexityScore:
+        (card.abilities?.length ?? 0) +
+        Object.keys(card.keywords ?? {}).length +
+        (card.unique ? 1 : 0),
+      setId: "core-prototype",
+      release: { state: "published", availableFrom: "2026-08-16" },
+    };
+  },
+);
 
 export const prototypeCards: readonly CardDefinition[] = proofCards.filter(
   (card) =>

@@ -92,6 +92,10 @@ export interface CardDefinition {
   readonly aspects: readonly Aspect[];
   readonly setId?: string;
   readonly tags?: readonly string[];
+  readonly rarity?: "common" | "uncommon" | "rare" | "unique";
+  readonly collectorNumber?: string;
+  readonly budgetScore?: number;
+  readonly complexityScore?: number;
   readonly release?: {
     readonly state: "draft" | "staged" | "published" | "deprecated";
     readonly availableFrom?: string;

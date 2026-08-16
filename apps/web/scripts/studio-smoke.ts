@@ -75,7 +75,7 @@ const before = await evaluate<{
   ,draftLength: document.querySelector('.studio-json-label textarea')?.value.length ?? 0
 })`);
 if (
-  before.cards !== 121 ||
+  before.cards !== 181 ||
   before.theme !== "aetherfront" ||
   !before.gameplay ||
   !before.presentation ||

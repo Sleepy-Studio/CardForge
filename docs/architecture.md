@@ -303,3 +303,13 @@ run found a 47.57% Initiative win rate and exposed real archetype outliers. The
 resulting changes were published as card revision two in an additive balance
 patch rather than mutating the launch patch. Bot outcomes remain heuristic and
 cannot close the external comprehension or skill-banded balance gates.
+
+## Launch content contract
+
+The core launch set is frozen by tests at 180 production cards with the planned
+type distribution. Its 168 collectibles follow the 72/48/32/16 rarity curve;
+all sixteen Unique cards carry a one-copy deck limit. Every Aspect and Neutral
+has twenty-four collectibles. Collector number, rarity, budget score, and
+complexity score live in semantic definitions, so collection, crafting, studio
+review, and presentation consume one source rather than reconstructing launch
+metadata downstream.

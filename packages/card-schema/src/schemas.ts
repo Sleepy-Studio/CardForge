@@ -135,6 +135,10 @@ export const cardDefinitionSchema = z
     aspects: z.array(aspectSchema).min(1).max(7),
     setId: identifier.optional(),
     tags: z.array(identifier).max(20).optional(),
+    rarity: z.enum(["common", "uncommon", "rare", "unique"]).optional(),
+    collectorNumber: z.string().trim().min(1).max(20).optional(),
+    budgetScore: z.number().nonnegative().optional(),
+    complexityScore: z.number().nonnegative().optional(),
     release: z
       .object({
         state: z.enum(["draft", "staged", "published", "deprecated"]),

@@ -208,8 +208,8 @@ void describe("TempoFront deterministic proof", () => {
     }
   });
 
-  void it("publishes an exact 120-card competitive-beta pool", () => {
-    assert.equal(prototypeCards.length, 120);
+  void it("publishes the exact 180-card launch pool and rarity curve", () => {
+    assert.equal(prototypeCards.length, 180);
     assert.equal(
       new Set(prototypeCards.map((card) => card.cardId)).size,
       prototypeCards.length,
@@ -235,13 +235,44 @@ void describe("TempoFront deterministic proof", () => {
     );
     assert.deepEqual(counts, {
       leader: 12,
-      entity: 61,
-      tactic: 21,
-      reaction: 11,
-      attachment: 6,
+      entity: 90,
+      tactic: 32,
+      reaction: 18,
+      attachment: 12,
       relic: 6,
-      site: 3,
+      site: 10,
     });
+    const collectibles = prototypeCards.filter(
+      (card) => card.type !== "leader",
+    );
+    assert.deepEqual(
+      Object.fromEntries(
+        ["common", "uncommon", "rare", "unique"].map((rarity) => [
+          rarity,
+          collectibles.filter((card) => card.rarity === rarity).length,
+        ]),
+      ),
+      { common: 72, uncommon: 48, rare: 32, unique: 16 },
+    );
+    assert.equal(collectibles.filter((card) => card.unique).length, 16);
+    for (const aspect of [
+      "force",
+      "bastion",
+      "motion",
+      "growth",
+      "cunning",
+      "entropy",
+      "neutral",
+    ] as const)
+      assert.equal(
+        collectibles.filter((card) => card.aspects.includes(aspect)).length,
+        24,
+        aspect,
+      );
+    assert.equal(
+      new Set(prototypeCards.map((card) => card.collectorNumber)).size,
+      180,
+    );
   });
 
   void it("completes and replays a match for every prototype Leader", () => {

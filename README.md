@@ -208,3 +208,16 @@ are regression evidence, not a substitute for skill-banded human playtests.
 
 Milestone 5 engineering is complete. External usability and competitive balance
 validation remain release gates while Milestone 6 launch systems are built.
+
+## Milestone 6 progress
+
+The launch content contract is complete:
+
+- exactly 180 production cards: 12 Leaders, 90 Entities, 32 Tactics, 18 Reactions, 12 Attachments, 6 Relics, and 10 Sites;
+- exactly 168 collectibles split into 72 Common, 48 Uncommon, 32 Rare, and 16 one-copy Unique cards;
+- each of the six Aspects and Neutral has exactly 24 collectible cards;
+- every production card has a unique three-digit collector number plus generated budget and complexity metadata;
+- all twelve existing starter decks remain legal, all fifty tests pass, and browser smoke compiles 181 definitions including the generated Token under both themes.
+
+Collection/crafting, cosmetics, tutorials and PvE, live-ops controls, and support
+audit tooling are the remaining launch-system slices.
