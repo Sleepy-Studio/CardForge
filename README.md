@@ -1,6 +1,6 @@
 # CardForge
 
-CardForge is a deterministic, rebrandable web TCG framework. This repository contains the completed **Milestone 1 engine vertical slice** for its reference game, TempoFront.
+CardForge is a deterministic, rebrandable web TCG framework. This repository contains the completed **Milestone 1 engine**, the **Milestone 2 browser implementation**, and the first authoritative **Milestone 3 online-room slice** for its reference game, TempoFront.
 
 The proof is intentionally headless. It establishes the expensive invariants before UI work begins:
 
@@ -30,6 +30,8 @@ The simulator runs complete matches, immediately replays each command log, and f
 
 ```text
 apps/simulator              CLI, random bot, invariants, replay verification
+apps/web                    React/Next application shell and Pixi match client
+apps/match-server           Authoritative sessions and Colyseus room transport
 packages/card-schema       Semantic card, ability, format, and theme contracts
 packages/rules-kernel      Commands, events, game state, PRNG, canonical hashing
 packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
@@ -75,7 +77,7 @@ packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
 
 ## Deliberately deferred
 
-The browser renderer, online match service, complete keyword/status vocabulary, redirect and set-value replacements, player-ordered simultaneous triggers, full publication tooling, and production content remain deferred. Simultaneous triggers use the documented deterministic order for this slice; manual ordering is intentionally not required by the Milestone 1 rules contract.
+Accounts, durable match/deck persistence, ranked matchmaking, complete keyword/status vocabulary, redirect and set-value replacements, player-ordered simultaneous triggers, full publication tooling, and launch content remain deferred. Simultaneous triggers use the documented deterministic order for this slice; manual ordering is intentionally not required by the Milestone 1 rules contract.
 
 See [docs/architecture.md](docs/architecture.md) for boundaries and the next implementation cut.
 
@@ -112,3 +114,21 @@ Sites. The internal all-Aspect proof Leader and generated Token are excluded.
 Milestone 2 implementation is complete. The remaining exit gate is an external
 new-player running the Field Guide and a match without developer coaching,
 followed by any clarity fixes that observation exposes.
+
+## Milestone 3 progress
+
+`apps/match-server` now provides the first authoritative online boundary:
+
+- a transport-independent match session owns the complete deterministic state;
+- two connection IDs receive stable server-assigned seats;
+- clients submit strict Zod-validated intent payloads without `playerId`;
+- the server injects seat identity and rejects forged, malformed, or illegal commands;
+- every accepted intent is recorded into an exact production replay;
+- each connection receives its own projected state with the opponent hand omitted;
+- private choice results are redacted from the opposing event stream;
+- Colyseus 0.17 rooms expose an explicit ready handshake, snapshot stream, command errors, and a thirty-second reconnect window;
+- real two-client network smoke verifies shared hashes and separate private hands.
+
+Run `pnpm dev:server` for the room service on port 2567 and `pnpm smoke:server`
+to exercise it. The next slice connects the browser to this service and adds
+matchmaking/reconnect state to the UI.

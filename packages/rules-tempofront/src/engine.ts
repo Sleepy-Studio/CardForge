@@ -22,7 +22,7 @@ import type {
   ReplayRecord,
   RulesEngine,
 } from "@cardforge/rules-kernel";
-import { shuffle, stateHash } from "@cardforge/rules-kernel";
+import { canonicalJson, shuffle, stateHash } from "@cardforge/rules-kernel";
 import { proofCardMap } from "./cards.js";
 import { proofFormat, tempoFrontRules } from "./ruleset.js";
 
@@ -1837,7 +1837,7 @@ export class TempoFrontEngine implements RulesEngine {
     const legal = this.getLegalCommands(state, command.playerId);
     if (
       !legal.some(
-        (candidate) => JSON.stringify(candidate) === JSON.stringify(command),
+        (candidate) => canonicalJson(candidate) === canonicalJson(command),
       )
     )
       throw new Error(`Illegal command: ${JSON.stringify(command)}`);

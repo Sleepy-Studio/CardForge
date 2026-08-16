@@ -169,3 +169,34 @@ remaining exit gate is an external new player completing the Field Guide and a
 match without developer coaching, followed by any clarity fixes that observation
 exposes. Kernel additions remain driven by concrete prototype requirements
 rather than speculative universal-engine work.
+
+## Authoritative online boundary
+
+Milestone 3 begins in `apps/match-server`. `AuthoritativeMatchSession` is a
+transport-independent owner for the production engine, full match state,
+server-controlled seed, stable two-seat assignment, accepted command log, and
+replay record. Raw payloads pass through a strict Zod discriminated union. The
+wire format never accepts `playerId`; the session derives it from the connection
+seat before asking the engine to validate and apply the command.
+
+Each update is projected separately for each connection. Opponent hands remain
+absent, private choice identifiers are redacted, and both projections carry the
+same canonical full-state hash and command number. Network transport cannot
+mutate state directly. A command error returns a bounded semantic code without
+changing state.
+
+`TempoFrontRoom` is a thin Colyseus 0.17 adapter. Clients join, register message
+handlers, then send `ready` to receive their seat and initial snapshot. Accepted
+commands produce viewer-specific snapshots for both seats. Unexpected drops
+receive a thirty-second reconnection window and a successful reconnect rebuilds
+the exact projected state. The standard WebSocket transport runs with its
+promotional greeting disabled; its optional native MessagePack accelerator is
+explicitly denied an install script, preserving the workspace supply-chain
+policy and JavaScript fallback.
+
+Four focused session tests cover seat ownership, forged identity, illegal
+no-mutation behavior, private projections, and exact replay. A real SDK smoke
+connects two clients to the live room, completes the ready handshake, proves a
+forged seat fails, submits a mulligan, and verifies matching hashes with separate
+private hands. Browser online-mode integration, action clocks, durable records,
+and matchmaking remain in subsequent Milestone 3 slices.
