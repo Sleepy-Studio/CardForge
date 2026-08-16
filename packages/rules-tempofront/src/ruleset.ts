@@ -2,7 +2,7 @@ import type { FormatDefinition, ThemeManifest } from "@cardforge/card-schema";
 
 export const tempoFrontRules = {
   rulesetId: "tempofront",
-  revision: "tempofront@0.5.0",
+  revision: "tempofront@0.6.0",
   startingIntegrity: 20,
   startingHand: 5,
   handLimit: 9,
@@ -16,7 +16,7 @@ export const tempoFrontRules = {
 
 export const proofFormat: FormatDefinition = {
   formatId: "proof-constructed",
-  revision: 1,
+  revision: 2,
   deckSize: 40,
   maxCopies: 3,
   maxUniqueCopies: 1,

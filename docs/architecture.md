@@ -1,4 +1,8 @@
-# Milestone 1 interaction architecture
+# Milestone 1 engine architecture
+
+Milestone 1 is complete at TempoFront revision `tempofront@0.6.0`. The scope is
+an authoritative, deterministic headless engine vertical slice—not a browser
+prototype or production content platform.
 
 ## Kernel boundary
 
@@ -46,16 +50,59 @@ Deck validation runs before instances are created or shuffled. The selected Form
 
 Formats may additionally declare legal set IDs and banned card IDs. When a Leader is supplied, every non-Neutral Aspect on every card must belong to that Leader's identity. Leaders may also require a minimum number of cards sharing a subtype. These checks remain pure content validation, so they can run in deckbuilders, publication tools, matchmaking, and the authoritative match service without constructing a match.
 
+Release legality is also deterministic. Formats pin an effective `YYYY-MM-DD`
+date and allowed publication states; validation never consults the server clock.
+Matches pin the selected Format ID and revision alongside rules and content.
+
+## Persistent zones and Commands
+
+Players now have a Leader, one Reserve slot, and two Relic slots. Fronts have a
+shared Site slot, and Entities own their attached card instances. Prepare moves
+an eligible card into Reserve for one Time; playing it that Cycle applies its
+printed discount, while unused cards return at refresh. Attachments follow a
+defeated host to their owners' discard piles, and a newly played Site replaces
+the existing Site.
+
+Leader Commands and activated Relic or Entity abilities use the same declared
+action and bounded Response pipeline as other main actions. Once-per-Cycle use
+is serializable match state and resets at refresh.
+
+## Statuses and choices
+
+Status instances record semantic ID, source, integer value, duration, and
+stacking policy. The first executable pool covers Stunned, Rooted, Silenced,
+Exposed, and Protected. Status behavior is enforced by legal-command generation,
+damage replacement, keyword evaluation, and refresh expiration.
+
+The choice state machine now supports private card selection, optional costs,
+two-or-three-mode effects, and bounded multi-target selections. Every selection
+is an accepted command. Simultaneous mandatory triggers retain the fixed active-
+player ordering from the rules contract; manual trigger ordering is deferred to
+a later rules module instead of being smuggled into the base game.
+
+## Generated rules text
+
+Supported ability graphs generate display text through semantic templates. A
+terminology override can rename Focus, Leader, Entity, and zones without putting
+theme strings in engine behavior. The graph remains authoritative.
+
+## Verification baseline
+
+Twenty-four focused and property-based tests pass. Replays survive JSON
+serialization and reconstruct through a fresh engine instance. A 1,000-game
+batch over seeds 7001–8000 completed with 1,000 exact final hashes and no
+invariant failure. It averaged 11.62 Cycles, 185 commands, 3.61 Reactions, and
+7.55 choices; the 519–481 win split is regression telemetry rather than proof
+of competitive balance.
+
 ## Bias and scope note
 
 The product brief naturally pulls toward a complete monorepo and polished UI. That is the wrong proof. The main architectural risk is nondeterministic, unbounded card behavior; therefore this slice tests the rules seam under repeated complete games before application infrastructure is introduced.
 
-## Next cut
+## Next milestone
 
-1. Add general modal, multi-target, and ordered-trigger choices.
-2. Add release-state and date-based legality.
-3. Add Prepare/Reserve, Attachments, Relics, and Sites.
-4. Generate localized rules text from the same ability graph used by the engine.
-5. Grow property-based tests around setup, damage batches, zone ownership, responses, choices, and effect limits.
-
-Only after those invariants hold should the browser renderer become the critical path.
+Milestone 2 is now the critical path: a local browser prototype with a bot,
+React/Pixi match presentation, DOM card inspection, legal-target highlighting,
+Timeline previews, four Leaders, and a sixty-card pool. Kernel additions should
+be driven by concrete prototype or content requirements rather than speculative
+universal-engine work.

@@ -2,13 +2,14 @@ import type { PlayerId } from "@cardforge/card-schema";
 import {
   nextInt,
   stateHash,
+  type CardInstance,
   type Command,
   type GameState,
   type ReplayRecord,
 } from "@cardforge/rules-kernel";
 import {
-  proofContentHash,
   proofDeck,
+  proofLeaders,
   replayGame,
   TempoFrontEngine,
   tempoFrontRules,
@@ -88,7 +89,11 @@ function chooseCommand(
 }
 
 export function assertGameInvariants(state: GameState): void {
-  const instances = [];
+  const instances: CardInstance[] = [];
+  const addInstance = (instance: CardInstance): void => {
+    instances.push(instance);
+    for (const attachment of instance.attachments) addInstance(attachment);
+  };
   for (const player of Object.values(state.players)) {
     for (const value of [
       player.integrity,
@@ -107,28 +112,40 @@ export function assertGameInvariants(state: GameState): void {
       throw new Error(`Invalid maximum Focus for ${player.playerId}`);
     if (player.dominion < 0 || player.dominion > 6)
       throw new Error(`Invalid Dominion for ${player.playerId}`);
-    instances.push(...player.deck, ...player.hand, ...player.discard);
+    addInstance(player.leader);
+    for (const card of [
+      ...player.deck,
+      ...player.hand,
+      ...player.discard,
+      ...player.relics,
+    ])
+      addInstance(card);
+    if (player.reserve) addInstance(player.reserve);
   }
   for (const front of Object.values(state.fronts)) {
+    if (front.site) addInstance(front.site);
     for (const slots of Object.values(front.slots)) {
       for (const entity of Object.values(slots))
-        if (entity) instances.push(entity);
+        if (entity) addInstance(entity);
     }
   }
   if (state.pendingAction?.committedCard)
-    instances.push(state.pendingAction.committedCard);
+    addInstance(state.pendingAction.committedCard);
   if (state.pendingAction?.response)
-    instances.push(state.pendingAction.response.card);
+    addInstance(state.pendingAction.response.card);
   if (state.pendingAction?.counterResponse)
-    instances.push(state.pendingAction.counterResponse.card);
+    addInstance(state.pendingAction.counterResponse.card);
   if (state.pendingChoice?.kind === "select_card")
-    instances.push(...state.pendingChoice.options);
+    for (const card of state.pendingChoice.options) addInstance(card);
   const ids = instances.map((instance) => instance.instanceId);
   if (ids.length !== new Set(ids).size)
     throw new Error("A card instance exists in multiple zones");
   for (const instance of instances) {
     if (!Number.isSafeInteger(instance.damage) || instance.damage < 0)
       throw new Error(`Invalid damage on ${instance.instanceId}`);
+    for (const status of instance.statuses)
+      if (!Number.isSafeInteger(status.value) || status.value <= 0)
+        throw new Error(`Invalid status value on ${instance.instanceId}`);
   }
   if ((state.winner === null) !== (state.victoryReason === null))
     throw new Error("Winner and victory reason disagree");
@@ -160,7 +177,12 @@ export function simulateGame(
   engine = new TempoFrontEngine(),
 ): SimulationResult {
   const decks = { p1: proofDeck, p2: proofDeck } as const;
-  let state = engine.createGame({ matchId: `proof-${seed}`, seed, decks });
+  let state = engine.createGame({
+    matchId: `proof-${seed}`,
+    seed,
+    decks,
+    leaders: proofLeaders,
+  });
   const acceptedCommands: Command[] = [];
   let reactionCount = 0;
   let choiceCount = 0;
@@ -196,8 +218,11 @@ export function simulateGame(
     matchId: state.matchId,
     seed,
     rulesetRevision: tempoFrontRules.revision,
-    contentHash: proofContentHash,
+    formatId: state.formatId,
+    formatRevision: state.formatRevision,
+    contentHash: state.contentHash,
     decks,
+    leaders: proofLeaders,
     acceptedCommands,
     finalStateHash,
   };

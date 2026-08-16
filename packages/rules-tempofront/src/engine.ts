@@ -17,12 +17,13 @@ import type {
   PendingAction,
   PendingReaction,
   ProjectedGameView,
+  ProjectedPlayerView,
   QueuedEffect,
   ReplayRecord,
   RulesEngine,
 } from "@cardforge/rules-kernel";
 import { shuffle, stateHash } from "@cardforge/rules-kernel";
-import { proofCardMap, proofContentHash } from "./cards.js";
+import { proofCardMap } from "./cards.js";
 import { proofFormat, tempoFrontRules } from "./ruleset.js";
 
 const playerIds = ["p1", "p2"] as const;
@@ -44,6 +45,7 @@ function assertInteger(value: number, label: string): void {
 
 function emptyFront() {
   return {
+    site: null,
     slots: {
       p1: { vanguard: null, support: null },
       p2: { vanguard: null, support: null },
@@ -61,6 +63,57 @@ function definitionFor(
       `Missing pinned definition ${instance.cardId}@${instance.revision}`,
     );
   return definition;
+}
+
+function statusValue(instance: CardInstance, statusId: string): number {
+  return instance.statuses
+    .filter((status) => status.statusId === statusId)
+    .reduce((total, status) => total + status.value, 0);
+}
+
+function isSilenced(instance: CardInstance): boolean {
+  return statusValue(instance, "silenced") > 0;
+}
+
+function effectivePower(
+  cards: ReadonlyMap<string, CardDefinition>,
+  instance: CardInstance,
+): number {
+  const attachmentPower = instance.attachments.reduce(
+    (total, attachment) =>
+      total + (definitionFor(cards, attachment).staticModifiers?.power ?? 0),
+    0,
+  );
+  return (definitionFor(cards, instance).power ?? 0) + attachmentPower;
+}
+
+function addStatus(
+  target: CardInstance,
+  sourceId: string,
+  status: Extract<EffectNode, { op: "add_status" }>["status"],
+  events: GameEvent[],
+): void {
+  const existing = target.statuses.find(
+    (candidate) => candidate.statusId === status.statusId,
+  );
+  if (!existing) {
+    target.statuses.push({ ...status, sourceId });
+  } else if (status.stackingPolicy === "add") {
+    existing.value += status.value;
+    existing.duration = status.duration;
+  } else if (status.stackingPolicy === "highest") {
+    existing.value = Math.max(existing.value, status.value);
+    existing.duration = status.duration;
+  } else {
+    existing.value = status.value;
+    existing.duration = status.duration;
+  }
+  events.push({
+    type: "status_added",
+    targetId: target.instanceId,
+    statusId: status.statusId,
+    value: status.value,
+  });
 }
 
 function locateEntity(
@@ -93,15 +146,16 @@ function currentPlayer(state: GameState): PlayerId | null {
   return p1Time < p2Time ? p1! : p2!;
 }
 
-function makeInstance(
-  state: GameState,
+function buildInstance(
+  cards: ReadonlyMap<string, CardDefinition>,
   playerId: PlayerId,
   cardId: string,
+  instanceId: string,
 ): CardInstance {
-  const definition = proofCardMap.get(cardId);
+  const definition = cards.get(cardId);
   if (!definition) throw new Error(`Unknown card ${cardId}`);
-  const instance: CardInstance = {
-    instanceId: `${playerId}-${state.nextInstance}`,
+  return {
+    instanceId,
     cardId,
     revision: definition.revision,
     ownerId: playerId,
@@ -110,7 +164,24 @@ function makeInstance(
     ready: false,
     barrier: false,
     shiftsThisCycle: 0,
+    statuses: [],
+    attachments: [],
+    usedAbilityIds: [],
   };
+}
+
+function makeInstance(
+  cards: ReadonlyMap<string, CardDefinition>,
+  state: GameState,
+  playerId: PlayerId,
+  cardId: string,
+): CardInstance {
+  const instance = buildInstance(
+    cards,
+    playerId,
+    cardId,
+    `${playerId}-${state.nextInstance}`,
+  );
   state.nextInstance += 1;
   return instance;
 }
@@ -162,6 +233,13 @@ function dealEntityDamage(
   assertInteger(amount, "Damage");
   if (amount <= 0) return;
   let applied = amount;
+  const exposed = target.statuses.find(
+    (status) => status.statusId === "exposed",
+  );
+  if (exposed) {
+    applied += exposed.value;
+    target.statuses.splice(target.statuses.indexOf(exposed), 1);
+  }
   if (target.barrier) {
     target.barrier = false;
     events.push({
@@ -174,7 +252,26 @@ function dealEntityDamage(
     applied = 0;
   }
   if (applied > 0) {
-    const armor = definitionFor(cards, target).keywords?.armor;
+    const protectedStatus = target.statuses.find(
+      (status) => status.statusId === "protected",
+    );
+    if (protectedStatus) {
+      const beforeProtection = applied;
+      applied = Math.max(0, applied - protectedStatus.value);
+      target.statuses.splice(target.statuses.indexOf(protectedStatus), 1);
+      events.push({
+        type: "damage_replaced",
+        sourceId,
+        targetId: target.instanceId,
+        replacement: "protected",
+        prevented: beforeProtection - applied,
+      });
+    }
+  }
+  if (applied > 0) {
+    const armor = isSilenced(target)
+      ? undefined
+      : definitionFor(cards, target).keywords?.armor;
     if (typeof armor === "number") {
       const beforeArmor = applied;
       applied = Math.max(0, applied - armor);
@@ -222,6 +319,9 @@ function processDefeats(
   for (const item of defeated)
     state.fronts[item.front].slots[item.playerId][item.slot] = null;
   for (const item of defeated) {
+    for (const attachment of item.entity.attachments)
+      state.players[attachment.ownerId].discard.push(attachment);
+    item.entity.attachments.splice(0);
     state.players[item.entity.ownerId].discard.push(item.entity);
     events.push({
       type: "entity_defeated",
@@ -323,6 +423,7 @@ function resolveEffect(
   chosenTargetId: string | undefined,
   events: GameEvent[],
   sourceFront?: FrontId,
+  chosenTargetIds?: readonly string[],
 ): void {
   if (effect.op === "cancel_previous_chain_link") return;
   if (effect.op === "draw") {
@@ -333,7 +434,7 @@ function resolveEffect(
   if (effect.op === "spawn") {
     const destination = firstOpenSlot(state, playerId, sourceFront);
     if (!destination) return;
-    const token = makeInstance(state, playerId, effect.tokenCardId);
+    const token = makeInstance(cards, state, playerId, effect.tokenCardId);
     state.fronts[destination.front].slots[playerId][destination.slot] = token;
     events.push({
       type: "entity_deployed",
@@ -388,6 +489,7 @@ function resolveEffect(
       controllerId: playerId,
       effect: nestedEffect,
       ...(chosenTargetId === undefined ? {} : { chosenTargetId }),
+      ...(chosenTargetIds === undefined ? {} : { chosenTargetIds }),
       ...(sourceFront === undefined ? {} : { sourceFront }),
     }));
     state.pendingChoice = {
@@ -404,6 +506,53 @@ function resolveEffect(
       choiceKind: "optional_focus",
       optionCount: 2,
     });
+    return;
+  }
+  if (effect.op === "choose_one") {
+    const choiceId = nextChoiceId(state);
+    state.pendingChoice = {
+      choiceId,
+      chooserId: playerId,
+      kind: "choose_one",
+      options: effect.options.map((option) => ({
+        optionId: option.optionId,
+        continuation: option.effects.map((nestedEffect) => ({
+          source,
+          controllerId: playerId,
+          effect: nestedEffect,
+          ...(chosenTargetId === undefined ? {} : { chosenTargetId }),
+          ...(chosenTargetIds === undefined ? {} : { chosenTargetIds }),
+          ...(sourceFront === undefined ? {} : { sourceFront }),
+        })),
+      })),
+    };
+    events.push({
+      type: "choice_created",
+      playerId,
+      choiceId,
+      choiceKind: "choose_one",
+      optionCount: effect.options.length,
+    });
+    return;
+  }
+  if (
+    "target" in effect &&
+    effect.target.kind === "chosen_enemy_entities" &&
+    effect.op === "deal_damage"
+  ) {
+    for (const targetId of chosenTargetIds ?? []) {
+      const target = locateEntity(state, targetId)?.entity;
+      if (target?.controllerId === opponentOf(playerId))
+        dealEntityDamage(
+          cards,
+          target,
+          effect.amount,
+          source.instanceId,
+          events,
+        );
+    }
+    processDefeats(cards, state, events);
+    checkWin(state, events);
     return;
   }
   const target = resolveTarget(
@@ -437,6 +586,9 @@ function resolveEffect(
     if (typeof target !== "string") shiftAutomatically(state, target, events);
   } else if (effect.op === "add_barrier") {
     if (typeof target !== "string") target.barrier = true;
+  } else if (effect.op === "add_status") {
+    if (typeof target !== "string")
+      addStatus(target, source.instanceId, effect.status, events);
   }
   processDefeats(cards, state, events);
   checkWin(state, events);
@@ -449,6 +601,7 @@ function enqueueAbility(
   ability: AbilityDefinition,
   chosenTargetId: string | undefined,
   sourceFront?: FrontId,
+  chosenTargetIds?: readonly string[],
 ): void {
   for (const effect of ability.effects) {
     if (state.effectQueue.length >= maximumQueuedEffects)
@@ -460,6 +613,7 @@ function enqueueAbility(
       controllerId: playerId,
       effect,
       ...(chosenTargetId === undefined ? {} : { chosenTargetId }),
+      ...(chosenTargetIds === undefined ? {} : { chosenTargetIds }),
       ...(sourceFront === undefined ? {} : { sourceFront }),
     };
     state.effectQueue.push(queued);
@@ -491,23 +645,54 @@ function drainEffectQueue(
       queued.chosenTargetId,
       events,
       queued.sourceFront,
+      queued.chosenTargetIds,
     );
     resolved += 1;
   }
 }
 
-function requiresTarget(
-  definition: CardDefinition,
-): "friendly" | "enemy" | "any" | null {
+function requiresTarget(definition: CardDefinition): {
+  readonly side: "friendly" | "enemy" | "any";
+  readonly minimum: number;
+  readonly maximum: number;
+} | null {
   for (const effect of definition.abilities?.flatMap(
     (ability) => ability.effects,
   ) ?? []) {
     if (!("target" in effect)) continue;
-    if (effect.target.kind === "chosen_friendly_entity") return "friendly";
-    if (effect.target.kind === "chosen_enemy_entity") return "enemy";
-    if (effect.target.kind === "chosen_entity") return "any";
+    if (effect.target.kind === "chosen_friendly_entity")
+      return { side: "friendly", minimum: 1, maximum: 1 };
+    if (effect.target.kind === "chosen_enemy_entity")
+      return { side: "enemy", minimum: 1, maximum: 1 };
+    if (effect.target.kind === "chosen_enemy_entities")
+      return {
+        side: "enemy",
+        minimum: effect.target.minimum,
+        maximum: effect.target.maximum,
+      };
+    if (effect.target.kind === "chosen_entity")
+      return { side: "any", minimum: 1, maximum: 1 };
   }
   return null;
+}
+
+function targetSelections(
+  entities: readonly CardInstance[],
+  minimum: number,
+  maximum: number,
+): readonly (readonly CardInstance[])[] {
+  const selections: CardInstance[][] = [];
+  const visit = (start: number, selected: CardInstance[]): void => {
+    if (selected.length >= minimum) selections.push([...selected]);
+    if (selected.length >= maximum) return;
+    for (let index = start; index < entities.length; index += 1) {
+      selected.push(entities[index]!);
+      visit(index + 1, selected);
+      selected.pop();
+    }
+  };
+  visit(0, []);
+  return selections;
 }
 
 function allEntities(state: GameState, side?: PlayerId): CardInstance[] {
@@ -524,16 +709,46 @@ function allEntities(state: GameState, side?: PlayerId): CardInstance[] {
   return result;
 }
 
+function abilitySource(
+  state: GameState,
+  playerId: PlayerId,
+  sourceId: string,
+): CardInstance | null {
+  const player = state.players[playerId];
+  if (player.leader.instanceId === sourceId) return player.leader;
+  const relic = player.relics.find((card) => card.instanceId === sourceId);
+  if (relic) return relic;
+  return (
+    allEntities(state, playerId).find(
+      (entity) => entity.instanceId === sourceId,
+    ) ?? null
+  );
+}
+
 function calculatePresence(
   cards: ReadonlyMap<string, CardDefinition>,
   state: GameState,
   playerId: PlayerId,
   front: FrontId,
 ): number {
-  return slotIds.reduce((total, slot) => {
+  const entities = slotIds.reduce((total, slot) => {
     const entity = state.fronts[front].slots[playerId][slot];
-    return total + (entity ? (definitionFor(cards, entity).presence ?? 0) : 0);
+    if (!entity) return total;
+    const attachmentPresence = entity.attachments.reduce(
+      (sum, attachment) =>
+        sum + (definitionFor(cards, attachment).staticModifiers?.presence ?? 0),
+      0,
+    );
+    return (
+      total + (definitionFor(cards, entity).presence ?? 0) + attachmentPresence
+    );
   }, 0);
+  const site = state.fronts[front].site;
+  const sitePresence =
+    site?.controllerId === playerId
+      ? (definitionFor(cards, site).staticModifiers?.presence ?? 0)
+      : 0;
+  return entities + sitePresence;
 }
 
 function advanceCycle(
@@ -575,9 +790,22 @@ function advanceCycle(
     player.focus = player.maxFocus;
     player.time = 0;
     player.passed = false;
+    if (player.reserve) {
+      if (player.hand.length >= tempoFrontRules.handLimit)
+        player.discard.push(player.reserve);
+      else player.hand.push(player.reserve);
+      player.reserve = null;
+    }
+    player.leader.usedAbilityIds.splice(0);
+    for (const relic of player.relics) relic.usedAbilityIds.splice(0);
     for (const entity of allEntities(state, playerId)) {
       entity.ready = true;
       entity.shiftsThisCycle = 0;
+      entity.usedAbilityIds.splice(0);
+      for (let index = entity.statuses.length - 1; index >= 0; index -= 1) {
+        if (entity.statuses[index]!.duration !== "persistent")
+          entity.statuses.splice(index, 1);
+      }
     }
     drawCard(state, playerId, events);
   }
@@ -592,16 +820,18 @@ function legalStrikeTargets(
   const located = locateEntity(state, attacker.instanceId);
   if (!located) return [];
   const definition = definitionFor(cards, attacker);
+  const keywords = isSilenced(attacker) ? {} : definition.keywords;
   if (
     !attacker.ready ||
-    definition.keywords?.structure ||
-    (located.slot === "support" && !definition.keywords?.ranged)
+    statusValue(attacker, "stunned") > 0 ||
+    keywords?.structure ||
+    (located.slot === "support" && !keywords?.ranged)
   )
     return [];
   const enemyId = opponentOf(attacker.controllerId);
   const enemyVanguard = state.fronts[located.front].slots[enemyId].vanguard;
   const enemySupport = state.fronts[located.front].slots[enemyId].support;
-  if (definition.keywords?.ranged) {
+  if (keywords?.ranged) {
     const targets = [enemyVanguard, enemySupport]
       .filter((entity): entity is CardInstance => entity !== null)
       .map((entity) => entity.instanceId);
@@ -645,6 +875,8 @@ function enqueueReactionEffects(
     reaction.card,
     filtered,
     reaction.targetId,
+    undefined,
+    reaction.targetIds,
   );
 }
 
@@ -691,12 +923,97 @@ function resolveMainAction(
           ability,
           command.targetId,
           front,
+          command.targetIds,
         );
+    } else if (definition.type === "attachment") {
+      const target = command.targetId
+        ? locateEntity(state, command.targetId)?.entity
+        : undefined;
+      if (!target || target.controllerId !== pending.actorId) {
+        player.discard.push(card);
+        events.push({
+          type: "action_canceled",
+          playerId: pending.actorId,
+          actionType: command.type,
+        });
+        return;
+      }
+      target.attachments.push(card);
+    } else if (definition.type === "relic") {
+      if (player.relics.length >= 2) {
+        player.discard.push(card);
+        events.push({
+          type: "action_canceled",
+          playerId: pending.actorId,
+          actionType: command.type,
+        });
+        return;
+      }
+      player.relics.push(card);
+    } else if (definition.type === "site") {
+      const front = command.front!;
+      const existing = state.fronts[front].site;
+      if (existing) state.players[existing.ownerId].discard.push(existing);
+      state.fronts[front].site = card;
     } else {
       for (const ability of definition.abilities ?? [])
-        enqueueAbility(state, pending.actorId, card, ability, command.targetId);
+        if (ability.type !== "static")
+          enqueueAbility(
+            state,
+            pending.actorId,
+            card,
+            ability,
+            command.targetId,
+            undefined,
+            command.targetIds,
+          );
       player.discard.push(card);
     }
+    drainEffectQueue(cards, state, events);
+  } else if (command.type === "prepare_card") {
+    player.reserve = pending.committedCard!;
+    events.push({
+      type: "card_prepared",
+      playerId: pending.actorId,
+      instanceId: pending.committedCard!.instanceId,
+    });
+  } else if (command.type === "activate_ability") {
+    const source = abilitySource(state, pending.actorId, command.sourceId);
+    if (!source || isSilenced(source)) {
+      events.push({
+        type: "action_canceled",
+        playerId: pending.actorId,
+        actionType: command.type,
+      });
+      return;
+    }
+    const ability = definitionFor(cards, source).abilities?.find(
+      (candidate) => candidate.abilityId === command.abilityId,
+    );
+    if (!ability) {
+      events.push({
+        type: "action_canceled",
+        playerId: pending.actorId,
+        actionType: command.type,
+      });
+      return;
+    }
+    if (ability.oncePerCycle) source.usedAbilityIds.push(ability.abilityId);
+    events.push({
+      type: "ability_activated",
+      playerId: pending.actorId,
+      sourceId: source.instanceId,
+      abilityId: ability.abilityId,
+    });
+    enqueueAbility(
+      state,
+      pending.actorId,
+      source,
+      ability,
+      command.targetId,
+      locateEntity(state, source.instanceId)?.front,
+      command.targetIds,
+    );
     drainEffectQueue(cards, state, events);
   } else if (command.type === "shift") {
     const located = locateEntity(state, command.entityId);
@@ -732,9 +1049,8 @@ function resolveMainAction(
       return;
     }
     const attacker = located.entity;
-    const attackerDefinition = definitionFor(cards, attacker);
     if (command.targetId === "leader") {
-      const damage = attackerDefinition.power ?? 0;
+      const damage = effectivePower(cards, attacker);
       state.players[opponentOf(pending.actorId)].integrity -= damage;
       events.push({
         type: "damage_dealt",
@@ -757,18 +1073,19 @@ function resolveMainAction(
       dealEntityDamage(
         cards,
         defender,
-        attackerDefinition.power ?? 0,
+        effectivePower(cards, attacker),
         attacker.instanceId,
         events,
       );
       const canRetaliate =
-        defenderDefinition.keywords?.ranged === true ||
+        (!isSilenced(defender) &&
+          defenderDefinition.keywords?.ranged === true) ||
         (defenderLocation.slot === "vanguard" && located.slot === "vanguard");
       if (canRetaliate)
         dealEntityDamage(
           cards,
           attacker,
-          defenderDefinition.power ?? 0,
+          effectivePower(cards, defender),
           defender.instanceId,
           events,
         );
@@ -870,9 +1187,57 @@ export function validateContentDefinitions(
       for (const nested of effect.effects)
         validateEffect(definition, ability, nested, depth + 1);
     }
+    if (effect.op === "choose_one") {
+      if (effect.options.length < 2 || effect.options.length > 3)
+        throw new Error(
+          `${definition.cardId}/${ability.abilityId} must offer two or three modes`,
+        );
+      const optionIds = effect.options.map((option) => option.optionId);
+      if (new Set(optionIds).size !== optionIds.length)
+        throw new Error(
+          `${definition.cardId}/${ability.abilityId} has duplicate mode IDs`,
+        );
+      for (const option of effect.options) {
+        if (option.effects.length > maximumEffectsPerAbility)
+          throw new Error(
+            `${definition.cardId}/${ability.abilityId}/${option.optionId} exceeds ${maximumEffectsPerAbility} effects`,
+          );
+        for (const nested of option.effects)
+          validateEffect(definition, ability, nested, depth + 1);
+      }
+    }
+    if (effect.op === "add_status") {
+      assertInteger(
+        effect.status.value,
+        `${definition.cardId}/${ability.abilityId} status value`,
+      );
+      if (effect.status.value <= 0)
+        throw new Error(`${definition.cardId} has a non-positive status value`);
+    }
+    if ("target" in effect && effect.target.kind === "chosen_enemy_entities") {
+      assertInteger(
+        effect.target.minimum,
+        `${definition.cardId}/${ability.abilityId} target minimum`,
+      );
+      assertInteger(
+        effect.target.maximum,
+        `${definition.cardId}/${ability.abilityId} target maximum`,
+      );
+      if (
+        effect.op !== "deal_damage" ||
+        effect.target.minimum <= 0 ||
+        effect.target.maximum < effect.target.minimum ||
+        effect.target.maximum > 4
+      )
+        throw new Error(
+          `${definition.cardId}/${ability.abilityId} has invalid multi-target bounds`,
+        );
+    }
   };
   const createsChoice = (effect: EffectNode): boolean =>
-    effect.op === "scout" || effect.op === "optional_focus";
+    effect.op === "scout" ||
+    effect.op === "optional_focus" ||
+    effect.op === "choose_one";
   for (const definition of cards.values()) {
     assertInteger(definition.focusCost, `${definition.cardId} Focus cost`);
     assertInteger(definition.playTime, `${definition.cardId} Play Time`);
@@ -882,6 +1247,34 @@ export function validateContentDefinitions(
       assertInteger(definition.deckLimit, `${definition.cardId} deck limit`);
       if (definition.deckLimit <= 0)
         throw new Error(`${definition.cardId} has an invalid deck limit`);
+    }
+    if (definition.prepareDiscount !== undefined) {
+      assertInteger(
+        definition.prepareDiscount,
+        `${definition.cardId} Prepare discount`,
+      );
+      if (definition.prepareDiscount <= 0)
+        throw new Error(`${definition.cardId} has an invalid Prepare discount`);
+    }
+    for (const [name, value] of Object.entries(
+      definition.staticModifiers ?? {},
+    )) {
+      assertInteger(value, `${definition.cardId} ${name} modifier`);
+    }
+    if (definition.release) {
+      for (const [name, date] of [
+        ["availableFrom", definition.release.availableFrom],
+        ["availableUntil", definition.release.availableUntil],
+      ] as const) {
+        if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(date))
+          throw new Error(`${definition.cardId} has invalid ${name}`);
+      }
+      if (
+        definition.release.availableFrom &&
+        definition.release.availableUntil &&
+        definition.release.availableFrom > definition.release.availableUntil
+      )
+        throw new Error(`${definition.cardId} has an inverted release window`);
     }
     if (definition.deckRestriction) {
       assertInteger(
@@ -895,6 +1288,21 @@ export function validateContentDefinitions(
         throw new Error(`${definition.cardId} has an invalid deck restriction`);
     }
     for (const ability of definition.abilities ?? []) {
+      for (const [label, value] of [
+        ["Focus cost", ability.focusCost],
+        ["Time cost", ability.timeCost],
+        ["Tempo Debt", ability.tempoDebt],
+      ] as const) {
+        if (value === undefined) continue;
+        assertInteger(
+          value,
+          `${definition.cardId}/${ability.abilityId} ${label}`,
+        );
+        if (value < 0)
+          throw new Error(
+            `${definition.cardId}/${ability.abilityId} has negative ${label}`,
+          );
+      }
       if (ability.tempoDebt !== undefined) {
         assertInteger(
           ability.tempoDebt,
@@ -932,7 +1340,7 @@ export function validateDeck(
   deck: readonly string[],
   cards: ReadonlyMap<string, CardDefinition> = proofCardMap,
   format: FormatDefinition = proofFormat,
-  options: { readonly leaderCardId?: string } = {},
+  options: { readonly leaderCardId?: string; readonly asOf?: string } = {},
 ): readonly string[] {
   const errors: string[] = [];
   if (deck.length !== format.deckSize)
@@ -940,6 +1348,12 @@ export function validateDeck(
   const counts = new Map<string, number>();
   const banned = new Set(format.bannedCardIds ?? []);
   const legalSets = format.legalSetIds ? new Set(format.legalSetIds) : null;
+  const allowedReleaseStates = format.allowedReleaseStates
+    ? new Set(format.allowedReleaseStates)
+    : null;
+  const asOf = options.asOf ?? format.effectiveDate;
+  if (asOf !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(asOf))
+    errors.push(`Legality date must use YYYY-MM-DD`);
   const leader = options.leaderCardId
     ? cards.get(options.leaderCardId)
     : undefined;
@@ -962,6 +1376,26 @@ export function validateDeck(
       errors.push(`${cardId} is banned in ${format.formatId}`);
     if (legalSets && (!definition.setId || !legalSets.has(definition.setId)))
       errors.push(`${cardId} is not from a legal set in ${format.formatId}`);
+    if (
+      allowedReleaseStates &&
+      (!definition.release ||
+        !allowedReleaseStates.has(definition.release.state))
+    )
+      errors.push(
+        `${cardId} has an illegal release state in ${format.formatId}`,
+      );
+    if (
+      asOf &&
+      definition.release?.availableFrom &&
+      asOf < definition.release.availableFrom
+    )
+      errors.push(`${cardId} is not released by ${asOf}`);
+    if (
+      asOf &&
+      definition.release?.availableUntil &&
+      asOf > definition.release.availableUntil
+    )
+      errors.push(`${cardId} rotated before ${asOf}`);
     if (
       leader &&
       definition.aspects.some(
@@ -999,27 +1433,57 @@ export function validateDeck(
 
 export class TempoFrontEngine implements RulesEngine {
   readonly cards: ReadonlyMap<string, CardDefinition>;
+  readonly format: FormatDefinition;
+  readonly contentHash: string;
 
-  constructor(cards: ReadonlyMap<string, CardDefinition> = proofCardMap) {
+  constructor(
+    cards: ReadonlyMap<string, CardDefinition> = proofCardMap,
+    format: FormatDefinition = proofFormat,
+  ) {
     validateContentDefinitions(cards);
     this.cards = cards;
+    this.format = format;
+    this.contentHash = stateHash([...cards.values()]);
   }
 
   createGame(input: {
     matchId: string;
     seed: number;
     decks: Readonly<Record<PlayerId, readonly string[]>>;
+    leaders?: Readonly<Record<PlayerId, string>>;
   }): GameState {
     assertInteger(input.seed, "Seed");
+    const leaderIds = input.leaders ?? {
+      p1: "leader.vanguard",
+      p2: "leader.vanguard",
+    };
     for (const playerId of playerIds) {
-      const errors = validateDeck(input.decks[playerId], this.cards);
+      const errors = validateDeck(
+        input.decks[playerId],
+        this.cards,
+        this.format,
+        {
+          ...(input.leaders === undefined
+            ? {}
+            : { leaderCardId: leaderIds[playerId] }),
+        },
+      );
       if (errors.length > 0)
         throw new Error(`${playerId} deck is invalid: ${errors.join("; ")}`);
+    }
+    for (const playerId of playerIds) {
+      const leader = this.cards.get(leaderIds[playerId]);
+      if (!leader || leader.type !== "leader")
+        throw new Error(
+          `${playerId} has invalid Leader ${leaderIds[playerId]}`,
+        );
     }
     const state: GameState = {
       matchId: input.matchId,
       rulesetRevision: tempoFrontRules.revision,
-      contentHash: proofContentHash,
+      formatId: this.format.formatId,
+      formatRevision: this.format.revision,
+      contentHash: this.contentHash,
       rng: { seed: input.seed >>> 0, index: 0 },
       cycle: 1,
       phase: "mulligan",
@@ -1043,9 +1507,12 @@ export class TempoFrontEngine implements RulesEngine {
           fatigue: 0,
           passed: false,
           mulliganSubmitted: false,
+          leader: buildInstance(this.cards, "p1", leaderIds.p1, "p1-leader"),
           deck: [],
           hand: [],
           discard: [],
+          reserve: null,
+          relics: [],
         },
         p2: {
           playerId: "p2",
@@ -1057,16 +1524,19 @@ export class TempoFrontEngine implements RulesEngine {
           fatigue: 0,
           passed: false,
           mulliganSubmitted: false,
+          leader: buildInstance(this.cards, "p2", leaderIds.p2, "p2-leader"),
           deck: [],
           hand: [],
           discard: [],
+          reserve: null,
+          relics: [],
         },
       },
       fronts: { left: emptyFront(), center: emptyFront(), right: emptyFront() },
     };
     for (const playerId of playerIds) {
       const instances = input.decks[playerId].map((cardId) =>
-        makeInstance(state, playerId, cardId),
+        makeInstance(this.cards, state, playerId, cardId),
       );
       state.players[playerId].deck.push(...shuffle(instances, state.rng));
       for (let count = 0; count < tempoFrontRules.startingHand; count += 1)
@@ -1098,6 +1568,13 @@ export class TempoFrontEngine implements RulesEngine {
           playerId,
           choiceId: choice.choiceId,
           optionIds: [option.instanceId],
+        }));
+      if (choice.kind === "choose_one")
+        return choice.options.map((option) => ({
+          type: "resolve_choice" as const,
+          playerId,
+          choiceId: choice.choiceId,
+          optionIds: [option.optionId],
         }));
       return [
         {
@@ -1139,17 +1616,23 @@ export class TempoFrontEngine implements RulesEngine {
           continue;
         }
         const side =
-          targetKind === "friendly"
+          targetKind.side === "friendly"
             ? playerId
-            : targetKind === "enemy"
+            : targetKind.side === "enemy"
               ? opponentOf(playerId)
               : undefined;
-        for (const target of allEntities(state, side))
+        for (const targets of targetSelections(
+          allEntities(state, side),
+          targetKind.minimum,
+          targetKind.maximum,
+        ))
           reactionCommands.push({
             type: "play_reaction",
             playerId,
             instanceId: card.instanceId,
-            targetId: target.instanceId,
+            ...(targetKind.maximum === 1
+              ? { targetId: targets[0]!.instanceId }
+              : { targetIds: targets.map((target) => target.instanceId) }),
           });
       }
       reactionCommands.push({ type: "pass_response", playerId });
@@ -1158,9 +1641,19 @@ export class TempoFrontEngine implements RulesEngine {
     if (currentPlayer(state) !== playerId) return [];
     const player = state.players[playerId];
     const commands: Command[] = [];
-    for (const card of player.hand) {
+    const playableCards = player.reserve
+      ? [...player.hand, player.reserve]
+      : player.hand;
+    for (const card of playableCards) {
       const definition = definitionFor(this.cards, card);
-      if (definition.focusCost > player.focus) continue;
+      const focusCost =
+        card === player.reserve
+          ? Math.max(
+              0,
+              definition.focusCost - (definition.prepareDiscount ?? 0),
+            )
+          : definition.focusCost;
+      if (focusCost > player.focus) continue;
       if (definition.type === "entity") {
         for (const front of frontIds) {
           for (const slot of slotIds) {
@@ -1180,6 +1673,29 @@ export class TempoFrontEngine implements RulesEngine {
               });
           }
         }
+      } else if (definition.type === "attachment") {
+        for (const target of allEntities(state, playerId))
+          commands.push({
+            type: "play_card",
+            playerId,
+            instanceId: card.instanceId,
+            targetId: target.instanceId,
+          });
+      } else if (definition.type === "relic") {
+        if (player.relics.length < 2)
+          commands.push({
+            type: "play_card",
+            playerId,
+            instanceId: card.instanceId,
+          });
+      } else if (definition.type === "site") {
+        for (const front of frontIds)
+          commands.push({
+            type: "play_card",
+            playerId,
+            instanceId: card.instanceId,
+            front,
+          });
       } else if (definition.type === "tactic") {
         const targetKind = requiresTarget(definition);
         if (!targetKind)
@@ -1190,19 +1706,87 @@ export class TempoFrontEngine implements RulesEngine {
           });
         else {
           const side =
-            targetKind === "friendly"
+            targetKind.side === "friendly"
               ? playerId
-              : targetKind === "enemy"
+              : targetKind.side === "enemy"
                 ? opponentOf(playerId)
                 : undefined;
-          for (const target of allEntities(state, side))
+          for (const targets of targetSelections(
+            allEntities(state, side),
+            targetKind.minimum,
+            targetKind.maximum,
+          ))
             commands.push({
               type: "play_card",
               playerId,
               instanceId: card.instanceId,
-              targetId: target.instanceId,
+              ...(targetKind.maximum === 1
+                ? { targetId: targets[0]!.instanceId }
+                : { targetIds: targets.map((target) => target.instanceId) }),
             });
         }
+      }
+    }
+    if (!player.reserve) {
+      for (const card of player.hand) {
+        if (definitionFor(this.cards, card).prepareDiscount === undefined)
+          continue;
+        commands.push({
+          type: "prepare_card",
+          playerId,
+          instanceId: card.instanceId,
+        });
+      }
+    }
+    for (const source of [
+      player.leader,
+      ...player.relics,
+      ...allEntities(state, playerId),
+    ]) {
+      if (isSilenced(source) || statusValue(source, "stunned") > 0) continue;
+      const definition = definitionFor(this.cards, source);
+      for (const ability of definition.abilities ?? []) {
+        if (ability.type !== "activated" && ability.type !== "leader_command")
+          continue;
+        if (
+          (ability.focusCost ?? 0) > player.focus ||
+          (ability.oncePerCycle &&
+            source.usedAbilityIds.includes(ability.abilityId))
+        )
+          continue;
+        const targetKind = requiresTarget({
+          ...definition,
+          abilities: [ability],
+        });
+        if (!targetKind) {
+          commands.push({
+            type: "activate_ability",
+            playerId,
+            sourceId: source.instanceId,
+            abilityId: ability.abilityId,
+          });
+          continue;
+        }
+        const side =
+          targetKind.side === "friendly"
+            ? playerId
+            : targetKind.side === "enemy"
+              ? opponentOf(playerId)
+              : undefined;
+        for (const targets of targetSelections(
+          allEntities(state, side),
+          targetKind.minimum,
+          targetKind.maximum,
+        ))
+          commands.push({
+            type: "activate_ability",
+            playerId,
+            sourceId: source.instanceId,
+            abilityId: ability.abilityId,
+            ...(targetKind.maximum === 1
+              ? { targetId: targets[0]!.instanceId }
+              : { targetIds: targets.map((target) => target.instanceId) }),
+          });
       }
     }
     for (const entity of allEntities(state, playerId)) {
@@ -1215,7 +1799,11 @@ export class TempoFrontEngine implements RulesEngine {
         });
       const located = locateEntity(state, entity.instanceId)!;
       const definition = definitionFor(this.cards, entity);
-      if (entity.shiftsThisCycle < 1 && !definition.keywords?.structure) {
+      if (
+        entity.shiftsThisCycle < 1 &&
+        !definition.keywords?.structure &&
+        statusValue(entity, "rooted") === 0
+      ) {
         const index = frontIds.indexOf(located.front);
         for (const toFront of [frontIds[index - 1], frontIds[index + 1]]) {
           if (!toFront) continue;
@@ -1283,7 +1871,10 @@ export class TempoFrontEngine implements RulesEngine {
           player.discard.push(selected);
         else player.hand.push(selected);
         player.deck.push(...unselected);
-      } else if (command.optionIds[0] === "pay") {
+      } else if (
+        choice.kind === "optional_focus" &&
+        command.optionIds[0] === "pay"
+      ) {
         player.focus -= choice.amount;
         if (
           state.effectQueue.length + choice.continuation.length >
@@ -1293,6 +1884,18 @@ export class TempoFrontEngine implements RulesEngine {
             `Effect queue exceeded ${maximumQueuedEffects} pending operations`,
           );
         state.effectQueue.unshift(...choice.continuation);
+      } else if (choice.kind === "choose_one") {
+        const selected = choice.options.find(
+          (option) => option.optionId === command.optionIds[0],
+        )!;
+        if (
+          state.effectQueue.length + selected.continuation.length >
+          maximumQueuedEffects
+        )
+          throw new Error(
+            `Effect queue exceeded ${maximumQueuedEffects} pending operations`,
+          );
+        state.effectQueue.unshift(...selected.continuation);
       }
       state.pendingChoice = null;
       events.push({
@@ -1327,6 +1930,9 @@ export class TempoFrontEngine implements RulesEngine {
         ...(command.targetId === undefined
           ? {}
           : { targetId: command.targetId }),
+        ...(command.targetIds === undefined
+          ? {}
+          : { targetIds: command.targetIds }),
       };
       if (pending.phase === "response") {
         pending.response = reaction;
@@ -1356,19 +1962,44 @@ export class TempoFrontEngine implements RulesEngine {
         const handIndex = player.hand.findIndex(
           (card) => card.instanceId === command.instanceId,
         );
-        committedCard = player.hand.splice(handIndex, 1)[0]!;
+        const fromReserve = player.reserve?.instanceId === command.instanceId;
+        committedCard = fromReserve
+          ? player.reserve!
+          : player.hand.splice(handIndex, 1)[0]!;
+        if (fromReserve) player.reserve = null;
         const definition = definitionFor(this.cards, committedCard);
-        player.focus -= definition.focusCost;
+        player.focus -= Math.max(
+          0,
+          definition.focusCost -
+            (fromReserve ? (definition.prepareDiscount ?? 0) : 0),
+        );
         player.time += definition.playTime;
         events.push({
           type: "card_played",
           playerId: command.playerId,
           instanceId: committedCard.instanceId,
         });
+      } else if (command.type === "prepare_card") {
+        const handIndex = player.hand.findIndex(
+          (card) => card.instanceId === command.instanceId,
+        );
+        committedCard = player.hand.splice(handIndex, 1)[0]!;
+        player.time += 1;
       } else if (command.type === "strike") {
         const attacker = locateEntity(state, command.attackerId)!.entity;
         player.time += definitionFor(this.cards, attacker).strikeTime ?? 3;
         attacker.ready = false;
+      } else if (command.type === "activate_ability") {
+        const source = abilitySource(
+          state,
+          command.playerId,
+          command.sourceId,
+        )!;
+        const ability = definitionFor(this.cards, source).abilities!.find(
+          (candidate) => candidate.abilityId === command.abilityId,
+        )!;
+        player.focus -= ability.focusCost ?? 0;
+        player.time += ability.timeCost ?? 0;
       } else {
         const entity = locateEntity(state, command.entityId)!.entity;
         const mobile =
@@ -1402,7 +2033,7 @@ export class TempoFrontEngine implements RulesEngine {
   }
 
   projectView(state: GameState, playerId: PlayerId): ProjectedGameView {
-    const projectPlayer = (projectedId: PlayerId) => {
+    const projectPlayer = (projectedId: PlayerId): ProjectedPlayerView => {
       const player = state.players[projectedId];
       return {
         playerId: projectedId,
@@ -1413,10 +2044,16 @@ export class TempoFrontEngine implements RulesEngine {
         dominion: player.dominion,
         deckCount: player.deck.length,
         handCount: player.hand.length,
+        reserveCount: player.reserve ? 1 : 0,
         ...(projectedId === playerId
-          ? { hand: structuredClone(player.hand) }
+          ? {
+              hand: structuredClone(player.hand),
+              reserve: structuredClone(player.reserve),
+            }
           : {}),
         discard: structuredClone(player.discard),
+        leader: structuredClone(player.leader),
+        relics: structuredClone(player.relics),
       };
     };
     const projectChoice = (): ProjectedGameView["pendingChoice"] => {
@@ -1426,13 +2063,23 @@ export class TempoFrontEngine implements RulesEngine {
         choiceId: choice.choiceId,
         chooserId: choice.chooserId,
         kind: choice.kind,
-        optionCount: choice.kind === "select_card" ? choice.options.length : 2,
+        optionCount:
+          choice.kind === "select_card" || choice.kind === "choose_one"
+            ? choice.options.length
+            : 2,
       };
       if (choice.kind === "select_card")
         return {
           ...base,
           ...(choice.chooserId === playerId
             ? { cardOptions: structuredClone(choice.options) }
+            : {}),
+        };
+      if (choice.kind === "choose_one")
+        return {
+          ...base,
+          ...(choice.chooserId === playerId
+            ? { optionIds: choice.options.map((option) => option.optionId) }
             : {}),
         };
       return {
@@ -1466,7 +2113,15 @@ export function replayGame(
     matchId: replay.matchId,
     seed: replay.seed,
     decks: replay.decks,
+    ...(replay.leaders === undefined ? {} : { leaders: replay.leaders }),
   });
+  if (
+    replay.rulesetRevision !== state.rulesetRevision ||
+    replay.contentHash !== state.contentHash ||
+    replay.formatId !== state.formatId ||
+    replay.formatRevision !== state.formatRevision
+  )
+    throw new Error("Replay dependency versions do not match the engine");
   for (const command of replay.acceptedCommands)
     state = engine.applyCommand(state, command).state;
   return state;

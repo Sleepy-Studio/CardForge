@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import fc from "fast-check";
 import type { PlayerId } from "@cardforge/card-schema";
 import {
   stateHash,
@@ -10,6 +11,7 @@ import {
   proofCardMap,
   proofDeck,
   proofFormat,
+  generateRulesText,
   TempoFrontEngine,
   validateDeck,
 } from "@cardforge/rules-tempofront";
@@ -78,6 +80,28 @@ void describe("TempoFront deterministic proof", () => {
       stateHash(engine.createGame(input)),
       stateHash(engine.createGame(input)),
     );
+  });
+
+  void it("instantiates cards from the selected content pack rather than the proof globals", () => {
+    const cards = new Map(proofCardMap);
+    cards.set("entity.linebreaker", {
+      ...cards.get("entity.linebreaker")!,
+      revision: 2,
+      power: 7,
+    });
+    const engine = new TempoFrontEngine(cards);
+    const state = engine.createGame({
+      matchId: "custom-content",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const instances = [
+      ...state.players.p1.hand,
+      ...state.players.p1.deck,
+    ].filter((card) => card.cardId === "entity.linebreaker");
+    assert.ok(instances.length > 0);
+    assert.ok(instances.every((card) => card.revision === 2));
+    assert.notEqual(state.contentHash, new TempoFrontEngine().contentHash);
   });
 
   void it("replays a complete match to the exact final hash", () => {
@@ -433,6 +457,382 @@ void describe("TempoFront deterministic proof", () => {
     assert.equal(resolved.players.p1.time, 5);
     assert.equal(resolved.players.p2.time, 2);
     assert.equal(resolved.effectQueue.length, 0);
+  });
+
+  void it("applies and refreshes structured statuses", () => {
+    const engine = new TempoFrontEngine();
+    const state = createPlayingGame(engine, {
+      matchId: "status",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const target = putInVanguard(state, "p2", "entity.linebreaker");
+    const stagger = putInHand(state, "p1", "tactic.stagger");
+    let next = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: stagger.instanceId,
+      targetId: target.instanceId,
+    }).state;
+    next = engine.applyCommand(next, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(
+      target.instanceId,
+      next.fronts.center.slots.p2.vanguard?.instanceId,
+    );
+    assert.equal(
+      next.fronts.center.slots.p2.vanguard?.statuses[0]?.statusId,
+      "stunned",
+    );
+    assert.ok(
+      engine
+        .getLegalCommands(next, "p2")
+        .every(
+          (command) =>
+            command.type !== "strike" ||
+            command.attackerId !== target.instanceId,
+        ),
+    );
+    next = engine.applyCommand(next, { type: "pass", playerId: "p2" }).state;
+    next = engine.applyCommand(next, { type: "pass", playerId: "p1" }).state;
+    assert.equal(next.fronts.center.slots.p2.vanguard?.statuses.length, 0);
+  });
+
+  void it("enforces Rooted, Silenced, Exposed, and Protected semantics", () => {
+    const engine = new TempoFrontEngine();
+    let state = createPlayingGame(engine, {
+      matchId: "status-semantics",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const attacker = putInVanguard(state, "p1", "entity.linebreaker");
+    const defender = putInVanguard(state, "p2", "entity.ironhide");
+    attacker.statuses.push({
+      statusId: "rooted",
+      sourceId: "test",
+      value: 1,
+      duration: "until_refresh",
+      stackingPolicy: "refresh",
+    });
+    defender.statuses.push(
+      {
+        statusId: "exposed",
+        sourceId: "test",
+        value: 2,
+        duration: "persistent",
+        stackingPolicy: "highest",
+      },
+      {
+        statusId: "protected",
+        sourceId: "test",
+        value: 1,
+        duration: "persistent",
+        stackingPolicy: "highest",
+      },
+    );
+    assert.ok(
+      engine
+        .getLegalCommands(state, "p1")
+        .every(
+          (command) =>
+            command.type !== "shift" ||
+            command.entityId !== attacker.instanceId,
+        ),
+    );
+    state = engine.applyCommand(state, {
+      type: "strike",
+      playerId: "p1",
+      attackerId: attacker.instanceId,
+      targetId: defender.instanceId,
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.fronts.center.slots.p2.vanguard?.damage, 2);
+    assert.equal(state.fronts.center.slots.p2.vanguard?.statuses.length, 0);
+
+    state = createPlayingGame(engine, {
+      matchId: "silence-semantics",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const secondAttacker = putInVanguard(state, "p1", "entity.linebreaker");
+    const silencedDefender = putInVanguard(state, "p2", "entity.ironhide");
+    silencedDefender.statuses.push({
+      statusId: "silenced",
+      sourceId: "test",
+      value: 1,
+      duration: "persistent",
+      stackingPolicy: "refresh",
+    });
+    state = engine.applyCommand(state, {
+      type: "strike",
+      playerId: "p1",
+      attackerId: secondAttacker.instanceId,
+      targetId: silencedDefender.instanceId,
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.fronts.center.slots.p2.vanguard?.damage, 2);
+  });
+
+  void it("plays Attachments, Relics, Sites, and prepared cards into real zones", () => {
+    const engine = new TempoFrontEngine();
+    let state = createPlayingGame(engine, {
+      matchId: "persistent-zones",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const host = putInVanguard(state, "p1", "entity.linebreaker");
+    const edge = putInHand(state, "p1", "attachment.edge");
+    state = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: edge.instanceId,
+      targetId: host.instanceId,
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(
+      state.fronts.center.slots.p1.vanguard?.attachments[0]?.cardId,
+      "attachment.edge",
+    );
+    state.players.p2.passed = true;
+    state.players.p1.time = 0;
+    state = engine.applyCommand(state, {
+      type: "strike",
+      playerId: "p1",
+      attackerId: host.instanceId,
+      targetId: "leader",
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.players.p2.integrity, 17);
+
+    state = createPlayingGame(engine, {
+      matchId: "relic-zone",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const beacon = putInHand(state, "p1", "relic.beacon");
+    state = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: beacon.instanceId,
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.players.p1.relics[0]?.instanceId, beacon.instanceId);
+    state.players.p2.passed = true;
+    state.players.p1.time = 0;
+    state = engine.applyCommand(state, {
+      type: "activate_ability",
+      playerId: "p1",
+      sourceId: beacon.instanceId,
+      abilityId: "beacon",
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.pendingChoice?.kind, "select_card");
+
+    state = createPlayingGame(engine, {
+      matchId: "site-zone",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    putInVanguard(state, "p1", "entity.linebreaker");
+    const site = putInHand(state, "p1", "site.overlook");
+    state = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: site.instanceId,
+      front: "left",
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.fronts.left.site?.instanceId, site.instanceId);
+    state = engine.applyCommand(state, { type: "pass", playerId: "p2" }).state;
+    state = engine.applyCommand(state, { type: "pass", playerId: "p1" }).state;
+    assert.equal(state.players.p1.dominion, 1);
+
+    state = createPlayingGame(engine, {
+      matchId: "reserve-zone",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const survey = putInHand(state, "p1", "tactic.survey");
+    state = engine.applyCommand(state, {
+      type: "prepare_card",
+      playerId: "p1",
+      instanceId: survey.instanceId,
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.players.p1.reserve?.instanceId, survey.instanceId);
+    assert.equal(state.players.p1.focus, 3);
+    assert.equal(engine.projectView(state, "p1").players.p1.reserveCount, 1);
+    assert.equal(engine.projectView(state, "p2").players.p1.reserveCount, 1);
+    assert.equal(engine.projectView(state, "p2").players.p1.reserve, undefined);
+    state.players.p2.passed = true;
+    state.players.p1.time = 0;
+    state = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: survey.instanceId,
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.players.p1.focus, 3);
+    assert.equal(state.pendingChoice?.kind, "select_card");
+  });
+
+  void it("runs Leader Commands through the normal bounded response pipeline", () => {
+    const engine = new TempoFrontEngine();
+    let state = createPlayingGame(engine, {
+      matchId: "leader-command",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    state = engine.applyCommand(state, {
+      type: "activate_ability",
+      playerId: "p1",
+      sourceId: "p1-leader",
+      abilityId: "marshal-command",
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.players.p2.integrity, 19);
+    assert.equal(state.players.p1.focus, 2);
+    assert.equal(state.players.p1.time, 2);
+    assert.deepEqual(state.players.p1.leader.usedAbilityIds, [
+      "marshal-command",
+    ]);
+  });
+
+  void it("resolves modal and multi-target effects from replayed choices", () => {
+    const engine = new TempoFrontEngine();
+    let state = createPlayingGame(engine, {
+      matchId: "modal",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    state.players.p1.integrity = 15;
+    const adapt = putInHand(state, "p1", "tactic.adapt");
+    state = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: adapt.instanceId,
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.pendingChoice?.kind, "choose_one");
+    state = engine.applyCommand(state, {
+      type: "resolve_choice",
+      playerId: "p1",
+      choiceId: state.pendingChoice.choiceId,
+      optionIds: ["recover"],
+    }).state;
+    assert.equal(state.players.p1.integrity, 17);
+
+    state = createPlayingGame(engine, {
+      matchId: "multi-target",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const first = putInVanguard(state, "p2", "entity.ironhide");
+    const second = takeCard(state, "p2", "entity.aegis");
+    second.ready = true;
+    second.barrier = true;
+    state.fronts.center.slots.p2.support = second;
+    const crossfire = putInHand(state, "p1", "tactic.crossfire");
+    state = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: crossfire.instanceId,
+      targetIds: [first.instanceId, second.instanceId],
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.fronts.center.slots.p2.vanguard?.damage, 1);
+    assert.equal(state.fronts.center.slots.p2.support?.damage, 0);
+    assert.equal(state.fronts.center.slots.p2.support?.barrier, false);
+  });
+
+  void it("validates deterministic release windows without consulting system time", () => {
+    const cards = new Map(proofCardMap);
+    cards.set("entity.linebreaker", {
+      ...cards.get("entity.linebreaker")!,
+      release: {
+        state: "published",
+        availableFrom: "2026-09-01",
+        availableUntil: "2026-12-31",
+      },
+    });
+    const deck = Array.from({ length: 40 }, (_, index) =>
+      index === 0 ? "entity.linebreaker" : proofDeck[index]!,
+    );
+    const format = {
+      ...proofFormat,
+      allowedReleaseStates: ["published" as const],
+      effectiveDate: "2026-08-16",
+    };
+    assert.match(validateDeck(deck, cards, format).join("; "), /not released/);
+    assert.doesNotMatch(
+      validateDeck(deck, cards, {
+        ...format,
+        effectiveDate: "2026-10-01",
+      }).join("; "),
+      /not released|rotated/,
+    );
+  });
+
+  void it("generates localized rules text from the authoritative ability graph", () => {
+    const text = generateRulesText(proofCardMap.get("leader.vanguard")!, {
+      focus: "Power",
+      leader: "Commander",
+    });
+    assert.match(text, /Command/);
+    assert.match(text, /enemy Commander/);
+    assert.match(text, /Once each Cycle/);
+  });
+
+  void it("survives replay serialization and property-checks varied seeds", () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 1_000_000 }), (seed) => {
+        const result = simulateGame(seed);
+        const serialized = JSON.stringify(result.replay);
+        const replay = JSON.parse(serialized) as typeof result.replay;
+        assert.doesNotThrow(() =>
+          verifyReplay({ ...result, replay }, new TempoFrontEngine()),
+        );
+      }),
+      { numRuns: 25 },
+    );
   });
 
   void it("rejects content with an oversized effect list", () => {

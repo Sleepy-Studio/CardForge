@@ -17,10 +17,25 @@ export type CardType =
 export type Keyword =
   "armor" | "barrier" | "ranged" | "rapid" | "structure" | "mobile";
 
+export type StatusId =
+  "stunned" | "rooted" | "silenced" | "exposed" | "protected";
+
+export interface StatusDefinition {
+  readonly statusId: StatusId;
+  readonly value: number;
+  readonly duration: "until_refresh" | "until_cycle_end" | "persistent";
+  readonly stackingPolicy: "add" | "highest" | "refresh";
+}
+
 export type TargetRef =
   | { readonly kind: "chosen_entity" }
   | { readonly kind: "chosen_friendly_entity" }
   | { readonly kind: "chosen_enemy_entity" }
+  | {
+      readonly kind: "chosen_enemy_entities";
+      readonly minimum: number;
+      readonly maximum: number;
+    }
   | { readonly kind: "friendly_leader" }
   | { readonly kind: "enemy_leader" }
   | { readonly kind: "self" };
@@ -38,6 +53,18 @@ export type EffectNode =
   | { readonly op: "salvage"; readonly cardType?: CardType }
   | { readonly op: "scout"; readonly amount: number }
   | { readonly op: "add_barrier"; readonly target: TargetRef }
+  | {
+      readonly op: "add_status";
+      readonly target: TargetRef;
+      readonly status: StatusDefinition;
+    }
+  | {
+      readonly op: "choose_one";
+      readonly options: readonly {
+        readonly optionId: string;
+        readonly effects: readonly EffectNode[];
+      }[];
+    }
   | {
       readonly op: "optional_focus";
       readonly amount: number;
@@ -65,6 +92,11 @@ export interface CardDefinition {
   readonly aspects: readonly Aspect[];
   readonly setId?: string;
   readonly tags?: readonly string[];
+  readonly release?: {
+    readonly state: "draft" | "staged" | "published" | "deprecated";
+    readonly availableFrom?: string;
+    readonly availableUntil?: string;
+  };
   readonly focusCost: number;
   readonly playTime: number;
   readonly subtypes?: readonly string[];
@@ -78,6 +110,11 @@ export interface CardDefinition {
   readonly generatedOnly?: boolean;
   readonly unique?: boolean;
   readonly deckLimit?: number;
+  readonly prepareDiscount?: number;
+  readonly staticModifiers?: {
+    readonly power?: number;
+    readonly presence?: number;
+  };
   readonly deckRestriction?: {
     readonly requiredSubtype: string;
     readonly minimum: number;
@@ -93,6 +130,10 @@ export interface FormatDefinition {
   readonly minimumEntities: number;
   readonly legalSetIds?: readonly string[];
   readonly bannedCardIds?: readonly string[];
+  readonly allowedReleaseStates?: readonly NonNullable<
+    CardDefinition["release"]
+  >["state"][];
+  readonly effectiveDate?: string;
 }
 
 export interface ThemeManifest {

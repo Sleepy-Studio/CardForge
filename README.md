@@ -1,6 +1,6 @@
 # CardForge
 
-CardForge is a deterministic, rebrandable web TCG framework. This repository currently contains the **Milestone 0 rules proof** for its reference game, TempoFront.
+CardForge is a deterministic, rebrandable web TCG framework. This repository contains the completed **Milestone 1 engine vertical slice** for its reference game, TempoFront.
 
 The proof is intentionally headless. It establishes the expensive invariants before UI work begins:
 
@@ -55,10 +55,26 @@ packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
 - authoritative simultaneous setup with one deterministic mulligan per player;
 - format validation for deck size, copy limits, generated cards, and minimum Entities;
 - set rotation, ban-list, Leader Aspect identity, and Leader subtype restrictions;
-- 40-card proof decks and a semantic 20-card-plus-token content fixture.
+- deterministic release-state and date-window legality;
+- structured Stunned, Rooted, Silenced, Exposed, and Protected statuses;
+- playable Prepare/Reserve, Attachment, Relic, and shared Site zones;
+- Leader Commands and persistent-card activations through the normal Response pipeline;
+- modal and bounded multi-target choices recorded as commands;
+- deterministic rules-text generation with theme terminology overrides;
+- selected Format, Leader, content, and ruleset revisions pinned in replay state;
+- 40-card proof decks and a semantic content fixture covering every fundamental interaction;
+- property-based seed coverage and JSON round-trip replay verification.
+
+## Milestone 1 verification
+
+- 24 focused and property-based tests pass.
+- A 1,000-game batch over seeds 7001–8000 completes without an invariant failure.
+- All 1,000 command logs reproduce their exact final state hash.
+- Matches average 11.62 Cycles, 185 commands, 3.61 Reactions, and 7.55 resolved choices.
+- The bot win split is 519–481. These bot numbers are regression telemetry, not a balance verdict.
 
 ## Deliberately deferred
 
-General modal and multi-target choices, redirect/set-value replacement effects, release-date legality, attachments, Relic/Site board zones, full keyword/status pools, rules-text generation, and full publication tooling remain deferred. Their schema seams are present, but pretending they are implemented would be dishonest.
+The browser renderer, online match service, complete keyword/status vocabulary, redirect and set-value replacements, player-ordered simultaneous triggers, full publication tooling, and production content remain deferred. Simultaneous triggers use the documented deterministic order for this slice; manual ordering is intentionally not required by the Milestone 1 rules contract.
 
 See [docs/architecture.md](docs/architecture.md) for boundaries and the next implementation cut.

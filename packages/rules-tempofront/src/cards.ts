@@ -24,6 +24,15 @@ export const proofCards = [
     ],
   },
   {
+    cardId: "leader.proof",
+    revision: 1,
+    name: "Proof Marshal",
+    type: "leader",
+    aspects: ["force", "bastion", "motion", "growth", "cunning", "entropy"],
+    focusCost: 0,
+    playTime: 0,
+  },
+  {
     cardId: "entity.linebreaker",
     revision: 1,
     name: "Linebreaker",
@@ -229,6 +238,7 @@ export const proofCards = [
     aspects: ["force"],
     focusCost: 1,
     playTime: 1,
+    staticModifiers: { power: 1 },
     abilities: [{ abilityId: "edge", type: "static", effects: [] }],
   },
   {
@@ -243,6 +253,8 @@ export const proofCards = [
       {
         abilityId: "beacon",
         type: "activated",
+        timeCost: 1,
+        oncePerCycle: true,
         effects: [{ op: "scout", amount: 2 }],
       },
     ],
@@ -255,6 +267,7 @@ export const proofCards = [
     aspects: ["neutral"],
     focusCost: 2,
     playTime: 2,
+    staticModifiers: { presence: 1 },
     abilities: [{ abilityId: "overlook", type: "static", effects: [] }],
   },
   {
@@ -317,6 +330,7 @@ export const proofCards = [
     aspects: ["motion"],
     focusCost: 1,
     playTime: 1,
+    prepareDiscount: 1,
     abilities: [
       {
         abilityId: "survey",
@@ -348,12 +362,105 @@ export const proofCards = [
       },
     ],
   },
+  {
+    cardId: "tactic.stagger",
+    revision: 1,
+    name: "Staggering Pulse",
+    type: "tactic",
+    aspects: ["cunning"],
+    focusCost: 1,
+    playTime: 1,
+    abilities: [
+      {
+        abilityId: "stagger",
+        type: "activated",
+        effects: [
+          {
+            op: "add_status",
+            target: { kind: "chosen_enemy_entity" },
+            status: {
+              statusId: "stunned",
+              value: 1,
+              duration: "until_refresh",
+              stackingPolicy: "refresh",
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    cardId: "tactic.crossfire",
+    revision: 1,
+    name: "Crossfire",
+    type: "tactic",
+    aspects: ["force"],
+    focusCost: 3,
+    playTime: 3,
+    abilities: [
+      {
+        abilityId: "crossfire",
+        type: "activated",
+        effects: [
+          {
+            op: "deal_damage",
+            target: {
+              kind: "chosen_enemy_entities",
+              minimum: 1,
+              maximum: 2,
+            },
+            amount: 2,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    cardId: "tactic.adapt",
+    revision: 1,
+    name: "Adapt the Plan",
+    type: "tactic",
+    aspects: ["growth"],
+    focusCost: 2,
+    playTime: 2,
+    abilities: [
+      {
+        abilityId: "adapt",
+        type: "activated",
+        effects: [
+          {
+            op: "choose_one",
+            options: [
+              {
+                optionId: "recover",
+                effects: [
+                  {
+                    op: "heal",
+                    target: { kind: "friendly_leader" },
+                    amount: 2,
+                  },
+                ],
+              },
+              {
+                optionId: "resupply",
+                effects: [{ op: "draw", amount: 1 }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ] as const satisfies readonly CardDefinition[];
 
 export const proofCardMap: ReadonlyMap<string, CardDefinition> = new Map(
   proofCards.map((card) => [card.cardId, card]),
 );
 export const proofContentHash = stateHash(proofCards);
+export const proofLeaders = {
+  p1: "leader.proof",
+  p2: "leader.proof",
+} as const;
 
 const deckPattern = [
   "entity.linebreaker",
@@ -372,6 +479,12 @@ const deckPattern = [
   "tactic.survey",
   "reaction.deflect",
   "reaction.denial",
+  "attachment.edge",
+  "relic.beacon",
+  "site.overlook",
+  "tactic.stagger",
+  "tactic.crossfire",
+  "tactic.adapt",
 ] as const;
 
 export const proofDeck: readonly string[] = Array.from(

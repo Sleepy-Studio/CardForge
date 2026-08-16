@@ -4,7 +4,16 @@ import type {
   FrontId,
   PlayerId,
   SlotId,
+  StatusId,
 } from "@cardforge/card-schema";
+
+export interface StatusInstance {
+  readonly statusId: StatusId;
+  readonly sourceId: string;
+  value: number;
+  duration: "until_refresh" | "until_cycle_end" | "persistent";
+  readonly stackingPolicy: "add" | "highest" | "refresh";
+}
 
 export interface CardInstance {
   readonly instanceId: string;
@@ -16,10 +25,14 @@ export interface CardInstance {
   ready: boolean;
   barrier: boolean;
   shiftsThisCycle: number;
+  readonly statuses: StatusInstance[];
+  readonly attachments: CardInstance[];
+  readonly usedAbilityIds: string[];
 }
 
 export interface FrontState {
   readonly slots: Record<PlayerId, Record<SlotId, CardInstance | null>>;
+  site: CardInstance | null;
 }
 
 export interface PlayerState {
@@ -32,14 +45,19 @@ export interface PlayerState {
   fatigue: number;
   passed: boolean;
   mulliganSubmitted: boolean;
+  readonly leader: CardInstance;
   readonly deck: CardInstance[];
   readonly hand: CardInstance[];
   readonly discard: CardInstance[];
+  reserve: CardInstance | null;
+  readonly relics: CardInstance[];
 }
 
 export interface GameState {
   readonly matchId: string;
   readonly rulesetRevision: string;
+  readonly formatId: string;
+  readonly formatRevision: number;
   readonly contentHash: string;
   readonly rng: { readonly seed: number; index: number };
   cycle: number;
@@ -65,6 +83,20 @@ export type MainActionCommand =
       readonly front?: FrontId;
       readonly slot?: SlotId;
       readonly targetId?: string;
+      readonly targetIds?: readonly string[];
+    }
+  | {
+      readonly type: "prepare_card";
+      readonly playerId: PlayerId;
+      readonly instanceId: string;
+    }
+  | {
+      readonly type: "activate_ability";
+      readonly playerId: PlayerId;
+      readonly sourceId: string;
+      readonly abilityId: string;
+      readonly targetId?: string;
+      readonly targetIds?: readonly string[];
     }
   | {
       readonly type: "strike";
@@ -87,6 +119,7 @@ export type ResponseCommand =
       readonly playerId: PlayerId;
       readonly instanceId: string;
       readonly targetId?: string;
+      readonly targetIds?: readonly string[];
     }
   | { readonly type: "pass_response"; readonly playerId: PlayerId };
 
@@ -112,6 +145,7 @@ export interface PendingReaction {
   readonly playerId: PlayerId;
   readonly card: CardInstance;
   readonly targetId?: string;
+  readonly targetIds?: readonly string[];
 }
 
 export interface PendingAction {
@@ -128,6 +162,7 @@ export interface QueuedEffect {
   readonly controllerId: PlayerId;
   readonly effect: EffectNode;
   readonly chosenTargetId?: string;
+  readonly chosenTargetIds?: readonly string[];
   readonly sourceFront?: FrontId;
 }
 
@@ -146,6 +181,15 @@ export type PendingChoice =
       readonly kind: "optional_focus";
       readonly amount: number;
       readonly continuation: readonly QueuedEffect[];
+    }
+  | {
+      readonly choiceId: string;
+      readonly chooserId: PlayerId;
+      readonly kind: "choose_one";
+      readonly options: readonly {
+        readonly optionId: string;
+        readonly continuation: readonly QueuedEffect[];
+      }[];
     };
 
 export type GameEvent =
@@ -174,7 +218,7 @@ export type GameEvent =
       readonly type: "damage_replaced";
       readonly sourceId: string;
       readonly targetId: string;
-      readonly replacement: "barrier" | "armor";
+      readonly replacement: "barrier" | "armor" | "protected";
       readonly prevented: number;
     }
   | {
@@ -207,6 +251,23 @@ export type GameEvent =
       readonly type: "card_played";
       readonly playerId: PlayerId;
       readonly instanceId: string;
+    }
+  | {
+      readonly type: "card_prepared";
+      readonly playerId: PlayerId;
+      readonly instanceId: string;
+    }
+  | {
+      readonly type: "ability_activated";
+      readonly playerId: PlayerId;
+      readonly sourceId: string;
+      readonly abilityId: string;
+    }
+  | {
+      readonly type: "status_added";
+      readonly targetId: string;
+      readonly statusId: StatusId;
+      readonly value: number;
     }
   | {
       readonly type: "entity_deployed";
@@ -252,8 +313,11 @@ export interface ReplayRecord {
   readonly matchId: string;
   readonly seed: number;
   readonly rulesetRevision: string;
+  readonly formatId: string;
+  readonly formatRevision: number;
   readonly contentHash: string;
   readonly decks: Readonly<Record<PlayerId, readonly string[]>>;
+  readonly leaders?: Readonly<Record<PlayerId, string>>;
   readonly acceptedCommands: readonly Command[];
   readonly finalStateHash: string;
 }
@@ -267,8 +331,12 @@ export interface ProjectedPlayerView {
   readonly dominion: number;
   readonly deckCount: number;
   readonly handCount: number;
+  readonly reserveCount: 0 | 1;
   readonly hand?: readonly CardInstance[];
   readonly discard: readonly CardInstance[];
+  readonly leader: CardInstance;
+  readonly reserve?: CardInstance | null;
+  readonly relics: readonly CardInstance[];
 }
 
 export interface ProjectedGameView {
@@ -300,6 +368,7 @@ export interface RulesEngine {
     matchId: string;
     seed: number;
     decks: Readonly<Record<PlayerId, readonly string[]>>;
+    leaders?: Readonly<Record<PlayerId, string>>;
   }): GameState;
   getLegalCommands(state: GameState, playerId: PlayerId): readonly Command[];
   applyCommand(state: GameState, command: Command): CommandResult;
