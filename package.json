@@ -5,12 +5,14 @@
   "packageManager": "pnpm@11.17.0",
   "type": "module",
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && pnpm --filter @cardforge/web build",
     "clean": "tsc -b --clean",
-    "dev": "pnpm build && node apps/simulator/dist/cli.js",
+    "dev": "pnpm --filter @cardforge/web dev",
+    "dev:sim": "tsc -b && node apps/simulator/dist/cli.js",
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "sim": "pnpm build && node apps/simulator/dist/cli.js",
+    "smoke:web": "pnpm --filter @cardforge/web smoke",
     "test": "pnpm build && node --test apps/simulator/dist/*.test.js"
   },
   "devDependencies": {

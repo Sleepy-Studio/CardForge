@@ -82,6 +82,13 @@ void describe("TempoFront deterministic proof", () => {
     );
   });
 
+  void it("preserves canonical SHA-256 across Node and browser runtimes", () => {
+    assert.equal(
+      stateHash({ b: 2, a: 1 }),
+      "43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777",
+    );
+  });
+
   void it("instantiates cards from the selected content pack rather than the proof globals", () => {
     const cards = new Map(proofCardMap);
     cards.set("entity.linebreaker", {

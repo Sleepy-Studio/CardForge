@@ -8,7 +8,8 @@
   },
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@cardforge/card-schema": "workspace:*"
+    "@cardforge/card-schema": "workspace:*",
+    "@noble/hashes": "^2.3.0"
   },
   "scripts": {
     "build": "tsc -b"

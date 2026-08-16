@@ -78,3 +78,20 @@ packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
 The browser renderer, online match service, complete keyword/status vocabulary, redirect and set-value replacements, player-ordered simultaneous triggers, full publication tooling, and production content remain deferred. Simultaneous triggers use the documented deterministic order for this slice; manual ordering is intentionally not required by the Milestone 1 rules contract.
 
 See [docs/architecture.md](docs/architecture.md) for boundaries and the next implementation cut.
+
+## Milestone 2 progress
+
+The first browser slice is now runnable in `apps/web`:
+
+- Next.js App Router and React 19 application shell;
+- production TempoFront engine running directly in the browser;
+- browser-safe synchronous SHA-256 with hashes identical to the Node runtime;
+- PixiJS WebGL battlefield with semantic Front, Site, and slot presentation;
+- DOM resource HUD, Timeline, card hand, inspector, legal-action rail, and event stream;
+- projected Time costs before action confirmation;
+- deterministic bot opponent and mulligan handoff;
+- keyboard-operable legal actions and screen-reader board summaries;
+- reduced-motion and responsive layouts;
+- production build, HTTP smoke, screenshot review, and CDP interaction smoke.
+
+Run it with `pnpm dev`. Milestone 2 is not complete yet: hot-seat play, four real Leaders, the sixty-card prototype pool, richer board animation, and new-player usability testing remain.

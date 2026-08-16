@@ -1,0 +1,25 @@
+{
+  "name": "@cardforge/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "smoke": "node scripts/smoke.ts",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@cardforge/card-schema": "workspace:*",
+    "@cardforge/rules-kernel": "workspace:*",
+    "@cardforge/rules-tempofront": "workspace:*",
+    "next": "^16.3.1",
+    "pixi.js": "^8.19.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4"
+  }
+}

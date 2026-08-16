@@ -99,10 +99,25 @@ of competitive balance.
 
 The product brief naturally pulls toward a complete monorepo and polished UI. That is the wrong proof. The main architectural risk is nondeterministic, unbounded card behavior; therefore this slice tests the rules seam under repeated complete games before application infrastructure is introduced.
 
-## Next milestone
+## Milestone 2 browser slice
 
-Milestone 2 is now the critical path: a local browser prototype with a bot,
-React/Pixi match presentation, DOM card inspection, legal-target highlighting,
-Timeline previews, four Leaders, and a sixty-card pool. Kernel additions should
-be driven by concrete prototype or content requirements rather than speculative
-universal-engine work.
+Milestone 2 is in progress. `apps/web` is a Next.js App Router client that runs
+the production TempoFront engine locally. PixiJS renders board geometry and
+pointer hit targets through WebGL; React/DOM owns the Timeline, resources, hand,
+generated rules text, card inspector, legal actions, event history, and screen-
+reader state. Animations do not gate command resolution.
+
+The rules kernel now hashes with a synchronous browser-safe SHA-256 package.
+A fixed digest test proves byte-for-byte compatibility with the former Node
+implementation, preserving replay hashes. The deterministic browser bot submits
+the same legal intent commands as a human client.
+
+A production-browser smoke test drives Chromium through mulligan, bot handoff,
+card selection, inspection, legal-action discovery, and action resolution. The
+first screenshot review confirms that all three Fronts and the Timeline remain
+readable at 1440×1000.
+
+Remaining Milestone 2 work is local hot-seat play, four production-style
+Leaders, expansion to sixty cards, richer semantic event animation, and a
+new-player comprehension pass. Kernel additions remain driven by those concrete
+prototype requirements rather than speculative universal-engine work.
