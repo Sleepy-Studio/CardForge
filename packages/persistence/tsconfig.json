@@ -6,5 +6,9 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../rules-kernel" }]
+  "references": [
+    { "path": "../card-schema" },
+    { "path": "../competitive" },
+    { "path": "../rules-kernel" }
+  ]
 }

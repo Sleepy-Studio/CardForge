@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { persistenceTestReplay } from "./fixtures.js";
 import { MemoryCardForgeStore } from "./memory-store.js";
+import { createMatchTelemetry, seasonOne } from "@cardforge/competitive";
 
 void describe("CardForge persistence contract", () => {
   void it("isolates account decks and clones stored records", async () => {
@@ -51,5 +52,56 @@ void describe("CardForge persistence contract", () => {
       status: "active",
       replay,
     });
+  });
+
+  void it("settles a ranked match exactly once and persists telemetry", async () => {
+    const store = new MemoryCardForgeStore();
+    await store.upsertAccount("account-one", "Player One");
+    await store.upsertAccount("account-two", "Player Two");
+    const replay = persistenceTestReplay("ranked-memory");
+    const participants = {
+      p1: {
+        playerId: "p1",
+        accountId: "account-one",
+        leaderId: "leader.ember",
+        aspects: ["force"],
+      },
+      p2: {
+        playerId: "p2",
+        accountId: "account-two",
+        leaderId: "leader.citadel",
+        aspects: ["bastion"],
+      },
+    } as const;
+    const telemetry = createMatchTelemetry({
+      replay,
+      queue: "ranked",
+      seasonId: seasonOne.seasonId,
+      participants,
+      winnerId: "p1",
+      victoryReason: "integrity",
+      startingInitiative: "p2",
+      cycles: 9,
+    });
+    const completion = {
+      matchId: replay.matchId,
+      seasonId: seasonOne.seasonId,
+      participants,
+      winnerId: "p1",
+      cycles: 9,
+      telemetry,
+    } as const;
+    const first = await store.completeRankedMatch(completion);
+    const duplicate = await store.completeRankedMatch(completion);
+    assert.equal(first?.ratingDelta.p1, 16);
+    assert.equal(duplicate, null);
+    assert.equal(
+      (await store.getCompetitiveProfile("account-one", seasonOne.seasonId))
+        ?.wins,
+      1,
+    );
+    assert.deepEqual(await store.listTelemetry(seasonOne.seasonId), [
+      telemetry,
+    ]);
   });
 });

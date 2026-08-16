@@ -1,4 +1,11 @@
 import type { ReplayRecord } from "@cardforge/rules-kernel";
+import type {
+  CompetitiveProfile,
+  MatchTelemetry,
+  RankedParticipant,
+  RankedSettlement,
+} from "@cardforge/competitive";
+import type { PlayerId } from "@cardforge/card-schema";
 
 export interface DeckRecord {
   readonly deckId: string;
@@ -18,6 +25,15 @@ export interface StoredMatchRecord {
   readonly replay: ReplayRecord;
 }
 
+export interface RankedCompletion {
+  readonly matchId: string;
+  readonly seasonId: string;
+  readonly participants: Readonly<Record<PlayerId, RankedParticipant>>;
+  readonly winnerId: PlayerId;
+  readonly cycles: number;
+  readonly telemetry: MatchTelemetry;
+}
+
 export interface CardForgeStore {
   migrate(): Promise<void>;
   upsertAccount(accountId: string, displayName: string): Promise<void>;
@@ -26,5 +42,18 @@ export interface CardForgeStore {
   listDecks(accountId: string): Promise<readonly DeckRecord[]>;
   saveMatch(record: StoredMatchRecord): Promise<void>;
   getMatch(matchId: string): Promise<StoredMatchRecord | null>;
+  getCompetitiveProfile(
+    accountId: string,
+    seasonId: string,
+  ): Promise<CompetitiveProfile | null>;
+  saveCompetitiveProfile(profile: CompetitiveProfile): Promise<void>;
+  saveTelemetry(telemetry: MatchTelemetry): Promise<void>;
+  listTelemetry(
+    seasonId?: string,
+    limit?: number,
+  ): Promise<readonly MatchTelemetry[]>;
+  completeRankedMatch(
+    completion: RankedCompletion,
+  ): Promise<RankedSettlement | null>;
   close(): Promise<void>;
 }

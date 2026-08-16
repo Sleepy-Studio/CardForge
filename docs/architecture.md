@@ -281,3 +281,10 @@ settlement calculates ratings, account experience, Aspect mastery, and Leader
 unlocks from explicit match inputs. Telemetry derives action, Reaction, choice,
 victory-route, cycle, Initiative, and per-Leader metrics from accepted command
 records, keeping the dashboard reproducible rather than client-reported.
+
+The competitive persistence migration stores seasonal profiles, indexed ladder
+ratings, replay-derived telemetry, and one settlement receipt per match. Ranked
+completion locks both profiles in a PostgreSQL transaction, calculates the
+settlement from their current ratings, writes progression and telemetry, and
+commits the receipt together. A repeated completion attempt returns no award.
+The in-memory adapter implements the same contract for tests and local work.

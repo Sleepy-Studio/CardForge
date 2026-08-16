@@ -12,6 +12,8 @@
     "smoke": "node dist/postgres-smoke.js"
   },
   "dependencies": {
+    "@cardforge/card-schema": "workspace:*",
+    "@cardforge/competitive": "workspace:*",
     "@cardforge/rules-kernel": "workspace:*",
     "postgres": "^3.4.9"
   }

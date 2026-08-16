@@ -1,7 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import postgres, { type Sql } from "postgres";
-import type { CardForgeStore, DeckRecord, StoredMatchRecord } from "./types.js";
+import postgres, { type Sql, type TransactionSql } from "postgres";
+import {
+  createCompetitiveProfile,
+  settleRankedMatch,
+  type CompetitiveProfile,
+  type MatchTelemetry,
+  type RankedSettlement,
+} from "@cardforge/competitive";
+import type {
+  CardForgeStore,
+  DeckRecord,
+  RankedCompletion,
+  StoredMatchRecord,
+} from "./types.js";
 
 interface DeckRow {
   deck_id: string;
@@ -17,6 +29,22 @@ interface DeckRow {
 interface MatchRow {
   status: StoredMatchRecord["status"];
   replay: StoredMatchRecord["replay"];
+}
+
+interface ProfileRow {
+  account_id: string;
+  season_id: string;
+  rating: number;
+  wins: number;
+  losses: number;
+  account_xp: number;
+  account_level: number;
+  aspect_mastery: CompetitiveProfile["aspectMastery"];
+  unlocked_leader_ids: string[];
+}
+
+interface TelemetryRow {
+  telemetry: MatchTelemetry;
 }
 
 export class PostgresCardForgeStore implements CardForgeStore {
@@ -36,6 +64,7 @@ export class PostgresCardForgeStore implements CardForgeStore {
     for (const migrationId of [
       "0001_alpha_storage",
       "0002_account_scoped_decks",
+      "0003_competitive_beta",
     ]) {
       const applied = await this.#sql<{ migration_id: string }[]>`
         SELECT migration_id FROM cardforge_schema_migrations
@@ -157,6 +186,123 @@ export class PostgresCardForgeStore implements CardForgeStore {
     return rows[0] ? structuredClone(rows[0]) : null;
   }
 
+  async getCompetitiveProfile(
+    accountId: string,
+    seasonId: string,
+  ): Promise<CompetitiveProfile | null> {
+    const rows = await this.#sql<ProfileRow[]>`
+      SELECT account_id, season_id, rating, wins, losses, account_xp,
+             account_level, aspect_mastery, unlocked_leader_ids
+      FROM cardforge_competitive_profiles
+      WHERE account_id = ${accountId} AND season_id = ${seasonId}
+    `;
+    return rows[0] ? this.#profileFromRow(rows[0]) : null;
+  }
+
+  async saveCompetitiveProfile(profile: CompetitiveProfile): Promise<void> {
+    await this.#saveProfile(this.#sql, profile);
+  }
+
+  async saveTelemetry(telemetry: MatchTelemetry): Promise<void> {
+    await this.#saveTelemetry(this.#sql, telemetry);
+  }
+
+  async listTelemetry(
+    seasonId?: string,
+    limit = 1_000,
+  ): Promise<readonly MatchTelemetry[]> {
+    const boundedLimit = Math.max(0, Math.min(10_000, limit));
+    const rows = seasonId
+      ? await this.#sql<TelemetryRow[]>`
+          SELECT telemetry FROM cardforge_match_telemetry
+          WHERE season_id = ${seasonId}
+          ORDER BY created_at DESC
+          LIMIT ${boundedLimit}
+        `
+      : await this.#sql<TelemetryRow[]>`
+          SELECT telemetry FROM cardforge_match_telemetry
+          ORDER BY created_at DESC
+          LIMIT ${boundedLimit}
+        `;
+    return rows.map((row) => structuredClone(row.telemetry));
+  }
+
+  async completeRankedMatch(
+    completion: RankedCompletion,
+  ): Promise<RankedSettlement | null> {
+    return this.#sql.begin(async (sql) => {
+      const winnerAccountId =
+        completion.participants[completion.winnerId].accountId;
+      const inserted = await sql<{ match_id: string }[]>`
+        INSERT INTO cardforge_ranked_settlements (
+          match_id, season_id, winner_account_id, settlement
+        ) VALUES (
+          ${completion.matchId}, ${completion.seasonId}, ${winnerAccountId},
+          ${sql.json({})}
+        )
+        ON CONFLICT (match_id) DO NOTHING
+        RETURNING match_id
+      `;
+      if (!inserted.length) return null;
+
+      for (const participant of Object.values(completion.participants)) {
+        const initial = createCompetitiveProfile(
+          participant.accountId,
+          completion.seasonId,
+        );
+        await sql`
+          INSERT INTO cardforge_competitive_profiles (
+            account_id, season_id, rating, wins, losses, account_xp,
+            account_level, aspect_mastery, unlocked_leader_ids
+          ) VALUES (
+            ${initial.accountId}, ${initial.seasonId}, ${initial.rating},
+            ${initial.wins}, ${initial.losses}, ${initial.accountXp},
+            ${initial.accountLevel}, ${sql.json(initial.aspectMastery)},
+            ${initial.unlockedLeaderIds as string[]}
+          )
+          ON CONFLICT (account_id, season_id) DO NOTHING
+        `;
+      }
+      const accountIds = [
+        completion.participants.p1.accountId,
+        completion.participants.p2.accountId,
+      ];
+      const rows = await sql<ProfileRow[]>`
+        SELECT account_id, season_id, rating, wins, losses, account_xp,
+               account_level, aspect_mastery, unlocked_leader_ids
+        FROM cardforge_competitive_profiles
+        WHERE season_id = ${completion.seasonId}
+          AND account_id IN ${sql(accountIds)}
+        ORDER BY account_id
+        FOR UPDATE
+      `;
+      const byAccount = new Map(
+        rows.map((row) => [row.account_id, this.#profileFromRow(row)]),
+      );
+      const profiles = {
+        p1: byAccount.get(completion.participants.p1.accountId)!,
+        p2: byAccount.get(completion.participants.p2.accountId)!,
+      };
+      const settlement = settleRankedMatch(
+        completion.matchId,
+        completion.seasonId,
+        profiles,
+        completion.participants,
+        completion.winnerId,
+        completion.cycles,
+      );
+      await this.#saveProfile(sql, settlement.profiles.p1);
+      await this.#saveProfile(sql, settlement.profiles.p2);
+      await this.#saveTelemetry(sql, completion.telemetry);
+      await sql`
+        UPDATE cardforge_ranked_settlements
+        SET settlement = ${sql.json(settlement as never)}
+        WHERE match_id = ${completion.matchId}
+      `;
+      return settlement;
+    });
+  }
+
   async close(): Promise<void> {
     await this.#sql.end();
   }
@@ -172,5 +318,69 @@ export class PostgresCardForgeStore implements CardForgeStore {
       revision: row.revision,
       cardIds: row.card_ids,
     };
+  }
+
+  #profileFromRow(row: ProfileRow): CompetitiveProfile {
+    return {
+      accountId: row.account_id,
+      seasonId: row.season_id,
+      rating: row.rating,
+      wins: row.wins,
+      losses: row.losses,
+      accountXp: row.account_xp,
+      accountLevel: row.account_level,
+      aspectMastery: row.aspect_mastery,
+      unlockedLeaderIds: row.unlocked_leader_ids,
+    };
+  }
+
+  async #saveProfile(
+    sql: Sql | TransactionSql,
+    profile: CompetitiveProfile,
+  ): Promise<void> {
+    await sql`
+      INSERT INTO cardforge_competitive_profiles (
+        account_id, season_id, rating, wins, losses, account_xp,
+        account_level, aspect_mastery, unlocked_leader_ids
+      ) VALUES (
+        ${profile.accountId}, ${profile.seasonId}, ${profile.rating},
+        ${profile.wins}, ${profile.losses}, ${profile.accountXp},
+        ${profile.accountLevel}, ${sql.json(profile.aspectMastery)},
+        ${profile.unlockedLeaderIds as string[]}
+      )
+      ON CONFLICT (account_id, season_id) DO UPDATE SET
+        rating = EXCLUDED.rating,
+        wins = EXCLUDED.wins,
+        losses = EXCLUDED.losses,
+        account_xp = EXCLUDED.account_xp,
+        account_level = EXCLUDED.account_level,
+        aspect_mastery = EXCLUDED.aspect_mastery,
+        unlocked_leader_ids = EXCLUDED.unlocked_leader_ids,
+        updated_at = now()
+    `;
+  }
+
+  async #saveTelemetry(
+    sql: Sql | TransactionSql,
+    telemetry: MatchTelemetry,
+  ): Promise<void> {
+    await sql`
+      INSERT INTO cardforge_match_telemetry (
+        match_id, queue, season_id, winner_id, victory_reason, cycles,
+        command_count, telemetry
+      ) VALUES (
+        ${telemetry.matchId}, ${telemetry.queue}, ${telemetry.seasonId ?? null},
+        ${telemetry.winnerId}, ${telemetry.victoryReason}, ${telemetry.cycles},
+        ${telemetry.commandCount}, ${sql.json(telemetry as never)}
+      )
+      ON CONFLICT (match_id) DO UPDATE SET
+        queue = EXCLUDED.queue,
+        season_id = EXCLUDED.season_id,
+        winner_id = EXCLUDED.winner_id,
+        victory_reason = EXCLUDED.victory_reason,
+        cycles = EXCLUDED.cycles,
+        command_count = EXCLUDED.command_count,
+        telemetry = EXCLUDED.telemetry
+    `;
   }
 }

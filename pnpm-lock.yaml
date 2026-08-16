@@ -172,6 +172,12 @@ importers:
 
   packages/persistence:
     dependencies:
+      '@cardforge/card-schema':
+        specifier: workspace:*
+        version: link:../card-schema
+      '@cardforge/competitive':
+        specifier: workspace:*
+        version: link:../competitive
       '@cardforge/rules-kernel':
         specifier: workspace:*
         version: link:../rules-kernel
