@@ -112,12 +112,22 @@ A fixed digest test proves byte-for-byte compatibility with the former Node
 implementation, preserving replay hashes. The deterministic browser bot submits
 the same legal intent commands as a human client.
 
-A production-browser smoke test drives Chromium through mulligan, bot handoff,
-card selection, inspection, legal-action discovery, and action resolution. The
-first screenshot review confirms that all three Fronts and the Timeline remain
-readable at 1440×1000.
+Local hot-seat play also uses the same command path. The revealed viewer is
+always rendered at the bottom of the Pixi board. When priority changes players,
+React immediately removes the previous hand and legal controls, then covers the
+field with an explicit pass-device screen until the next seat is revealed.
+This protects ordinary over-the-table hidden information, but it is not a
+security boundary: the local browser process still owns the complete match
+state. Online play must render server-projected views instead.
 
-Remaining Milestone 2 work is local hot-seat play, four production-style
-Leaders, expansion to sixty cards, richer semantic event animation, and a
-new-player comprehension pass. Kernel additions remain driven by those concrete
-prototype requirements rather than speculative universal-engine work.
+A production-browser smoke test drives Chromium through mulligan, bot handoff,
+card selection, inspection, legal-action discovery, and action resolution. It
+then switches modes and verifies both hot-seat mulligans, hand blanking during
+handoff, viewer rotation, a Main Action transfer, and the opposing Response
+seat. The first screenshot review confirms that all three Fronts and the
+Timeline remain readable at 1440×1000.
+
+Remaining Milestone 2 work is four production-style Leaders, expansion to sixty
+cards, richer semantic event animation, and a new-player comprehension pass.
+Kernel additions remain driven by those concrete prototype requirements rather
+than speculative universal-engine work.

@@ -90,8 +90,15 @@ The first browser slice is now runnable in `apps/web`:
 - DOM resource HUD, Timeline, card hand, inspector, legal-action rail, and event stream;
 - projected Time costs before action confirmation;
 - deterministic bot opponent and mulligan handoff;
+- local hot-seat mode with explicit private handoff locks and viewer-relative board rotation;
 - keyboard-operable legal actions and screen-reader board summaries;
 - reduced-motion and responsive layouts;
 - production build, HTTP smoke, screenshot review, and CDP interaction smoke.
 
-Run it with `pnpm dev`. Milestone 2 is not complete yet: hot-seat play, four real Leaders, the sixty-card prototype pool, richer board animation, and new-player usability testing remain.
+Run it with `pnpm dev`. Hot-seat privacy is designed for two people sharing one
+device: the hand and controls are blanked during every priority transfer, but
+the full local state still exists in browser memory. Server-projected secrecy
+arrives with online play in Milestone 3.
+
+Milestone 2 is not complete yet: four real Leaders, the sixty-card prototype
+pool, richer board animation, and new-player usability testing remain.

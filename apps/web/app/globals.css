@@ -150,6 +150,34 @@ button:focus-visible {
   letter-spacing: 0.08em;
 }
 
+.mode-switch {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(3, 10, 18, 0.72);
+}
+
+.mode-button {
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: var(--muted);
+  cursor: pointer;
+  background: transparent;
+  font:
+    800 9px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.08em;
+}
+
+.mode-button.is-active {
+  color: #04121a;
+  background: var(--cyan);
+}
+
 .status-light {
   width: 8px;
   height: 8px;
@@ -645,6 +673,23 @@ button:focus-visible {
   overflow-x: auto;
 }
 
+.hand.is-private {
+  min-height: 102px;
+  align-items: center;
+  justify-content: center;
+}
+
+.hand.is-private::after {
+  color: var(--muted);
+  content: "PRIVATE HAND LOCKED";
+  font:
+    800 10px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.16em;
+}
+
 .hand-card {
   position: relative;
   display: grid;
@@ -744,6 +789,53 @@ button:focus-visible {
   border: 0;
 }
 
+.handoff-screen {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  padding: 24px;
+  place-items: center;
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(21, 62, 86, 0.34),
+      transparent 34rem
+    ),
+    rgba(2, 6, 12, 0.97);
+  backdrop-filter: blur(22px);
+}
+
+.handoff-card {
+  width: min(460px, 100%);
+  border: 1px solid var(--line-hot);
+  border-radius: 18px;
+  padding: 30px;
+  text-align: center;
+  background: linear-gradient(
+    150deg,
+    rgba(15, 39, 59, 0.98),
+    rgba(6, 15, 27, 0.99)
+  );
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.72);
+}
+
+.handoff-card .eyebrow {
+  color: var(--cyan);
+}
+
+.handoff-card h2 {
+  margin: 10px 0;
+  font-size: clamp(24px, 5vw, 36px);
+  letter-spacing: -0.04em;
+}
+
+.handoff-card p:not(.eyebrow) {
+  margin: 0 auto 22px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 @media (max-width: 1050px) {
   .match-grid {
     grid-template-columns: 1fr;
@@ -772,6 +864,7 @@ button:focus-visible {
 
   .topbar {
     gap: 12px;
+    flex-wrap: wrap;
   }
 
   .brand-lockup p,
@@ -780,8 +873,13 @@ button:focus-visible {
   }
 
   .match-meta {
+    width: 100%;
     justify-content: flex-end;
     font-size: 9px;
+  }
+
+  .mode-switch {
+    margin-right: auto;
   }
 
   .opponent-bar {

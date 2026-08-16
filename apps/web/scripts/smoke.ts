@@ -34,6 +34,18 @@ interface SmokeResolution {
   readonly pageTitle: string;
 }
 
+interface HotseatPrivacy {
+  readonly handoffVisible: boolean;
+  readonly exposedHandCards: number;
+  readonly viewer: string;
+}
+
+interface HotseatSeat {
+  readonly viewer: string;
+  readonly handCards: number;
+  readonly actionCount: number;
+}
+
 const endpoint = process.env.CARDFORGE_CDP_URL ?? "http://127.0.0.1:9222";
 
 function delay(milliseconds: number): Promise<void> {
@@ -150,7 +162,102 @@ const resolved = await evaluate<SmokeResolution>(`({
 if (!resolved.latestEvent || !resolved.canvasStillMounted)
   throw new Error(`Action smoke failed: ${JSON.stringify(resolved)}`);
 
+await evaluate(
+  `document.querySelector('.mode-button[data-mode="hotseat"]')?.click()`,
+);
+await delay(100);
+await evaluate(`document.querySelector('.button--primary')?.click()`);
+await delay(100);
+
+const lockedForPlayer2 = await evaluate<HotseatPrivacy>(`({
+  handoffVisible: Boolean(document.querySelector('.handoff-screen')),
+  exposedHandCards: document.querySelectorAll('.hand-card').length,
+  viewer: document.querySelector('.player-dock')?.getAttribute('data-viewer') ?? ''
+})`);
+if (
+  !lockedForPlayer2.handoffVisible ||
+  lockedForPlayer2.exposedHandCards !== 0 ||
+  lockedForPlayer2.viewer !== "p1"
+)
+  throw new Error(
+    `Player 2 handoff privacy failed: ${JSON.stringify(lockedForPlayer2)}`,
+  );
+
+await evaluate(`document.querySelector('.handoff-button')?.click()`);
+await delay(100);
+const player2Seat = await evaluate<HotseatSeat>(`({
+  viewer: document.querySelector('.player-dock')?.getAttribute('data-viewer') ?? '',
+  handCards: document.querySelectorAll('.hand-card').length,
+  actionCount: document.querySelectorAll('.action-button').length
+})`);
+if (player2Seat.viewer !== "p2" || player2Seat.handCards === 0)
+  throw new Error(`Player 2 reveal failed: ${JSON.stringify(player2Seat)}`);
+
+await evaluate(`document.querySelector('.button--primary')?.click()`);
+await delay(100);
+const hasSecondHandoff = await evaluate<boolean>(
+  `Boolean(document.querySelector('.handoff-screen'))`,
+);
+if (hasSecondHandoff) {
+  const hidden = await evaluate<number>(
+    `document.querySelectorAll('.hand-card').length`,
+  );
+  if (hidden !== 0)
+    throw new Error("Completed mulligan exposed a private hand");
+  await evaluate(`document.querySelector('.handoff-button')?.click()`);
+  await delay(100);
+}
+
+await evaluate(`{
+  const cards = [...document.querySelectorAll('.hand-card')];
+  const playable = cards.find((card) => card.querySelector('small')?.textContent === 'ENTITY') ?? cards[0];
+  playable?.click();
+}`);
+await delay(100);
+await evaluate(`document.querySelector('.action-button')?.click()`);
+await delay(100);
+const lockedAfterAction = await evaluate<HotseatPrivacy>(`({
+  handoffVisible: Boolean(document.querySelector('.handoff-screen')),
+  exposedHandCards: document.querySelectorAll('.hand-card').length,
+  viewer: document.querySelector('.player-dock')?.getAttribute('data-viewer') ?? ''
+})`);
+if (
+  !lockedAfterAction.handoffVisible ||
+  lockedAfterAction.exposedHandCards !== 0
+)
+  throw new Error(
+    `Action handoff privacy failed: ${JSON.stringify(lockedAfterAction)}`,
+  );
+
+await evaluate(`document.querySelector('.handoff-button')?.click()`);
+await delay(100);
+const responseSeat = await evaluate<HotseatSeat>(`({
+  viewer: document.querySelector('.player-dock')?.getAttribute('data-viewer') ?? '',
+  handCards: document.querySelectorAll('.hand-card').length,
+  actionCount: document.querySelectorAll('.action-button').length
+})`);
+if (responseSeat.handCards === 0 || responseSeat.actionCount === 0)
+  throw new Error(
+    `Response seat reveal failed: ${JSON.stringify(responseSeat)}`,
+  );
+
 socket.close();
-console.log(JSON.stringify({ enteredMatch, selected, resolved }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      enteredMatch,
+      selected,
+      resolved,
+      hotseat: {
+        lockedForPlayer2,
+        player2Seat,
+        lockedAfterAction,
+        responseSeat,
+      },
+    },
+    null,
+    2,
+  ),
+);
 
 export {};

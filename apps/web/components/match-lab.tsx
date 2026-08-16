@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FrontId } from "@cardforge/card-schema";
+import type { FrontId, PlayerId } from "@cardforge/card-schema";
 import type { Command, GameState } from "@cardforge/rules-kernel";
 import { generateRulesText } from "@cardforge/rules-tempofront";
 import { BoardCanvas, type BoardIntent } from "./board-canvas";
@@ -17,9 +17,24 @@ import {
   findInstance,
 } from "@/lib/match-ui";
 
-const playerId = "p1" as const;
+type MatchMode = "bot" | "hotseat";
 
-function Timeline({ state }: { readonly state: GameState }) {
+function opponentOf(playerId: PlayerId): PlayerId {
+  return playerId === "p1" ? "p2" : "p1";
+}
+
+function playerName(playerId: PlayerId): string {
+  return playerId === "p1" ? "Player 1" : "Player 2";
+}
+
+function Timeline({
+  state,
+  viewerId,
+}: {
+  readonly state: GameState;
+  readonly viewerId: PlayerId;
+}) {
+  const rivalId = opponentOf(viewerId);
   return (
     <div className="timeline" aria-label="Shared Timeline">
       <div className="timeline__track">
@@ -31,25 +46,27 @@ function Timeline({ state }: { readonly state: GameState }) {
         <span
           className="timeline__marker timeline__marker--rival"
           style={{
-            left: `${Math.min(state.players.p2.time, 12) * (100 / 12)}%`,
+            left: `${Math.min(state.players[rivalId].time, 12) * (100 / 12)}%`,
           }}
-          title={`Rival Time ${state.players.p2.time}`}
+          title={`${playerName(rivalId)} Time ${state.players[rivalId].time}`}
         />
         <span
           className="timeline__marker timeline__marker--player"
           style={{
-            left: `${Math.min(state.players.p1.time, 12) * (100 / 12)}%`,
+            left: `${Math.min(state.players[viewerId].time, 12) * (100 / 12)}%`,
           }}
-          title={`Your Time ${state.players.p1.time}`}
+          title={`${playerName(viewerId)} Time ${state.players[viewerId].time}`}
         />
       </div>
       <div className="timeline__legend">
         <span>
-          <i className="dot dot--player" /> You {state.players.p1.time}
+          <i className="dot dot--player" /> {playerName(viewerId)}{" "}
+          {state.players[viewerId].time}
         </span>
         <strong>SHARED TIMELINE // CYCLE {state.cycle}</strong>
         <span>
-          <i className="dot dot--rival" /> Rival {state.players.p2.time}
+          <i className="dot dot--rival" /> {playerName(rivalId)}{" "}
+          {state.players[rivalId].time}
         </span>
       </div>
     </div>
@@ -73,6 +90,9 @@ function StatPill({
 
 export function MatchLab() {
   const [state, setState] = useState(() => createBrowserMatch());
+  const [mode, setMode] = useState<MatchMode>("bot");
+  const [viewerId, setViewerId] = useState<PlayerId>("p1");
+  const [handoffTo, setHandoffTo] = useState<PlayerId | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mulliganIds, setMulliganIds] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -84,12 +104,14 @@ export function MatchLab() {
   const [botThinking, setBotThinking] = useState(false);
 
   const active = activePlayer(state);
+  const rivalId = opponentOf(viewerId);
+  const privacyLocked = mode === "hotseat" && handoffTo !== null;
   const legal = useMemo(
     () =>
-      active === playerId
-        ? browserEngine.getLegalCommands(state, playerId)
+      !privacyLocked && active === viewerId
+        ? browserEngine.getLegalCommands(state, viewerId)
         : [],
-    [active, state],
+    [active, privacyLocked, state, viewerId],
   );
 
   const apply = useCallback(
@@ -100,12 +122,16 @@ export function MatchLab() {
       );
       setState(result.state);
       setSelectedId(null);
+      if (mode === "hotseat") {
+        const nextPlayer = activePlayer(result.state);
+        if (nextPlayer && nextPlayer !== viewerId) setHandoffTo(nextPlayer);
+      }
     },
-    [state],
+    [mode, state, viewerId],
   );
 
   useEffect(() => {
-    if (active !== "p2" || state.winner) {
+    if (mode !== "bot" || active !== "p2" || state.winner) {
       setBotThinking(false);
       return;
     }
@@ -121,7 +147,7 @@ export function MatchLab() {
       setBotThinking(false);
     }, 420);
     return () => window.clearTimeout(timer);
-  }, [active, state]);
+  }, [active, mode, state]);
 
   const selectedCommands = useMemo(() => {
     if (!selectedId) return legal;
@@ -236,11 +262,27 @@ export function MatchLab() {
     return visible;
   }, [selectedCommands]);
 
-  const resetMatch = () => {
+  const resetMatch = (nextMode = mode) => {
     const nextOrdinal = matchOrdinal + 1;
     setMatchOrdinal(nextOrdinal);
     setState(createBrowserMatch(20260816 + nextOrdinal));
-    setHistory(["New deterministic match seed locked."]);
+    setMode(nextMode);
+    setViewerId("p1");
+    setHandoffTo(null);
+    setBotThinking(false);
+    setHistory([
+      nextMode === "hotseat"
+        ? "Hot-seat match locked. Player 1 may inspect the opening hand."
+        : "New deterministic bot match seed locked.",
+    ]);
+    setMulliganIds(new Set());
+    setSelectedId(null);
+  };
+
+  const revealHandoff = () => {
+    if (!handoffTo) return;
+    setViewerId(handoffTo);
+    setHandoffTo(null);
     setMulliganIds(new Set());
     setSelectedId(null);
   };
@@ -251,24 +293,41 @@ export function MatchLab() {
         <div className="brand-lockup">
           <span className="brand-mark">CF</span>
           <div>
-            <p>CARD FORGE // LAB BUILD 02</p>
+            <p>CARD FORGE // LAB BUILD 03</p>
             <h1>TempoFront</h1>
           </div>
         </div>
         <div className="match-meta">
+          <div className="mode-switch" aria-label="Match mode">
+            {(["bot", "hotseat"] as const).map((option) => (
+              <button
+                className={`mode-button ${mode === option ? "is-active" : ""}`}
+                data-mode={option}
+                key={option}
+                onClick={() => {
+                  if (option !== mode) resetMatch(option);
+                }}
+                type="button"
+              >
+                {option === "bot" ? "VS BOT" : "HOT-SEAT"}
+              </button>
+            ))}
+          </div>
           <span
             className={`status-light ${botThinking ? "is-thinking" : ""}`}
           />
           {state.winner
-            ? `${state.winner === "p1" ? "VICTORY" : "DEFEAT"} // ${state.victoryReason}`
+            ? `${state.winner === viewerId ? "VICTORY" : "DEFEAT"} // ${state.victoryReason}`
             : botThinking
               ? "RIVAL CALCULATING"
-              : active === "p1"
-                ? "YOUR PRIORITY"
-                : "AWAITING RIVAL"}
+              : privacyLocked
+                ? "HANDOFF LOCKED"
+                : active === viewerId
+                  ? `${playerName(viewerId).toUpperCase()} PRIORITY`
+                  : `AWAITING ${active ? playerName(active).toUpperCase() : "RESOLUTION"}`}
           <button
             className="button button--quiet"
-            onClick={resetMatch}
+            onClick={() => resetMatch()}
             type="button"
           >
             New seed
@@ -278,31 +337,35 @@ export function MatchLab() {
 
       <section className="opponent-bar" aria-label="Opponent status">
         <div className="leader-chip leader-chip--rival">
-          <small>RIVAL CORE</small>
-          <strong>{state.players.p2.integrity}</strong>
+          <small>{playerName(rivalId).toUpperCase()} CORE</small>
+          <strong>{state.players[rivalId].integrity}</strong>
         </div>
         <div className="opponent-summary">
-          <span>{state.players.p2.hand.length} cards</span>
-          <span>{state.players.p2.deck.length} deck</span>
+          <span>{state.players[rivalId].hand.length} cards</span>
+          <span>{state.players[rivalId].deck.length} deck</span>
           <span>
-            {state.players.p2.reserve ? "Reserve armed" : "Reserve empty"}
+            {state.players[rivalId].reserve ? "Reserve armed" : "Reserve empty"}
           </span>
         </div>
         <div className="stat-cluster">
           <StatPill
             label="FOCUS"
-            value={`${state.players.p2.focus}/${state.players.p2.maxFocus}`}
+            value={`${state.players[rivalId].focus}/${state.players[rivalId].maxFocus}`}
           />
-          <StatPill label="DOM" value={`${state.players.p2.dominion}/6`} />
+          <StatPill
+            label="DOM"
+            value={`${state.players[rivalId].dominion}/6`}
+          />
         </div>
       </section>
 
-      <Timeline state={state} />
+      <Timeline state={state} viewerId={viewerId} />
 
       <div className="match-grid">
         <section className="arena-panel" aria-label="TempoFront board">
           <BoardCanvas
             state={state}
+            viewerId={viewerId}
             selectedId={selectedId}
             legalSlots={legalSlots}
             legalTargets={legalTargets}
@@ -313,7 +376,7 @@ export function MatchLab() {
             {(["left", "center", "right"] as const).map((front) => (
               <section key={front}>
                 <h2>{front} Front</h2>
-                {(["p2", "p1"] as const).flatMap((side) =>
+                {([rivalId, viewerId] as const).flatMap((side) =>
                   (["vanguard", "support"] as const).map((slot) => {
                     const entity = state.fronts[front].slots[side][slot];
                     const definition = entity
@@ -321,7 +384,7 @@ export function MatchLab() {
                       : undefined;
                     return (
                       <p key={`${side}-${slot}`}>
-                        {side === "p1" ? "Your" : "Rival"} {slot}:{" "}
+                        {side === viewerId ? "Your" : "Opponent"} {slot}:{" "}
                         {definition?.name ?? "empty"}
                         {entity ? `, ${entity.damage} damage` : ""}
                       </p>
@@ -407,9 +470,11 @@ export function MatchLab() {
               })}
               {visibleActions.length === 0 ? (
                 <p className="empty-copy">
-                  {active === "p2"
-                    ? "Rival has priority."
-                    : "Select a card or board piece."}
+                  {privacyLocked
+                    ? "Private controls are locked for handoff."
+                    : active !== viewerId
+                      ? `${playerName(active ?? rivalId)} has priority.`
+                      : "Select a card or board piece."}
                 </p>
               ) : null}
             </div>
@@ -429,22 +494,31 @@ export function MatchLab() {
         </aside>
       </div>
 
-      <section className="player-dock" aria-label="Player hand and resources">
+      <section
+        className="player-dock"
+        data-viewer={viewerId}
+        aria-label={`${playerName(viewerId)} hand and resources`}
+      >
         <div className="player-core">
           <div className="leader-chip">
-            <small>YOUR CORE</small>
-            <strong>{state.players.p1.integrity}</strong>
+            <small>{playerName(viewerId).toUpperCase()} CORE</small>
+            <strong>{state.players[viewerId].integrity}</strong>
           </div>
           <div className="stat-cluster">
             <StatPill
               label="FOCUS"
-              value={`${state.players.p1.focus}/${state.players.p1.maxFocus}`}
+              value={`${state.players[viewerId].focus}/${state.players[viewerId].maxFocus}`}
             />
-            <StatPill label="DOM" value={`${state.players.p1.dominion}/6`} />
+            <StatPill
+              label="DOM"
+              value={`${state.players[viewerId].dominion}/6`}
+            />
           </div>
         </div>
 
-        {state.phase === "mulligan" && !state.players.p1.mulliganSubmitted ? (
+        {!privacyLocked &&
+        state.phase === "mulligan" &&
+        !state.players[viewerId].mulliganSubmitted ? (
           <div className="mulligan-callout">
             <div>
               <strong>OPENING SCAN</strong>
@@ -455,7 +529,7 @@ export function MatchLab() {
               onClick={() =>
                 apply({
                   type: "mulligan",
-                  playerId,
+                  playerId: viewerId,
                   instanceIds: [...mulliganIds],
                 })
               }
@@ -466,39 +540,73 @@ export function MatchLab() {
           </div>
         ) : null}
 
-        <div className="hand" role="list" aria-label="Your hand">
-          {state.players.p1.hand.map((card) => {
-            const definition = browserEngine.cards.get(card.cardId)!;
-            const selectedForMulligan = mulliganIds.has(card.instanceId);
-            return (
-              <button
-                className={`hand-card ${selectedId === card.instanceId ? "is-selected" : ""} ${selectedForMulligan ? "is-mulligan" : ""}`}
-                key={card.instanceId}
-                onClick={() => {
-                  if (state.phase === "mulligan") {
-                    setMulliganIds((current) => {
-                      const next = new Set(current);
-                      if (next.has(card.instanceId))
-                        next.delete(card.instanceId);
-                      else next.add(card.instanceId);
-                      return next;
-                    });
-                  } else setSelectedId(card.instanceId);
-                }}
-                type="button"
-              >
-                <span
-                  className={`card-aspect card-aspect--${definition.aspects[0] ?? "neutral"}`}
-                />
-                <span className="card-cost">{definition.focusCost}</span>
-                <small>{definition.type.toUpperCase()}</small>
-                <strong>{definition.name}</strong>
-                <span className="card-time">{definition.playTime}T</span>
-              </button>
-            );
-          })}
+        <div
+          className={`hand ${privacyLocked ? "is-private" : ""}`}
+          role="list"
+          aria-label={`${playerName(viewerId)} hand`}
+        >
+          {!privacyLocked &&
+            state.players[viewerId].hand.map((card) => {
+              const definition = browserEngine.cards.get(card.cardId)!;
+              const selectedForMulligan = mulliganIds.has(card.instanceId);
+              return (
+                <button
+                  className={`hand-card ${selectedId === card.instanceId ? "is-selected" : ""} ${selectedForMulligan ? "is-mulligan" : ""}`}
+                  key={card.instanceId}
+                  onClick={() => {
+                    if (state.phase === "mulligan") {
+                      setMulliganIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(card.instanceId))
+                          next.delete(card.instanceId);
+                        else next.add(card.instanceId);
+                        return next;
+                      });
+                    } else setSelectedId(card.instanceId);
+                  }}
+                  type="button"
+                >
+                  <span
+                    className={`card-aspect card-aspect--${definition.aspects[0] ?? "neutral"}`}
+                  />
+                  <span className="card-cost">{definition.focusCost}</span>
+                  <small>{definition.type.toUpperCase()}</small>
+                  <strong>{definition.name}</strong>
+                  <span className="card-time">{definition.playTime}T</span>
+                </button>
+              );
+            })}
         </div>
       </section>
+
+      {handoffTo ? (
+        <div
+          className="handoff-screen"
+          role="dialog"
+          aria-labelledby="handoff-title"
+          aria-describedby="handoff-description"
+          aria-modal="true"
+        >
+          <div className="handoff-card">
+            <p className="eyebrow">PRIVATE HANDOFF</p>
+            <h2 id="handoff-title">
+              Pass the device to {playerName(handoffTo)}
+            </h2>
+            <p id="handoff-description">
+              The previous hand and legal controls are hidden. Reveal only when
+              the next player is ready.
+            </p>
+            <button
+              autoFocus
+              className="button button--primary handoff-button"
+              onClick={revealHandoff}
+              type="button"
+            >
+              Reveal {playerName(handoffTo)} seat
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <p className="sr-only" aria-live="polite">
         {history[0]}

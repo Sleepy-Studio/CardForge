@@ -15,6 +15,7 @@ export interface BoardIntent {
 
 interface BoardCanvasProps {
   readonly state: GameState;
+  readonly viewerId: PlayerId;
   readonly selectedId: string | null;
   readonly legalSlots: ReadonlySet<string>;
   readonly legalTargets: ReadonlySet<string>;
@@ -32,6 +33,7 @@ function destroyChildren(app: Application): void {
 
 export function BoardCanvas({
   state,
+  viewerId,
   selectedId,
   legalSlots,
   legalTargets,
@@ -134,8 +136,8 @@ export function BoardCanvas({
     });
 
     const slotY = {
-      p2: { support: 66, vanguard: 146 },
-      p1: { vanguard: height - 226, support: height - 146 },
+      opponent: { support: 66, vanguard: 146 },
+      viewer: { vanguard: height - 226, support: height - 146 },
     } as const;
     const slotHeight = 64;
 
@@ -180,12 +182,13 @@ export function BoardCanvas({
       siteText.y = height / 2 - 6;
       app.stage.addChild(siteText);
 
-      for (const playerId of ["p2", "p1"] as const) {
+      const opponentId = viewerId === "p1" ? "p2" : "p1";
+      for (const playerId of [opponentId, viewerId] as const) {
         for (const slot of slots) {
-          const y = slotY[playerId][slot];
+          const y = slotY[playerId === viewerId ? "viewer" : "opponent"][slot];
           const key = `${front}:${slot}`;
           const instance = state.fronts[front].slots[playerId][slot];
-          const isLegalSlot = playerId === "p1" && legalSlots.has(key);
+          const isLegalSlot = playerId === viewerId && legalSlots.has(key);
           const isTarget = instance
             ? legalTargets.has(instance.instanceId)
             : false;
@@ -238,7 +241,7 @@ export function BoardCanvas({
             app.stage.addChild(stats);
           } else {
             const empty = new Text({
-              text: `${playerId === "p1" ? "YOUR" : "RIVAL"} ${slot.toUpperCase()}`,
+              text: `${playerId === viewerId ? "YOUR" : "RIVAL"} ${slot.toUpperCase()}`,
               style: metaStyle,
             });
             empty.x = x + 24;
@@ -260,6 +263,7 @@ export function BoardCanvas({
     legalSlots,
     legalTargets,
     legalFronts,
+    viewerId,
     canvasRevision,
   ]);
 
