@@ -38,6 +38,12 @@ Optional Focus branches use the same mechanism. Paying prepends the gated effect
 
 Entity damage collects prevention in a fixed order. Barrier consumes and prevents the complete instance first. Armor applies only when damage remains. Semantic `damage_replaced` events record which rule applied and how much it prevented before the final `damage_dealt` event.
 
+## Setup and deck validation
+
+Games begin in an explicit `mulligan` phase. Either player may submit once; normal timeline commands remain illegal until both submissions arrive. Selected cards are removed from hand, replacements are drawn from the remaining deck, and only then are rejected cards shuffled back using the match RNG. Both submissions and completion are semantic replay events.
+
+Deck validation runs before instances are created or shuffled. The selected Format enforces exact size, ordinary and Unique copy limits, per-card overrides, generated/Leader exclusion, known definitions, and the minimum Entity count. Invalid decks fail with all discovered reasons rather than the first convenient complaint.
+
 ## Bias and scope note
 
 The product brief naturally pulls toward a complete monorepo and polished UI. That is the wrong proof. The main architectural risk is nondeterministic, unbounded card behavior; therefore this slice tests the rules seam under repeated complete games before application infrastructure is introduced.
@@ -45,9 +51,9 @@ The product brief naturally pulls toward a complete monorepo and polished UI. Th
 ## Next cut
 
 1. Add general modal, multi-target, and ordered-trigger choices.
-2. Implement mulligan and full deck validation.
+2. Add Aspect, set, ban-list, and Leader-specific deck legality.
 3. Add Prepare/Reserve, Attachments, Relics, and Sites.
 4. Generate localized rules text from the same ability graph used by the engine.
-5. Grow property-based tests around damage batches, zone ownership, response legality, choices, and effect limits.
+5. Grow property-based tests around setup, damage batches, zone ownership, responses, choices, and effect limits.
 
 Only after those invariants hold should the browser renderer become the critical path.

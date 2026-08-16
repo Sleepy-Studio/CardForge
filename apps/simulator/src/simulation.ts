@@ -20,9 +20,12 @@ export interface SimulationResult {
   readonly commandCount: number;
   readonly reactionCount: number;
   readonly choiceCount: number;
+  readonly mulliganedCount: number;
 }
 
 function activePlayer(state: GameState): PlayerId | null {
+  if (state.phase === "mulligan")
+    return state.players.p1.mulliganSubmitted ? "p2" : "p1";
   if (state.pendingChoice) return state.pendingChoice.chooserId;
   if (state.pendingAction)
     return state.pendingAction.phase === "response"
@@ -49,6 +52,9 @@ function chooseCommand(
   commands: readonly Command[],
   botRng: { seed: number; index: number },
 ): Command {
+  const mulligans = commands.filter((command) => command.type === "mulligan");
+  if (mulligans.length > 0)
+    return mulligans[nextInt(botRng, mulligans.length)]!;
   const choices = commands.filter(
     (command) => command.type === "resolve_choice",
   );
@@ -126,6 +132,11 @@ export function assertGameInvariants(state: GameState): void {
   }
   if ((state.winner === null) !== (state.victoryReason === null))
     throw new Error("Winner and victory reason disagree");
+  if (
+    state.phase === "playing" &&
+    (!state.players.p1.mulliganSubmitted || !state.players.p2.mulliganSubmitted)
+  )
+    throw new Error("Playing phase began before both mulligans completed");
   if (state.effectQueue.length > 0 && !state.pendingChoice)
     throw new Error("Effect queue leaked across a command boundary");
   if (state.effectQueue.length > 64)
@@ -153,6 +164,7 @@ export function simulateGame(
   const acceptedCommands: Command[] = [];
   let reactionCount = 0;
   let choiceCount = 0;
+  let mulliganedCount = 0;
   const botRng = { seed: (seed ^ 0xa5a5a5a5) >>> 0, index: 0 };
   assertGameInvariants(state);
   while (!state.winner) {
@@ -171,6 +183,8 @@ export function simulateGame(
     const command = chooseCommand(legal, botRng);
     if (command.type === "play_reaction") reactionCount += 1;
     if (command.type === "resolve_choice") choiceCount += 1;
+    if (command.type === "mulligan")
+      mulliganedCount += command.instanceIds.length;
     const result = engine.applyCommand(state, command);
     state = result.state;
     acceptedCommands.push(command);
@@ -193,6 +207,7 @@ export function simulateGame(
     commandCount: acceptedCommands.length,
     reactionCount,
     choiceCount,
+    mulliganedCount,
   };
 }
 
@@ -219,6 +234,7 @@ export interface BatchSummary {
   readonly averageCommands: number;
   readonly averageReactions: number;
   readonly averageChoices: number;
+  readonly averageMulliganed: number;
 }
 
 export function runBatch(games: number, startingSeed: number): BatchSummary {
@@ -232,6 +248,7 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
   let commands = 0;
   let reactions = 0;
   let choices = 0;
+  let mulliganed = 0;
   const engine = new TempoFrontEngine();
   for (let offset = 0; offset < games; offset += 1) {
     const result = simulateGame((startingSeed + offset) >>> 0, engine);
@@ -244,6 +261,7 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
     commands += result.commandCount;
     reactions += result.reactionCount;
     choices += result.choiceCount;
+    mulliganed += result.mulliganedCount;
   }
   return {
     games,
@@ -255,5 +273,6 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
     averageCommands: Number((commands / games).toFixed(2)),
     averageReactions: Number((reactions / games).toFixed(2)),
     averageChoices: Number((choices / games).toFixed(2)),
+    averageMulliganed: Number((mulliganed / games).toFixed(2)),
   };
 }

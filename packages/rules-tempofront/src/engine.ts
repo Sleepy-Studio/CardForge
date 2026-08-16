@@ -2,6 +2,7 @@ import type {
   AbilityDefinition,
   CardDefinition,
   EffectNode,
+  FormatDefinition,
   FrontId,
   PlayerId,
   SlotId,
@@ -22,7 +23,7 @@ import type {
 } from "@cardforge/rules-kernel";
 import { shuffle, stateHash } from "@cardforge/rules-kernel";
 import { proofCardMap, proofContentHash } from "./cards.js";
-import { tempoFrontRules } from "./ruleset.js";
+import { proofFormat, tempoFrontRules } from "./ruleset.js";
 
 const playerIds = ["p1", "p2"] as const;
 const frontIds = ["left", "center", "right"] as const;
@@ -911,6 +912,42 @@ export function validateContentDefinitions(
   }
 }
 
+export function validateDeck(
+  deck: readonly string[],
+  cards: ReadonlyMap<string, CardDefinition> = proofCardMap,
+  format: FormatDefinition = proofFormat,
+): readonly string[] {
+  const errors: string[] = [];
+  if (deck.length !== format.deckSize)
+    errors.push(`Deck must contain exactly ${format.deckSize} cards`);
+  const counts = new Map<string, number>();
+  let entities = 0;
+  for (const cardId of deck) {
+    const definition = cards.get(cardId);
+    if (!definition) {
+      errors.push(`Unknown card ${cardId}`);
+      continue;
+    }
+    if (definition.generatedOnly || definition.type === "leader") {
+      errors.push(`${cardId} is not legal in a deck`);
+      continue;
+    }
+    if (definition.type === "entity") entities += 1;
+    counts.set(cardId, (counts.get(cardId) ?? 0) + 1);
+  }
+  for (const [cardId, count] of counts) {
+    const definition = cards.get(cardId)!;
+    const limit =
+      definition.deckLimit ??
+      (definition.unique ? format.maxUniqueCopies : format.maxCopies);
+    if (count > limit)
+      errors.push(`${cardId} has ${count} copies; maximum is ${limit}`);
+  }
+  if (entities < format.minimumEntities)
+    errors.push(`Deck requires at least ${format.minimumEntities} Entities`);
+  return errors;
+}
+
 export class TempoFrontEngine implements RulesEngine {
   readonly cards: ReadonlyMap<string, CardDefinition>;
 
@@ -926,17 +963,9 @@ export class TempoFrontEngine implements RulesEngine {
   }): GameState {
     assertInteger(input.seed, "Seed");
     for (const playerId of playerIds) {
-      if (input.decks[playerId].length !== 40)
-        throw new Error(`${playerId} must provide exactly 40 cards`);
-      for (const cardId of input.decks[playerId]) {
-        const definition = this.cards.get(cardId);
-        if (
-          !definition ||
-          definition.generatedOnly ||
-          definition.type === "leader"
-        )
-          throw new Error(`${cardId} is not legal in a proof deck`);
-      }
+      const errors = validateDeck(input.decks[playerId], this.cards);
+      if (errors.length > 0)
+        throw new Error(`${playerId} deck is invalid: ${errors.join("; ")}`);
     }
     const state: GameState = {
       matchId: input.matchId,
@@ -944,6 +973,7 @@ export class TempoFrontEngine implements RulesEngine {
       contentHash: proofContentHash,
       rng: { seed: input.seed >>> 0, index: 0 },
       cycle: 1,
+      phase: "mulligan",
       initiative: "p1",
       nextInstance: 1,
       nextChoice: 1,
@@ -963,6 +993,7 @@ export class TempoFrontEngine implements RulesEngine {
           dominion: 0,
           fatigue: 0,
           passed: false,
+          mulliganSubmitted: false,
           deck: [],
           hand: [],
           discard: [],
@@ -976,6 +1007,7 @@ export class TempoFrontEngine implements RulesEngine {
           dominion: 0,
           fatigue: 0,
           passed: false,
+          mulliganSubmitted: false,
           deck: [],
           hand: [],
           discard: [],
@@ -997,6 +1029,17 @@ export class TempoFrontEngine implements RulesEngine {
 
   getLegalCommands(state: GameState, playerId: PlayerId): readonly Command[] {
     if (state.winner) return [];
+    if (state.phase === "mulligan") {
+      const player = state.players[playerId];
+      if (player.mulliganSubmitted) return [];
+      return Array.from({ length: 1 << player.hand.length }, (_, mask) => ({
+        type: "mulligan" as const,
+        playerId,
+        instanceIds: player.hand
+          .filter((_, index) => (mask & (1 << index)) !== 0)
+          .map((card) => card.instanceId),
+      }));
+    }
     if (state.pendingChoice) {
       const choice = state.pendingChoice;
       if (choice.chooserId !== playerId) return [];
@@ -1155,7 +1198,29 @@ export class TempoFrontEngine implements RulesEngine {
       throw new Error(`Illegal command: ${JSON.stringify(command)}`);
     const events: GameEvent[] = [];
     const player = state.players[command.playerId];
-    if (command.type === "resolve_choice") {
+    if (command.type === "mulligan") {
+      const selectedIds = new Set(command.instanceIds);
+      const selected = player.hand.filter((card) =>
+        selectedIds.has(card.instanceId),
+      );
+      const kept = player.hand.filter(
+        (card) => !selectedIds.has(card.instanceId),
+      );
+      const replacements = player.deck.splice(0, selected.length);
+      player.hand.splice(0, player.hand.length, ...kept, ...replacements);
+      const reshuffled = shuffle([...player.deck, ...selected], state.rng);
+      player.deck.splice(0, player.deck.length, ...reshuffled);
+      player.mulliganSubmitted = true;
+      events.push({
+        type: "mulligan_submitted",
+        playerId: command.playerId,
+        count: selected.length,
+      });
+      if (playerIds.every((id) => state.players[id].mulliganSubmitted)) {
+        state.phase = "playing";
+        events.push({ type: "mulligan_complete" });
+      }
+    } else if (command.type === "resolve_choice") {
       const choice = state.pendingChoice!;
       if (choice.kind === "select_card") {
         const selectedId = command.optionIds[0]!;
@@ -1278,6 +1343,7 @@ export class TempoFrontEngine implements RulesEngine {
     state.commandNumber += 1;
     if (
       !state.winner &&
+      state.phase === "playing" &&
       !state.pendingAction &&
       !state.pendingChoice &&
       currentPlayer(state) === null
@@ -1331,6 +1397,7 @@ export class TempoFrontEngine implements RulesEngine {
     return {
       matchId: state.matchId,
       cycle: state.cycle,
+      phase: state.phase,
       initiative: state.initiative,
       viewer: playerId,
       players: { p1: projectPlayer("p1"), p2: projectPlayer("p2") },

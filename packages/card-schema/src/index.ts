@@ -74,6 +74,8 @@ export interface CardDefinition {
   readonly slotRestriction?: "any" | SlotId;
   readonly abilities?: readonly AbilityDefinition[];
   readonly generatedOnly?: boolean;
+  readonly unique?: boolean;
+  readonly deckLimit?: number;
 }
 
 export interface FormatDefinition {

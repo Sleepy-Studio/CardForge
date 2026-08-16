@@ -31,6 +31,7 @@ export interface PlayerState {
   dominion: number;
   fatigue: number;
   passed: boolean;
+  mulliganSubmitted: boolean;
   readonly deck: CardInstance[];
   readonly hand: CardInstance[];
   readonly discard: CardInstance[];
@@ -42,6 +43,7 @@ export interface GameState {
   readonly contentHash: string;
   readonly rng: { readonly seed: number; index: number };
   cycle: number;
+  phase: "mulligan" | "playing";
   initiative: PlayerId;
   nextInstance: number;
   commandNumber: number;
@@ -95,8 +97,14 @@ export interface ResolveChoiceCommand {
   readonly optionIds: readonly string[];
 }
 
+export interface MulliganCommand {
+  readonly type: "mulligan";
+  readonly playerId: PlayerId;
+  readonly instanceIds: readonly string[];
+}
+
 export type Command =
-  MainActionCommand | ResponseCommand | ResolveChoiceCommand;
+  MainActionCommand | ResponseCommand | ResolveChoiceCommand | MulliganCommand;
 
 export type ResolvableMainAction = Exclude<MainActionCommand, { type: "pass" }>;
 
@@ -141,6 +149,14 @@ export type PendingChoice =
     };
 
 export type GameEvent =
+  | {
+      readonly type: "mulligan_submitted";
+      readonly playerId: PlayerId;
+      readonly count: number;
+    }
+  | {
+      readonly type: "mulligan_complete";
+    }
   | {
       readonly type: "choice_created";
       readonly playerId: PlayerId;
@@ -258,6 +274,7 @@ export interface ProjectedPlayerView {
 export interface ProjectedGameView {
   readonly matchId: string;
   readonly cycle: number;
+  readonly phase: GameState["phase"];
   readonly initiative: PlayerId;
   readonly viewer: PlayerId;
   readonly players: Record<PlayerId, ProjectedPlayerView>;

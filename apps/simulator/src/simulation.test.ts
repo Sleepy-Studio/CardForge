@@ -10,6 +10,7 @@ import {
   proofCardMap,
   proofDeck,
   TempoFrontEngine,
+  validateDeck,
 } from "@cardforge/rules-tempofront";
 import { runBatch, simulateGame, verifyReplay } from "./simulation.js";
 
@@ -47,6 +48,23 @@ function putInVanguard(
   return card;
 }
 
+function createPlayingGame(
+  engine: TempoFrontEngine,
+  input: Parameters<TempoFrontEngine["createGame"]>[0],
+): GameState {
+  let state = engine.createGame(input);
+  state = engine.applyCommand(state, {
+    type: "mulligan",
+    playerId: "p1",
+    instanceIds: [],
+  }).state;
+  return engine.applyCommand(state, {
+    type: "mulligan",
+    playerId: "p2",
+    instanceIds: [],
+  }).state;
+}
+
 void describe("TempoFront deterministic proof", () => {
   void it("creates identical initial states from identical inputs", () => {
     const engine = new TempoFrontEngine();
@@ -69,7 +87,7 @@ void describe("TempoFront deterministic proof", () => {
 
   void it("keeps hidden hands out of opponent projections", () => {
     const engine = new TempoFrontEngine();
-    const state = engine.createGame({
+    const state = createPlayingGame(engine, {
       matchId: "views",
       seed: 7,
       decks: { p1: proofDeck, p2: proofDeck },
@@ -80,9 +98,57 @@ void describe("TempoFront deterministic proof", () => {
     assert.equal(view.players.p2.handCount, 5);
   });
 
+  void it("holds mulliganed cards out until replacements are drawn", () => {
+    const engine = new TempoFrontEngine();
+    let state = engine.createGame({
+      matchId: "mulligan",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const replacedIds = state.players.p1.hand
+      .slice(0, 2)
+      .map((card) => card.instanceId);
+    state = engine.applyCommand(state, {
+      type: "mulligan",
+      playerId: "p1",
+      instanceIds: replacedIds,
+    }).state;
+    assert.equal(state.phase, "mulligan");
+    assert.equal(state.players.p1.hand.length, 5);
+    assert.ok(
+      replacedIds.every(
+        (id) => !state.players.p1.hand.some((card) => card.instanceId === id),
+      ),
+    );
+    assert.equal(engine.getLegalCommands(state, "p1").length, 0);
+    assert.equal(engine.getLegalCommands(state, "p2").length, 32);
+    state = engine.applyCommand(state, {
+      type: "mulligan",
+      playerId: "p2",
+      instanceIds: [],
+    }).state;
+    assert.equal(state.phase, "playing");
+  });
+
+  void it("validates deck size, copy limits, generated cards, and Entity count", () => {
+    assert.deepEqual(validateDeck(proofDeck), []);
+    const illegalCopies = Array.from(
+      { length: 40 },
+      () => "entity.linebreaker",
+    );
+    assert.match(validateDeck(illegalCopies).join("; "), /maximum is 3/);
+    const generated = [...proofDeck];
+    generated[0] = "token.sprout";
+    assert.match(validateDeck(generated).join("; "), /not legal in a deck/);
+    const noEntities = Array.from({ length: 40 }, (_, index) =>
+      index % 2 === 0 ? "tactic.survey" : "reaction.deflect",
+    );
+    assert.match(validateDeck(noEntities).join("; "), /at least 12 Entities/);
+  });
+
   void it("does not resolve a declared action before the Response window closes", () => {
     const engine = new TempoFrontEngine();
-    const state = engine.createGame({
+    const state = createPlayingGame(engine, {
       matchId: "pending",
       seed: 42,
       decks: { p1: proofDeck, p2: proofDeck },
@@ -110,7 +176,7 @@ void describe("TempoFront deterministic proof", () => {
 
   void it("resolves Deflect before Strike damage", () => {
     const engine = new TempoFrontEngine();
-    const state = engine.createGame({
+    const state = createPlayingGame(engine, {
       matchId: "deflect",
       seed: 42,
       decks: { p1: proofDeck, p2: proofDeck },
@@ -152,7 +218,7 @@ void describe("TempoFront deterministic proof", () => {
 
   void it("applies Armor when no earlier Barrier replacement consumes damage", () => {
     const engine = new TempoFrontEngine();
-    const state = engine.createGame({
+    const state = createPlayingGame(engine, {
       matchId: "armor-order",
       seed: 42,
       decks: { p1: proofDeck, p2: proofDeck },
@@ -180,7 +246,7 @@ void describe("TempoFront deterministic proof", () => {
 
   void it("suspends Scout for a private card choice and resumes deterministically", () => {
     const engine = new TempoFrontEngine();
-    const state = engine.createGame({
+    const state = createPlayingGame(engine, {
       matchId: "scout-choice",
       seed: 42,
       decks: { p1: proofDeck, p2: proofDeck },
@@ -237,7 +303,7 @@ void describe("TempoFront deterministic proof", () => {
 
   void it("suspends and resumes an optional Focus payment", () => {
     const engine = new TempoFrontEngine();
-    const state = engine.createGame({
+    const state = createPlayingGame(engine, {
       matchId: "optional-focus",
       seed: 42,
       decks: { p1: proofDeck, p2: proofDeck },
@@ -275,7 +341,7 @@ void describe("TempoFront deterministic proof", () => {
 
   void it("lets Denial cancel a main action", () => {
     const engine = new TempoFrontEngine();
-    const state = engine.createGame({
+    const state = createPlayingGame(engine, {
       matchId: "denied",
       seed: 42,
       decks: { p1: proofDeck, p2: proofDeck },
@@ -304,7 +370,7 @@ void describe("TempoFront deterministic proof", () => {
 
   void it("lets a Counter-Response cancel Denial and restore the main action", () => {
     const engine = new TempoFrontEngine();
-    const state = engine.createGame({
+    const state = createPlayingGame(engine, {
       matchId: "countered-denial",
       seed: 42,
       decks: { p1: proofDeck, p2: proofDeck },
