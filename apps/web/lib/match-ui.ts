@@ -6,19 +6,32 @@ import type {
   GameState,
 } from "@cardforge/rules-kernel";
 import {
-  proofDeck,
-  proofLeaders,
+  defaultPrototypeLeaders,
+  prototypeDecks,
+  prototypeLeaderOptions,
+  type PrototypeLeaderId,
   TempoFrontEngine,
 } from "@cardforge/rules-tempofront";
 
 export const browserEngine = new TempoFrontEngine();
+export const browserLeaderOptions = prototypeLeaderOptions;
 
-export function createBrowserMatch(seed = 20260816): GameState {
+export type BrowserLineup = Readonly<Record<PlayerId, PrototypeLeaderId>>;
+
+export const defaultBrowserLineup: BrowserLineup = defaultPrototypeLeaders;
+
+export function createBrowserMatch(
+  seed = 20260816,
+  leaders: BrowserLineup = defaultBrowserLineup,
+): GameState {
   return browserEngine.createGame({
     matchId: `browser-${seed}`,
     seed,
-    decks: { p1: proofDeck, p2: proofDeck },
-    leaders: proofLeaders,
+    decks: {
+      p1: prototypeDecks[leaders.p1],
+      p2: prototypeDecks[leaders.p2],
+    },
+    leaders,
   });
 }
 
@@ -112,7 +125,7 @@ export function commandLabel(state: GameState, command: Command): string {
     case "prepare_card":
       return `Prepare ${nameFor(command.instanceId)}`;
     case "activate_ability":
-      return `Activate ${command.abilityId}`;
+      return `${command.sourceId.endsWith("-leader") ? "Command" : "Activate"} — ${nameFor(command.sourceId)}`;
     case "strike":
       return `Strike ${command.targetId === "leader" ? "Leader" : nameFor(command.targetId)}`;
     case "shift":

@@ -22,6 +22,14 @@ interface SmokeEntry {
   readonly hasHand: boolean;
 }
 
+interface LeaderSetup {
+  readonly selectors: number;
+  readonly p1Options: number;
+  readonly p2Options: number;
+  readonly p1Leader: string;
+  readonly p2Leader: string;
+}
+
 interface SmokeSelection {
   readonly inspectorName: string;
   readonly actionCount: number;
@@ -116,6 +124,54 @@ async function evaluate<T>(expression: string): Promise<T> {
 }
 
 await send("Runtime.enable");
+const initialLeaders = await evaluate<LeaderSetup>(`({
+  selectors: document.querySelectorAll('.leader-selector select').length,
+  p1Options: document.querySelectorAll('select[data-player="p1"] option').length,
+  p2Options: document.querySelectorAll('select[data-player="p2"] option').length,
+  p1Leader: document.querySelector('select[data-player="p1"]')?.value ?? '',
+  p2Leader: document.querySelector('select[data-player="p2"]')?.value ?? ''
+})`);
+if (
+  initialLeaders.selectors !== 2 ||
+  initialLeaders.p1Options !== 4 ||
+  initialLeaders.p2Options !== 4
+)
+  throw new Error(
+    `Leader setup smoke failed: ${JSON.stringify(initialLeaders)}`,
+  );
+
+await evaluate(`{
+  const select = document.querySelector('select[data-player="p1"]');
+  if (select) {
+    select.value = 'leader.skydancer';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+}`);
+await delay(100);
+const selectedLeader = await evaluate<{ leader: string; handCards: number }>(`({
+  leader: document.querySelector('.player-dock')?.getAttribute('data-leader') ?? '',
+  handCards: document.querySelectorAll('.hand-card').length
+})`);
+if (
+  selectedLeader.leader !== "leader.skydancer" ||
+  selectedLeader.handCards !== 5
+)
+  throw new Error(`Leader selection failed: ${JSON.stringify(selectedLeader)}`);
+
+await evaluate(`document.querySelector('.player-core .leader-chip')?.click()`);
+await delay(100);
+const inspectedLeader = await evaluate<{ name: string; rules: string }>(`({
+  name: document.querySelector('.inspector-card h2')?.textContent ?? '',
+  rules: document.querySelector('.inspector-card .rules-text')?.textContent ?? ''
+})`);
+if (
+  inspectedLeader.name !== "Arlen Skydancer" ||
+  !inspectedLeader.rules.includes("Scout 2")
+)
+  throw new Error(
+    `Leader inspection failed: ${JSON.stringify(inspectedLeader)}`,
+  );
+
 await evaluate(`document.querySelector('.button--primary')?.click()`);
 await delay(1_200);
 
@@ -246,6 +302,9 @@ console.log(
   JSON.stringify(
     {
       enteredMatch,
+      initialLeaders,
+      selectedLeader,
+      inspectedLeader,
       selected,
       resolved,
       hotseat: {

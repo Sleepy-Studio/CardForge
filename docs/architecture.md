@@ -120,6 +120,15 @@ This protects ordinary over-the-table hidden information, but it is not a
 security boundary: the local browser process still owns the complete match
 state. Online play must render server-projected views instead.
 
+The browser match setup now selects from four dual-Aspect Leaders. Each Leader
+has an executable once-per-Cycle Command and a dedicated legal forty-card deck:
+Force/Bastion Siege, Motion/Cunning Ambush, Growth/Entropy Reclamation, and
+Force/Motion Raid. Sixteen low-complexity foundation cards make those identities
+legal without relaxing the three-copy limit. Match creation pins the selected
+Leader IDs and supplies the corresponding decks to the production engine.
+Headless coverage completes and exactly replays a match involving every Leader,
+in addition to focused tests for all four Commands and starter-deck legality.
+
 A production-browser smoke test drives Chromium through mulligan, bot handoff,
 card selection, inspection, legal-action discovery, and action resolution. It
 then switches modes and verifies both hot-seat mulligans, hand blanking during
@@ -127,7 +136,9 @@ handoff, viewer rotation, a Main Action transfer, and the opposing Response
 seat. The first screenshot review confirms that all three Fronts and the
 Timeline remain readable at 1440×1000.
 
-Remaining Milestone 2 work is four production-style Leaders, expansion to sixty
-cards, richer semantic event animation, and a new-player comprehension pass.
-Kernel additions remain driven by those concrete prototype requirements rather
-than speculative universal-engine work.
+The production-facing pool now contains four Leaders and thirty-eight
+collectible cards; the internal all-Aspect proof Leader and generated Token are
+not counted toward the sixty-card prototype target. Remaining Milestone 2 work
+is eighteen additional cards, richer semantic event animation, and a new-player
+comprehension pass. Kernel additions remain driven by those concrete prototype
+requirements rather than speculative universal-engine work.

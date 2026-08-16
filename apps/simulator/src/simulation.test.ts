@@ -12,6 +12,8 @@ import {
   proofDeck,
   proofFormat,
   generateRulesText,
+  prototypeDecks,
+  prototypeLeaderOptions,
   TempoFrontEngine,
   validateDeck,
 } from "@cardforge/rules-tempofront";
@@ -176,6 +178,46 @@ void describe("TempoFront deterministic proof", () => {
       index % 2 === 0 ? "tactic.survey" : "reaction.deflect",
     );
     assert.match(validateDeck(noEntities).join("; "), /at least 12 Entities/);
+  });
+
+  void it("validates all four prototype Leader decks against their identities", () => {
+    for (const leader of prototypeLeaderOptions) {
+      const deck = prototypeDecks[leader.cardId];
+      assert.equal(deck.length, 40);
+      assert.deepEqual(
+        validateDeck(deck, proofCardMap, proofFormat, {
+          leaderCardId: leader.cardId,
+        }),
+        [],
+        leader.cardId,
+      );
+      assert.doesNotThrow(() =>
+        new TempoFrontEngine().createGame({
+          matchId: `starter-${leader.cardId}`,
+          seed: 42,
+          decks: { p1: deck, p2: deck },
+          leaders: { p1: leader.cardId, p2: leader.cardId },
+        }),
+      );
+    }
+  });
+
+  void it("completes and replays a match for every prototype Leader", () => {
+    const engine = new TempoFrontEngine();
+    for (const [index, leader] of prototypeLeaderOptions.entries()) {
+      const opponent =
+        prototypeLeaderOptions[(index + 1) % prototypeLeaderOptions.length]!;
+      const result = simulateGame(9001 + index, engine, {
+        matchIdPrefix: "prototype",
+        decks: {
+          p1: prototypeDecks[leader.cardId],
+          p2: prototypeDecks[opponent.cardId],
+        },
+        leaders: { p1: leader.cardId, p2: opponent.cardId },
+      });
+      assert.notEqual(result.finalState.winner, null);
+      assert.doesNotThrow(() => verifyReplay(result, engine));
+    }
   });
 
   void it("validates sets, bans, Leader Aspects, and Leader restrictions", () => {
@@ -735,6 +777,87 @@ void describe("TempoFront deterministic proof", () => {
     assert.deepEqual(state.players.p1.leader.usedAbilityIds, [
       "marshal-command",
     ]);
+  });
+
+  void it("executes the Relay Leader's targeted Shift Command", () => {
+    const engine = new TempoFrontEngine();
+    const deck = prototypeDecks["leader.relay"];
+    let state = createPlayingGame(engine, {
+      matchId: "relay-leader-command",
+      seed: 42,
+      decks: { p1: deck, p2: deck },
+      leaders: { p1: "leader.relay", p2: "leader.relay" },
+    });
+    const courier = putInVanguard(state, "p1", "entity.windknife");
+    state = engine.applyCommand(state, {
+      type: "activate_ability",
+      playerId: "p1",
+      sourceId: "p1-leader",
+      abilityId: "vector-command",
+      targetId: courier.instanceId,
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.fronts.center.slots.p1.vanguard, null);
+    assert.ok(
+      Object.values(state.fronts).some((front) =>
+        Object.values(front.slots.p1).some(
+          (entity) => entity?.instanceId === courier.instanceId,
+        ),
+      ),
+    );
+  });
+
+  void it("executes the Rootbound Leader's recovery Command", () => {
+    const engine = new TempoFrontEngine();
+    const deck = prototypeDecks["leader.rootbound"];
+    let state = createPlayingGame(engine, {
+      matchId: "rootbound-leader-command",
+      seed: 42,
+      decks: { p1: deck, p2: deck },
+      leaders: { p1: "leader.rootbound", p2: "leader.rootbound" },
+    });
+    state.players.p1.integrity = 15;
+    state = engine.applyCommand(state, {
+      type: "activate_ability",
+      playerId: "p1",
+      sourceId: "p1-leader",
+      abilityId: "renew-command",
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.players.p1.integrity, 17);
+  });
+
+  void it("executes the Skydancer Leader's private Scout Command", () => {
+    const engine = new TempoFrontEngine();
+    const deck = prototypeDecks["leader.skydancer"];
+    let state = createPlayingGame(engine, {
+      matchId: "skydancer-leader-command",
+      seed: 42,
+      decks: { p1: deck, p2: deck },
+      leaders: { p1: "leader.skydancer", p2: "leader.skydancer" },
+    });
+    state = engine.applyCommand(state, {
+      type: "activate_ability",
+      playerId: "p1",
+      sourceId: "p1-leader",
+      abilityId: "survey-command",
+    }).state;
+    state = engine.applyCommand(state, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(state.pendingChoice?.kind, "select_card");
+    assert.equal(state.pendingChoice?.options.length, 2);
+    assert.equal(
+      engine.projectView(state, "p2").pendingChoice?.cardOptions,
+      undefined,
+    );
   });
 
   void it("resolves modal and multi-target effects from replayed choices", () => {

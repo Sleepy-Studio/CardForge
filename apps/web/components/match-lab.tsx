@@ -8,10 +8,13 @@ import { BoardCanvas, type BoardIntent } from "./board-canvas";
 import {
   activePlayer,
   browserEngine,
+  browserLeaderOptions,
+  type BrowserLineup,
   chooseBotCommand,
   commandLabel,
   commandTime,
   createBrowserMatch,
+  defaultBrowserLineup,
   definitionForInstance,
   eventLabel,
   findInstance,
@@ -89,7 +92,10 @@ function StatPill({
 }
 
 export function MatchLab() {
-  const [state, setState] = useState(() => createBrowserMatch());
+  const [lineup, setLineup] = useState<BrowserLineup>(defaultBrowserLineup);
+  const [state, setState] = useState(() =>
+    createBrowserMatch(20260816, defaultBrowserLineup),
+  );
   const [mode, setMode] = useState<MatchMode>("bot");
   const [viewerId, setViewerId] = useState<PlayerId>("p1");
   const [handoffTo, setHandoffTo] = useState<PlayerId | null>(null);
@@ -106,6 +112,10 @@ export function MatchLab() {
   const active = activePlayer(state);
   const rivalId = opponentOf(viewerId);
   const privacyLocked = mode === "hotseat" && handoffTo !== null;
+  const leaderDefinitions = {
+    p1: browserEngine.cards.get(lineup.p1)!,
+    p2: browserEngine.cards.get(lineup.p2)!,
+  } as const;
   const legal = useMemo(
     () =>
       !privacyLocked && active === viewerId
@@ -252,6 +262,9 @@ export function MatchLab() {
 
   const selected = selectedId ? findInstance(state, selectedId) : null;
   const selectedDefinition = definitionForInstance(state, selectedId);
+  const selectedCommand = selectedDefinition?.abilities?.find(
+    (ability) => ability.type === "leader_command",
+  );
   const visibleActions = useMemo(() => {
     const commands = selectedCommands.filter(
       (command) => command.type !== "mulligan",
@@ -262,10 +275,11 @@ export function MatchLab() {
     return visible;
   }, [selectedCommands]);
 
-  const resetMatch = (nextMode = mode) => {
+  const resetMatch = (nextMode = mode, nextLineup = lineup) => {
     const nextOrdinal = matchOrdinal + 1;
     setMatchOrdinal(nextOrdinal);
-    setState(createBrowserMatch(20260816 + nextOrdinal));
+    setLineup(nextLineup);
+    setState(createBrowserMatch(20260816 + nextOrdinal, nextLineup));
     setMode(nextMode);
     setViewerId("p1");
     setHandoffTo(null);
@@ -285,6 +299,14 @@ export function MatchLab() {
     setHandoffTo(null);
     setMulliganIds(new Set());
     setSelectedId(null);
+  };
+
+  const changeLeader = (
+    playerId: PlayerId,
+    leaderId: BrowserLineup[PlayerId],
+  ) => {
+    if (lineup[playerId] === leaderId) return;
+    resetMatch(mode, { ...lineup, [playerId]: leaderId });
   };
 
   return (
@@ -335,12 +357,63 @@ export function MatchLab() {
         </div>
       </header>
 
+      <section className="leader-selectors" aria-label="Prototype Leaders">
+        {(["p1", "p2"] as const).map((setupPlayerId) => {
+          const selectedOption = browserLeaderOptions.find(
+            (option) => option.cardId === lineup[setupPlayerId],
+          )!;
+          const definition = leaderDefinitions[setupPlayerId];
+          const command = definition.abilities?.find(
+            (ability) => ability.type === "leader_command",
+          );
+          return (
+            <label className="leader-selector" key={setupPlayerId}>
+              <span className="leader-selector__label">
+                {playerName(setupPlayerId).toUpperCase()} //{" "}
+                {selectedOption.archetype.toUpperCase()}
+              </span>
+              <select
+                data-player={setupPlayerId}
+                onChange={(event) =>
+                  changeLeader(
+                    setupPlayerId,
+                    event.target.value as BrowserLineup[PlayerId],
+                  )
+                }
+                value={lineup[setupPlayerId]}
+              >
+                {browserLeaderOptions.map((option) => (
+                  <option key={option.cardId} value={option.cardId}>
+                    {browserEngine.cards.get(option.cardId)?.name}
+                  </option>
+                ))}
+              </select>
+              <span className="leader-selector__detail">
+                <strong>{definition.aspects.join(" / ").toUpperCase()}</strong>
+                <small>{selectedOption.summary}</small>
+              </span>
+              <span className="leader-selector__command">
+                {command?.focusCost ?? 0}F • {command?.timeCost ?? 0}T //{" "}
+                {generateRulesText(definition)}
+              </span>
+            </label>
+          );
+        })}
+      </section>
+
       <section className="opponent-bar" aria-label="Opponent status">
-        <div className="leader-chip leader-chip--rival">
-          <small>{playerName(rivalId).toUpperCase()} CORE</small>
+        <button
+          className="leader-chip leader-chip--rival"
+          onClick={() =>
+            setSelectedId(state.players[rivalId].leader.instanceId)
+          }
+          type="button"
+        >
+          <small>{leaderDefinitions[rivalId].name}</small>
           <strong>{state.players[rivalId].integrity}</strong>
-        </div>
+        </button>
         <div className="opponent-summary">
+          <span>{playerName(rivalId)}</span>
           <span>{state.players[rivalId].hand.length} cards</span>
           <span>{state.players[rivalId].deck.length} deck</span>
           <span>
@@ -416,9 +489,16 @@ export function MatchLab() {
                 <div className="cost-line">
                   <StatPill
                     label="FOCUS"
-                    value={selectedDefinition.focusCost}
+                    value={
+                      selectedCommand?.focusCost ?? selectedDefinition.focusCost
+                    }
                   />
-                  <StatPill label="TIME" value={selectedDefinition.playTime} />
+                  <StatPill
+                    label="TIME"
+                    value={
+                      selectedCommand?.timeCost ?? selectedDefinition.playTime
+                    }
+                  />
                   {selectedDefinition.power !== undefined ? (
                     <StatPill
                       label="P/V/PR"
@@ -496,14 +576,21 @@ export function MatchLab() {
 
       <section
         className="player-dock"
+        data-leader={lineup[viewerId]}
         data-viewer={viewerId}
         aria-label={`${playerName(viewerId)} hand and resources`}
       >
         <div className="player-core">
-          <div className="leader-chip">
-            <small>{playerName(viewerId).toUpperCase()} CORE</small>
+          <button
+            className="leader-chip"
+            onClick={() =>
+              setSelectedId(state.players[viewerId].leader.instanceId)
+            }
+            type="button"
+          >
+            <small>{leaderDefinitions[viewerId].name}</small>
             <strong>{state.players[viewerId].integrity}</strong>
-          </div>
+          </button>
           <div className="stat-cluster">
             <StatPill
               label="FOCUS"

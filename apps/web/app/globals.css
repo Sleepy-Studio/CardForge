@@ -67,6 +67,7 @@ button:focus-visible {
 }
 
 .topbar,
+.leader-selectors,
 .opponent-bar,
 .player-dock,
 .panel,
@@ -84,6 +85,76 @@ button:focus-visible {
   min-height: 70px;
   padding: 12px 18px;
   border-radius: 18px 18px 8px 8px;
+}
+
+.leader-selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.leader-selector {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.55fr) minmax(220px, 1fr);
+  gap: 6px 14px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(10, 26, 42, 0.7);
+}
+
+.leader-selector__label {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font:
+    800 9px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.12em;
+}
+
+.leader-selector select {
+  width: 100%;
+  border: 1px solid rgba(69, 217, 255, 0.34);
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: var(--text);
+  cursor: pointer;
+  background: #0c2133;
+  font-weight: 750;
+}
+
+.leader-selector__detail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.leader-selector__detail strong {
+  color: var(--cyan);
+  font:
+    800 9px/1.2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.08em;
+}
+
+.leader-selector__detail small,
+.leader-selector__command {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.leader-selector__command {
+  grid-column: 1 / -1;
+  color: #bcd7e5;
 }
 
 .brand-lockup,
@@ -245,7 +316,14 @@ button:focus-visible {
   padding: 8px 12px;
   border: 1px solid rgba(69, 217, 255, 0.32);
   border-radius: 11px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
   background: rgba(69, 217, 255, 0.07);
+}
+
+.leader-chip:hover {
+  border-color: var(--line-hot);
 }
 
 .leader-chip--rival {
@@ -837,6 +915,10 @@ button:focus-visible {
 }
 
 @media (max-width: 1050px) {
+  .leader-selectors {
+    grid-template-columns: 1fr;
+  }
+
   .match-grid {
     grid-template-columns: 1fr;
   }
@@ -865,6 +947,15 @@ button:focus-visible {
   .topbar {
     gap: 12px;
     flex-wrap: wrap;
+  }
+
+  .leader-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .leader-selector__label,
+  .leader-selector__command {
+    grid-column: 1;
   }
 
   .brand-lockup p,

@@ -24,6 +24,12 @@ export interface SimulationResult {
   readonly mulliganedCount: number;
 }
 
+export interface SimulationSetup {
+  readonly decks: Readonly<Record<PlayerId, readonly string[]>>;
+  readonly leaders: Readonly<Record<PlayerId, string>>;
+  readonly matchIdPrefix?: string;
+}
+
 function activePlayer(state: GameState): PlayerId | null {
   if (state.phase === "mulligan")
     return state.players.p1.mulliganSubmitted ? "p2" : "p1";
@@ -175,13 +181,17 @@ export function assertGameInvariants(state: GameState): void {
 export function simulateGame(
   seed: number,
   engine = new TempoFrontEngine(),
+  setup: SimulationSetup = {
+    decks: { p1: proofDeck, p2: proofDeck },
+    leaders: proofLeaders,
+  },
 ): SimulationResult {
-  const decks = { p1: proofDeck, p2: proofDeck } as const;
+  const { decks, leaders } = setup;
   let state = engine.createGame({
-    matchId: `proof-${seed}`,
+    matchId: `${setup.matchIdPrefix ?? "proof"}-${seed}`,
     seed,
     decks,
-    leaders: proofLeaders,
+    leaders,
   });
   const acceptedCommands: Command[] = [];
   let reactionCount = 0;
@@ -222,7 +232,7 @@ export function simulateGame(
     formatRevision: state.formatRevision,
     contentHash: state.contentHash,
     decks,
-    leaders: proofLeaders,
+    leaders,
     acceptedCommands,
     finalStateHash,
   };

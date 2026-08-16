@@ -1,13 +1,13 @@
-import type { CardDefinition } from "@cardforge/card-schema";
+import type { CardDefinition, PlayerId } from "@cardforge/card-schema";
 import { stateHash } from "@cardforge/rules-kernel";
 
 export const proofCards = [
   {
     cardId: "leader.vanguard",
     revision: 1,
-    name: "Vanguard Marshal",
+    name: "Marshal Ilyra",
     type: "leader",
-    aspects: ["force"],
+    aspects: ["force", "bastion"],
     focusCost: 0,
     playTime: 0,
     abilities: [
@@ -20,6 +20,65 @@ export const proofCards = [
         effects: [
           { op: "deal_damage", target: { kind: "enemy_leader" }, amount: 1 },
         ],
+      },
+    ],
+  },
+  {
+    cardId: "leader.relay",
+    revision: 1,
+    name: "Kestrel Vey",
+    type: "leader",
+    aspects: ["motion", "cunning"],
+    focusCost: 0,
+    playTime: 0,
+    abilities: [
+      {
+        abilityId: "vector-command",
+        type: "leader_command",
+        focusCost: 1,
+        timeCost: 2,
+        oncePerCycle: true,
+        effects: [{ op: "shift", target: { kind: "chosen_friendly_entity" } }],
+      },
+    ],
+  },
+  {
+    cardId: "leader.rootbound",
+    revision: 1,
+    name: "Nera Rootbound",
+    type: "leader",
+    aspects: ["growth", "entropy"],
+    focusCost: 0,
+    playTime: 0,
+    abilities: [
+      {
+        abilityId: "renew-command",
+        type: "leader_command",
+        focusCost: 1,
+        timeCost: 2,
+        oncePerCycle: true,
+        effects: [
+          { op: "heal", target: { kind: "friendly_leader" }, amount: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    cardId: "leader.skydancer",
+    revision: 1,
+    name: "Arlen Skydancer",
+    type: "leader",
+    aspects: ["force", "motion"],
+    focusCost: 0,
+    playTime: 0,
+    abilities: [
+      {
+        abilityId: "survey-command",
+        type: "leader_command",
+        focusCost: 1,
+        timeCost: 2,
+        oncePerCycle: true,
+        effects: [{ op: "scout", amount: 2 }],
       },
     ],
   },
@@ -451,6 +510,286 @@ export const proofCards = [
       },
     ],
   },
+  {
+    cardId: "entity.emberlance",
+    revision: 1,
+    name: "Emberlance Raider",
+    type: "entity",
+    subtypes: ["soldier"],
+    aspects: ["force"],
+    focusCost: 3,
+    playTime: 3,
+    power: 4,
+    vitality: 2,
+    presence: 1,
+    strikeTime: 3,
+  },
+  {
+    cardId: "entity.breachsmith",
+    revision: 1,
+    name: "Breachsmith",
+    type: "entity",
+    subtypes: ["soldier"],
+    aspects: ["force"],
+    focusCost: 2,
+    playTime: 2,
+    power: 2,
+    vitality: 2,
+    presence: 1,
+    strikeTime: 2,
+    keywords: { rapid: true },
+  },
+  {
+    cardId: "entity.rampart_keeper",
+    revision: 1,
+    name: "Rampart Keeper",
+    type: "entity",
+    subtypes: ["guardian"],
+    aspects: ["bastion"],
+    focusCost: 4,
+    playTime: 3,
+    power: 2,
+    vitality: 6,
+    presence: 3,
+    strikeTime: 3,
+    keywords: { armor: 1 },
+  },
+  {
+    cardId: "tactic.break_line",
+    revision: 1,
+    name: "Break the Line",
+    type: "tactic",
+    aspects: ["force"],
+    focusCost: 1,
+    playTime: 1,
+    abilities: [
+      {
+        abilityId: "break-line",
+        type: "activated",
+        effects: [
+          {
+            op: "deal_damage",
+            target: { kind: "chosen_enemy_entity" },
+            amount: 1,
+          },
+        ],
+      },
+    ],
+  },
+  {
+    cardId: "entity.windknife",
+    revision: 1,
+    name: "Windknife Courier",
+    type: "entity",
+    subtypes: ["scout"],
+    aspects: ["motion"],
+    focusCost: 2,
+    playTime: 2,
+    power: 1,
+    vitality: 3,
+    presence: 1,
+    strikeTime: 2,
+    keywords: { mobile: true, ranged: true },
+  },
+  {
+    cardId: "entity.codebreaker",
+    revision: 1,
+    name: "Cipher Duelist",
+    type: "entity",
+    subtypes: ["agent"],
+    aspects: ["cunning"],
+    focusCost: 3,
+    playTime: 3,
+    power: 2,
+    vitality: 4,
+    presence: 1,
+    strikeTime: 3,
+  },
+  {
+    cardId: "tactic.quickstep",
+    revision: 1,
+    name: "Quickstep Route",
+    type: "tactic",
+    aspects: ["motion"],
+    focusCost: 1,
+    playTime: 1,
+    abilities: [
+      {
+        abilityId: "quickstep",
+        type: "activated",
+        effects: [{ op: "shift", target: { kind: "chosen_friendly_entity" } }],
+      },
+    ],
+  },
+  {
+    cardId: "tactic.false_order",
+    revision: 1,
+    name: "False Order",
+    type: "tactic",
+    aspects: ["cunning"],
+    focusCost: 2,
+    playTime: 2,
+    abilities: [
+      {
+        abilityId: "false-order",
+        type: "activated",
+        effects: [
+          {
+            op: "add_status",
+            target: { kind: "chosen_enemy_entity" },
+            status: {
+              statusId: "rooted",
+              value: 1,
+              duration: "until_refresh",
+              stackingPolicy: "refresh",
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    cardId: "reaction.misdirect",
+    revision: 1,
+    name: "Misdirection",
+    type: "reaction",
+    aspects: ["cunning"],
+    focusCost: 1,
+    playTime: 1,
+    abilities: [
+      {
+        abilityId: "misdirect",
+        type: "reaction",
+        tempoDebt: 1,
+        effects: [{ op: "shift", target: { kind: "chosen_friendly_entity" } }],
+      },
+    ],
+  },
+  {
+    cardId: "entity.mossback",
+    revision: 1,
+    name: "Mossback Tender",
+    type: "entity",
+    subtypes: ["beast"],
+    aspects: ["growth"],
+    focusCost: 3,
+    playTime: 3,
+    power: 2,
+    vitality: 5,
+    presence: 2,
+    strikeTime: 3,
+  },
+  {
+    cardId: "entity.seedwarden",
+    revision: 1,
+    name: "Seedwarden",
+    type: "entity",
+    subtypes: ["guardian"],
+    aspects: ["growth"],
+    focusCost: 2,
+    playTime: 2,
+    power: 1,
+    vitality: 3,
+    presence: 2,
+    strikeTime: 3,
+  },
+  {
+    cardId: "entity.ashcollector",
+    revision: 1,
+    name: "Ash Collector",
+    type: "entity",
+    subtypes: ["reclaimer"],
+    aspects: ["entropy"],
+    focusCost: 2,
+    playTime: 2,
+    power: 2,
+    vitality: 2,
+    presence: 1,
+    strikeTime: 3,
+    abilities: [
+      {
+        abilityId: "last-account",
+        type: "triggered",
+        trigger: "on_defeat",
+        effects: [{ op: "draw", amount: 1 }],
+      },
+    ],
+  },
+  {
+    cardId: "entity.gravetender",
+    revision: 1,
+    name: "Gravetender",
+    type: "entity",
+    subtypes: ["reclaimer"],
+    aspects: ["entropy"],
+    focusCost: 4,
+    playTime: 3,
+    power: 3,
+    vitality: 5,
+    presence: 2,
+    strikeTime: 3,
+  },
+  {
+    cardId: "tactic.regrowth",
+    revision: 1,
+    name: "Patient Regrowth",
+    type: "tactic",
+    aspects: ["growth"],
+    focusCost: 1,
+    playTime: 1,
+    abilities: [
+      {
+        abilityId: "regrowth",
+        type: "activated",
+        effects: [
+          { op: "heal", target: { kind: "chosen_friendly_entity" }, amount: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    cardId: "tactic.culling_mark",
+    revision: 1,
+    name: "Culling Mark",
+    type: "tactic",
+    aspects: ["entropy"],
+    focusCost: 1,
+    playTime: 1,
+    abilities: [
+      {
+        abilityId: "culling-mark",
+        type: "activated",
+        effects: [
+          {
+            op: "add_status",
+            target: { kind: "chosen_enemy_entity" },
+            status: {
+              statusId: "exposed",
+              value: 1,
+              duration: "until_cycle_end",
+              stackingPolicy: "highest",
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    cardId: "tactic.return_cycle",
+    revision: 1,
+    name: "Return to the Cycle",
+    type: "tactic",
+    aspects: ["entropy"],
+    focusCost: 2,
+    playTime: 2,
+    abilities: [
+      {
+        abilityId: "return-cycle",
+        type: "activated",
+        effects: [{ op: "salvage", cardType: "entity" }],
+      },
+    ],
+  },
 ] as const satisfies readonly CardDefinition[];
 
 export const proofCardMap: ReadonlyMap<string, CardDefinition> = new Map(
@@ -461,6 +800,114 @@ export const proofLeaders = {
   p1: "leader.proof",
   p2: "leader.proof",
 } as const;
+
+export const prototypeLeaderOptions = [
+  {
+    cardId: "leader.vanguard",
+    archetype: "Siege",
+    summary: "Force/Bastion pressure with direct Core damage.",
+  },
+  {
+    cardId: "leader.relay",
+    archetype: "Ambush",
+    summary: "Motion/Cunning positioning and response control.",
+  },
+  {
+    cardId: "leader.rootbound",
+    archetype: "Reclamation",
+    summary: "Growth/Entropy recovery and defeat value.",
+  },
+  {
+    cardId: "leader.skydancer",
+    archetype: "Raid",
+    summary: "Force/Motion attacks backed by card selection.",
+  },
+] as const;
+
+export type PrototypeLeaderId =
+  (typeof prototypeLeaderOptions)[number]["cardId"];
+
+function buildStarterDeck(cardIds: readonly string[]): readonly string[] {
+  if (cardIds.length !== 14)
+    throw new Error("Prototype starter decks require exactly 14 card IDs");
+  return cardIds.flatMap((cardId, index) =>
+    Array.from({ length: index < 12 ? 3 : 2 }, () => cardId),
+  );
+}
+
+export const prototypeDecks: Readonly<
+  Record<PrototypeLeaderId, readonly string[]>
+> = {
+  "leader.vanguard": buildStarterDeck([
+    "entity.linebreaker",
+    "entity.bulwark",
+    "entity.ironhide",
+    "entity.aegis",
+    "entity.emberlance",
+    "entity.breachsmith",
+    "entity.rampart_keeper",
+    "tactic.impact",
+    "attachment.edge",
+    "tactic.crossfire",
+    "reaction.deflect",
+    "tactic.break_line",
+    "relic.beacon",
+    "site.overlook",
+  ]),
+  "leader.relay": buildStarterDeck([
+    "entity.skywatcher",
+    "entity.flashrunner",
+    "entity.windknife",
+    "entity.codebreaker",
+    "tactic.reposition",
+    "tactic.survey",
+    "tactic.displace",
+    "reaction.denial",
+    "tactic.stagger",
+    "tactic.quickstep",
+    "tactic.false_order",
+    "reaction.misdirect",
+    "relic.beacon",
+    "site.overlook",
+  ]),
+  "leader.rootbound": buildStarterDeck([
+    "entity.broodcaller",
+    "entity.lastlight",
+    "entity.mossback",
+    "entity.seedwarden",
+    "entity.ashcollector",
+    "entity.gravetender",
+    "tactic.mend",
+    "tactic.adapt",
+    "tactic.recover",
+    "tactic.regrowth",
+    "tactic.culling_mark",
+    "tactic.return_cycle",
+    "relic.beacon",
+    "site.overlook",
+  ]),
+  "leader.skydancer": buildStarterDeck([
+    "entity.linebreaker",
+    "entity.skywatcher",
+    "entity.flashrunner",
+    "entity.emberlance",
+    "entity.breachsmith",
+    "entity.windknife",
+    "tactic.impact",
+    "tactic.crossfire",
+    "tactic.reposition",
+    "tactic.survey",
+    "tactic.break_line",
+    "tactic.quickstep",
+    "relic.beacon",
+    "site.overlook",
+  ]),
+};
+
+export const defaultPrototypeLeaders = {
+  p1: "leader.vanguard",
+  p2: "leader.relay",
+} as const satisfies Readonly<Record<PlayerId, PrototypeLeaderId>>;
 
 const deckPattern = [
   "entity.linebreaker",

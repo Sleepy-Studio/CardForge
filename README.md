@@ -91,6 +91,9 @@ The first browser slice is now runnable in `apps/web`:
 - projected Time costs before action confirmation;
 - deterministic bot opponent and mulligan handoff;
 - local hot-seat mode with explicit private handoff locks and viewer-relative board rotation;
+- four selectable dual-Aspect Leaders with distinct executable Commands and legal forty-card starter decks;
+- thirty-eight collectible prototype cards across all six Aspects, plus the internal proof fixtures;
+- complete headless match and exact replay coverage for every prototype Leader;
 - keyboard-operable legal actions and screen-reader board summaries;
 - reduced-motion and responsive layouts;
 - production build, HTTP smoke, screenshot review, and CDP interaction smoke.
@@ -100,5 +103,7 @@ device: the hand and controls are blanked during every priority transfer, but
 the full local state still exists in browser memory. Server-projected secrecy
 arrives with online play in Milestone 3.
 
-Milestone 2 is not complete yet: four real Leaders, the sixty-card prototype
-pool, richer board animation, and new-player usability testing remain.
+Milestone 2 is not complete yet. The production-facing prototype pool is now 42
+cards: four Leaders and thirty-eight collectible cards. Eighteen cards remain to
+reach the sixty-card target, followed by richer board animation and new-player
+usability testing.
