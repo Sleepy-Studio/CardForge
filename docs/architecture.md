@@ -137,15 +137,26 @@ forty-card size, at least twelve Entities, and the three-copy ceiling. A content
 contract test freezes the exact count, unique semantic IDs, fixture exclusions,
 and type distribution.
 
+Lab Build 05 adds a presentation adapter over accepted `GameEvent` batches.
+Deployments, Shifts, Strikes, damage, prevention, defeats, cycle-end Front
+control, Dominion, and victory produce typed visual cues. Pixi draws transient
+source-to-target traces and board anchors while a DOM callout provides readable
+semantic context. A new command can replace the cue immediately, Skip FX clears
+it, and neither path can delay authoritative state. Reduced-motion preference is
+honored inside Pixi as well as CSS. The engine now emits exact
+`front_control_resolved` events with both Presence totals during scoring.
+
 A production-browser smoke test drives Chromium through mulligan, bot handoff,
 card selection, inspection, legal-action discovery, and action resolution. It
 then switches modes and verifies both hot-seat mulligans, hand blanking during
 handoff, viewer rotation, a Main Action transfer, and the opposing Response
-seat. The first screenshot review confirms that all three Fronts and the
-Timeline remain readable at 1440×1000.
+seat. It also verifies the Lab Build 05 marker, reduced-motion mode, a semantic
+deployment cue reaching both DOM and Pixi, and Skip FX clearing that cue. The
+first screenshot review confirms that all three Fronts and the Timeline remain
+readable at 1440×1000.
 
 The internal all-Aspect proof Leader and generated Token are not counted toward
-the sixty-card prototype target. Remaining Milestone 2 work is richer semantic
-event animation and a new-player comprehension pass. Kernel additions remain
-driven by those concrete prototype requirements rather than speculative
+the sixty-card prototype target. The remaining Milestone 2 gate is a real
+new-player comprehension pass and any clarity fixes it exposes. Kernel additions
+remain driven by those concrete prototype requirements rather than speculative
 universal-engine work.

@@ -761,8 +761,16 @@ function advanceCycle(
   for (const front of frontIds) {
     const p1 = calculatePresence(cards, state, "p1", front);
     const p2 = calculatePresence(cards, state, "p2", front);
-    if (p1 > p2) p1Controlled += 1;
-    else if (p2 > p1) p2Controlled += 1;
+    const controllerId = p1 > p2 ? "p1" : p2 > p1 ? "p2" : null;
+    if (controllerId === "p1") p1Controlled += 1;
+    else if (controllerId === "p2") p2Controlled += 1;
+    events.push({
+      type: "front_control_resolved",
+      front,
+      controllerId,
+      p1Presence: p1,
+      p2Presence: p2,
+    });
   }
   const scorer = p1Controlled >= 2 ? "p1" : p2Controlled >= 2 ? "p2" : null;
   if (scorer) {

@@ -19,6 +19,8 @@ import {
   definitionForInstance,
   eventLabel,
   findInstance,
+  presentationCues,
+  type PresentationBatch,
 } from "@/lib/match-ui";
 
 type MatchMode = "bot" | "hotseat";
@@ -109,6 +111,11 @@ export function MatchLab() {
   ]);
   const [matchOrdinal, setMatchOrdinal] = useState(0);
   const [botThinking, setBotThinking] = useState(false);
+  const [presentation, setPresentation] = useState<PresentationBatch | null>(
+    null,
+  );
+  const [effectsEnabled, setEffectsEnabled] = useState(true);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   const active = activePlayer(state);
   const rivalId = opponentOf(viewerId);
@@ -125,12 +132,34 @@ export function MatchLab() {
     [active, privacyLocked, state, viewerId],
   );
 
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setPrefersReducedMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  const publishEvents = useCallback(
+    (
+      before: GameState,
+      after: GameState,
+      events: Parameters<typeof presentationCues>[0],
+    ) => {
+      setHistory((items) =>
+        [...events.map(eventLabel).reverse(), ...items].slice(0, 18),
+      );
+      const cues = presentationCues(events, before, after);
+      if (cues.length > 0)
+        setPresentation({ sequence: after.commandNumber, cues });
+    },
+    [],
+  );
+
   const apply = useCallback(
     (command: Command) => {
       const result = browserEngine.applyCommand(state, command);
-      setHistory((items) =>
-        [...result.events.map(eventLabel).reverse(), ...items].slice(0, 18),
-      );
+      publishEvents(state, result.state, result.events);
       setState(result.state);
       setSelectedId(null);
       if (mode === "hotseat") {
@@ -138,7 +167,7 @@ export function MatchLab() {
         if (nextPlayer && nextPlayer !== viewerId) setHandoffTo(nextPlayer);
       }
     },
-    [mode, state, viewerId],
+    [mode, publishEvents, state, viewerId],
   );
 
   useEffect(() => {
@@ -151,14 +180,12 @@ export function MatchLab() {
       const commands = browserEngine.getLegalCommands(state, "p2");
       const command = chooseBotCommand(state, commands);
       const result = browserEngine.applyCommand(state, command);
-      setHistory((items) =>
-        [...result.events.map(eventLabel).reverse(), ...items].slice(0, 18),
-      );
+      publishEvents(state, result.state, result.events);
       setState(result.state);
       setBotThinking(false);
     }, 420);
     return () => window.clearTimeout(timer);
-  }, [active, mode, state]);
+  }, [active, mode, publishEvents, state]);
 
   const selectedCommands = useMemo(() => {
     if (!selectedId) return legal;
@@ -285,6 +312,7 @@ export function MatchLab() {
     setViewerId("p1");
     setHandoffTo(null);
     setBotThinking(false);
+    setPresentation(null);
     setHistory([
       nextMode === "hotseat"
         ? "Hot-seat match locked. Player 1 may inspect the opening hand."
@@ -309,6 +337,7 @@ export function MatchLab() {
     if (lineup[playerId] === leaderId) return;
     resetMatch(mode, { ...lineup, [playerId]: leaderId });
   };
+  const primaryCue = presentation?.cues.at(-1);
 
   return (
     <main className="app-shell">
@@ -316,7 +345,7 @@ export function MatchLab() {
         <div className="brand-lockup">
           <span className="brand-mark">CF</span>
           <div>
-            <p>CARD FORGE // LAB BUILD 04 // {browserCardPoolSize} CARD POOL</p>
+            <p>CARD FORGE // LAB BUILD 05 // {browserCardPoolSize} CARD POOL</p>
             <h1>TempoFront</h1>
           </div>
         </div>
@@ -348,6 +377,18 @@ export function MatchLab() {
                 : active === viewerId
                   ? `${playerName(viewerId).toUpperCase()} PRIORITY`
                   : `AWAITING ${active ? playerName(active).toUpperCase() : "RESOLUTION"}`}
+          <button
+            className={`button button--quiet fx-toggle ${effectsEnabled ? "is-active" : ""}`}
+            data-fx={effectsEnabled ? "on" : "off"}
+            onClick={() => setEffectsEnabled((enabled) => !enabled)}
+            type="button"
+          >
+            {effectsEnabled
+              ? prefersReducedMotion
+                ? "FX REDUCED"
+                : "FX ON"
+              : "FX OFF"}
+          </button>
           <button
             className="button button--quiet"
             onClick={() => resetMatch()}
@@ -444,8 +485,31 @@ export function MatchLab() {
             legalSlots={legalSlots}
             legalTargets={legalTargets}
             legalFronts={legalFronts}
+            presentation={effectsEnabled ? presentation : null}
+            reducedMotion={prefersReducedMotion}
             onIntent={onBoardIntent}
           />
+          {primaryCue ? (
+            <div
+              className="event-callout"
+              data-event-kind={primaryCue.kind}
+              data-tone={primaryCue.tone}
+              key={primaryCue.id}
+              role="status"
+            >
+              <span>{primaryCue.label}</span>
+              <strong>{primaryCue.detail}</strong>
+              {effectsEnabled ? (
+                <button
+                  aria-label="Skip current board effect"
+                  onClick={() => setPresentation(null)}
+                  type="button"
+                >
+                  SKIP FX
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="sr-only">
             {(["left", "center", "right"] as const).map((front) => (
               <section key={front}>

@@ -290,6 +290,11 @@ button:focus-visible {
   color: var(--muted);
 }
 
+.fx-toggle.is-active {
+  color: var(--mint);
+  border-color: rgba(109, 255, 186, 0.45);
+}
+
 .button--primary {
   color: #04121a;
   border-color: var(--mint);
@@ -491,6 +496,7 @@ button:focus-visible {
 }
 
 .arena-panel {
+  position: relative;
   min-width: 0;
 }
 
@@ -506,6 +512,80 @@ button:focus-visible {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.event-callout {
+  position: absolute;
+  z-index: 4;
+  top: 18px;
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  align-items: center;
+  gap: 9px;
+  max-width: calc(100% - 36px);
+  padding: 8px 10px;
+  border: 1px solid rgba(109, 255, 186, 0.55);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(5, 16, 26, 0.9);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  transform: translateX(-50%);
+  animation: event-callout-in 240ms ease-out;
+  backdrop-filter: blur(10px);
+}
+
+.event-callout[data-tone="impact"] {
+  border-color: rgba(255, 110, 145, 0.7);
+}
+
+.event-callout[data-tone="guard"] {
+  border-color: rgba(69, 217, 255, 0.7);
+}
+
+.event-callout[data-tone="objective"] {
+  border-color: rgba(255, 191, 84, 0.72);
+}
+
+.event-callout[data-tone="victory"] {
+  border-color: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 0 30px rgba(255, 191, 84, 0.28);
+}
+
+.event-callout span,
+.event-callout button {
+  color: var(--muted);
+  font:
+    800 9px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.1em;
+}
+
+.event-callout strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-callout button {
+  border: 0;
+  padding: 3px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.event-callout button:hover {
+  color: var(--text);
+}
+
+@keyframes event-callout-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
 }
 
 .board-caption {

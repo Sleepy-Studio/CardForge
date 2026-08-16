@@ -24,6 +24,7 @@ interface SmokeEntry {
 
 interface LeaderSetup {
   readonly poolLabel: string;
+  readonly fxLabel: string;
   readonly selectors: number;
   readonly p1Options: number;
   readonly p2Options: number;
@@ -41,6 +42,9 @@ interface SmokeResolution {
   readonly latestEvent: string;
   readonly canvasStillMounted: boolean;
   readonly pageTitle: string;
+  readonly cueKind: string;
+  readonly boardCueCount: number;
+  readonly fxState: string;
 }
 
 interface HotseatPrivacy {
@@ -125,8 +129,13 @@ async function evaluate<T>(expression: string): Promise<T> {
 }
 
 await send("Runtime.enable");
+await send("Emulation.setEmulatedMedia", {
+  features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+});
+await delay(50);
 const initialLeaders = await evaluate<LeaderSetup>(`({
   poolLabel: document.querySelector('.brand-lockup p')?.textContent ?? '',
+  fxLabel: document.querySelector('.fx-toggle')?.textContent ?? '',
   selectors: document.querySelectorAll('.leader-selector select').length,
   p1Options: document.querySelectorAll('select[data-player="p1"] option').length,
   p2Options: document.querySelectorAll('select[data-player="p2"] option').length,
@@ -135,6 +144,8 @@ const initialLeaders = await evaluate<LeaderSetup>(`({
 })`);
 if (
   !initialLeaders.poolLabel.includes("60 CARD POOL") ||
+  !initialLeaders.poolLabel.includes("LAB BUILD 05") ||
+  !initialLeaders.fxLabel.includes("FX REDUCED") ||
   initialLeaders.selectors !== 2 ||
   initialLeaders.p1Options !== 4 ||
   initialLeaders.p2Options !== 4
@@ -216,10 +227,26 @@ await delay(1_200);
 const resolved = await evaluate<SmokeResolution>(`({
   latestEvent: document.querySelector('.history-list li')?.textContent ?? '',
   canvasStillMounted: Boolean(document.querySelector('.board-canvas canvas')),
-  pageTitle: document.title
+  pageTitle: document.title,
+  cueKind: document.querySelector('.event-callout')?.getAttribute('data-event-kind') ?? '',
+  boardCueCount: Number(document.querySelector('.board-canvas')?.getAttribute('data-cue-count') ?? 0),
+  fxState: document.querySelector('.fx-toggle')?.getAttribute('data-fx') ?? ''
 })`);
-if (!resolved.latestEvent || !resolved.canvasStillMounted)
+if (
+  !resolved.latestEvent ||
+  !resolved.canvasStillMounted ||
+  !resolved.cueKind ||
+  resolved.boardCueCount === 0 ||
+  resolved.fxState !== "on"
+)
   throw new Error(`Action smoke failed: ${JSON.stringify(resolved)}`);
+
+await evaluate(`document.querySelector('.event-callout button')?.click()`);
+await delay(50);
+const cueCleared = await evaluate<boolean>(
+  `!document.querySelector('.event-callout') && document.querySelector('.board-canvas')?.getAttribute('data-cue-count') === '0'`,
+);
+if (!cueCleared) throw new Error("Skip FX did not clear the current cue batch");
 
 await evaluate(
   `document.querySelector('.mode-button[data-mode="hotseat"]')?.click()`,

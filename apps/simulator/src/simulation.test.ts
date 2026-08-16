@@ -753,7 +753,19 @@ void describe("TempoFront deterministic proof", () => {
     }).state;
     assert.equal(state.fronts.left.site?.instanceId, site.instanceId);
     state = engine.applyCommand(state, { type: "pass", playerId: "p2" }).state;
-    state = engine.applyCommand(state, { type: "pass", playerId: "p1" }).state;
+    const cycleResult = engine.applyCommand(state, {
+      type: "pass",
+      playerId: "p1",
+    });
+    state = cycleResult.state;
+    const controlEvents = cycleResult.events.filter(
+      (event) => event.type === "front_control_resolved",
+    );
+    assert.equal(controlEvents.length, 3);
+    assert.equal(
+      controlEvents.find((event) => event.front === "left")?.controllerId,
+      "p1",
+    );
     assert.equal(state.players.p1.dominion, 1);
 
     state = createPlayingGame(engine, {

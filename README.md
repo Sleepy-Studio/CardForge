@@ -87,6 +87,7 @@ The first browser slice is now runnable in `apps/web`:
 - production TempoFront engine running directly in the browser;
 - browser-safe synchronous SHA-256 with hashes identical to the Node runtime;
 - PixiJS WebGL battlefield with semantic Front, Site, and slot presentation;
+- event-driven Pixi traces, target rings, and DOM callouts for deployment, movement, combat, protection, defeat, Front control, Dominion, and victory;
 - DOM resource HUD, Timeline, card hand, inspector, legal-action rail, and event stream;
 - projected Time costs before action confirmation;
 - deterministic bot opponent and mulligan handoff;
@@ -95,7 +96,7 @@ The first browser slice is now runnable in `apps/web`:
 - a complete sixty-card prototype pool across all six Aspects, excluding internal proof fixtures;
 - complete headless match and exact replay coverage for every prototype Leader;
 - keyboard-operable legal actions and screen-reader board summaries;
-- reduced-motion and responsive layouts;
+- reduced-motion, Skip FX, and responsive layouts; presentation never gates engine resolution;
 - production build, HTTP smoke, screenshot review, and CDP interaction smoke.
 
 Run it with `pnpm dev`. Hot-seat privacy is designed for two people sharing one
@@ -107,5 +108,5 @@ The sixty-card Milestone 2 content target is complete: four Leaders, twenty-nine
 Entities, fifteen Tactics, five Reactions, three Attachments, two Relics, and two
 Sites. The internal all-Aspect proof Leader and generated Token are excluded.
 
-Milestone 2 is not complete yet. Richer semantic board animation and a real
-new-player comprehension pass remain.
+Milestone 2 is not complete yet. The implementation target is met; a real
+new-player comprehension pass and any resulting clarity fixes remain.

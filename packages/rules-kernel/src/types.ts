@@ -289,6 +289,13 @@ export type GameEvent =
       readonly from: FrontId;
       readonly to: FrontId;
     }
+  | {
+      readonly type: "front_control_resolved";
+      readonly front: FrontId;
+      readonly controllerId: PlayerId | null;
+      readonly p1Presence: number;
+      readonly p2Presence: number;
+    }
   | { readonly type: "player_passed"; readonly playerId: PlayerId }
   | {
       readonly type: "dominion_gained";

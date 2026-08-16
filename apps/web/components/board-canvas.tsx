@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { FrontId, PlayerId, SlotId } from "@cardforge/card-schema";
 import type { GameState } from "@cardforge/rules-kernel";
 import { Application, Graphics, Text, TextStyle } from "pixi.js";
-import { browserEngine } from "@/lib/match-ui";
+import {
+  browserEngine,
+  type BoardAnchor,
+  type PresentationBatch,
+  type PresentationTone,
+} from "@/lib/match-ui";
 
 export interface BoardIntent {
   readonly front: FrontId;
@@ -20,11 +25,20 @@ interface BoardCanvasProps {
   readonly legalSlots: ReadonlySet<string>;
   readonly legalTargets: ReadonlySet<string>;
   readonly legalFronts: ReadonlySet<FrontId>;
+  readonly presentation: PresentationBatch | null;
+  readonly reducedMotion: boolean;
   readonly onIntent: (intent: BoardIntent) => void;
 }
 
 const fronts = ["left", "center", "right"] as const;
 const slots = ["vanguard", "support"] as const;
+const cueColors: Readonly<Record<PresentationTone, number>> = {
+  motion: 0x6dffba,
+  impact: 0xff6e91,
+  guard: 0x45d9ff,
+  objective: 0xffbf54,
+  victory: 0xffffff,
+};
 
 function destroyChildren(app: Application): void {
   for (const child of app.stage.removeChildren())
@@ -38,6 +52,8 @@ export function BoardCanvas({
   legalSlots,
   legalTargets,
   legalFronts,
+  presentation,
+  reducedMotion,
   onIntent,
 }: BoardCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -140,6 +156,21 @@ export function BoardCanvas({
       viewer: { vanguard: height - 226, support: height - 146 },
     } as const;
     const slotHeight = 64;
+
+    const anchorPoint = (anchor: BoardAnchor) => {
+      const frontIndex = anchor.front ? fronts.indexOf(anchor.front) : 1;
+      const x = outer + frontIndex * (laneWidth + laneGap) + laneWidth / 2;
+      if (anchor.leader)
+        return {
+          x,
+          y: anchor.playerId === viewerId ? height - 18 : 18,
+        };
+      if (anchor.slot && anchor.playerId) {
+        const side = anchor.playerId === viewerId ? "viewer" : "opponent";
+        return { x, y: slotY[side][anchor.slot] + slotHeight / 2 };
+      }
+      return { x, y: height / 2 };
+    };
 
     for (const [frontIndex, front] of fronts.entries()) {
       const x = outer + frontIndex * (laneWidth + laneGap);
@@ -257,6 +288,60 @@ export function BoardCanvas({
       .lineTo(width - outer, height / 2)
       .stroke({ color: 0x7ce7ff, width: 1, alpha: 0.18 });
     app.stage.addChild(centerLine);
+
+    let animateCueLayer: (() => void) | undefined;
+    if (presentation && presentation.cues.length > 0) {
+      const cueLayer = new Graphics();
+      for (const cue of presentation.cues.slice(-4)) {
+        const color = cueColors[cue.tone];
+        const source = cue.source ? anchorPoint(cue.source) : undefined;
+        const target = cue.target ? anchorPoint(cue.target) : undefined;
+        if (source && target)
+          cueLayer
+            .moveTo(source.x, source.y)
+            .lineTo(target.x, target.y)
+            .stroke({
+              color,
+              width: cue.kind === "damage" ? 5 : 3,
+              alpha: 0.8,
+            });
+        if (source)
+          cueLayer
+            .circle(source.x, source.y, 13)
+            .stroke({ color, width: 3, alpha: 0.75 });
+        if (target) {
+          if (cue.target?.front && !cue.target.slot && !cue.target.leader) {
+            const targetIndex = fronts.indexOf(cue.target.front);
+            const laneX = outer + targetIndex * (laneWidth + laneGap);
+            cueLayer
+              .roundRect(laneX + 5, 27, laneWidth - 10, height - 54, 16)
+              .stroke({ color, width: 4, alpha: 0.85 });
+          } else
+            cueLayer
+              .circle(target.x, target.y, cue.kind === "defeat" ? 31 : 24)
+              .stroke({ color, width: 5, alpha: 0.9 });
+        }
+      }
+      app.stage.addChild(cueLayer);
+      if (!reducedMotion) {
+        let elapsed = 0;
+        animateCueLayer = () => {
+          elapsed += app.ticker.deltaMS;
+          const progress = Math.min(elapsed / 1_050, 1);
+          cueLayer.alpha = 1 - progress * progress;
+          cueLayer.scale.set(1 + Math.sin(progress * Math.PI) * 0.035);
+          cueLayer.pivot.set(width / 2, height / 2);
+          cueLayer.position.set(width / 2, height / 2);
+          if (progress >= 1 && animateCueLayer)
+            app.ticker.remove(animateCueLayer);
+        };
+        app.ticker.add(animateCueLayer);
+      }
+    }
+
+    return () => {
+      if (animateCueLayer) app.ticker.remove(animateCueLayer);
+    };
   }, [
     state,
     selectedId,
@@ -265,7 +350,16 @@ export function BoardCanvas({
     legalFronts,
     viewerId,
     canvasRevision,
+    presentation,
+    reducedMotion,
   ]);
 
-  return <div className="board-canvas" ref={hostRef} />;
+  return (
+    <div
+      className="board-canvas"
+      data-cue-count={presentation?.cues.length ?? 0}
+      data-event-sequence={presentation?.sequence ?? 0}
+      ref={hostRef}
+    />
+  );
 }
