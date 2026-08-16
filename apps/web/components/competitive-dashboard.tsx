@@ -119,6 +119,9 @@ export function CompetitiveDashboard() {
           <a className="button button--quiet" href="/studio">
             Card Studio
           </a>
+          <a className="button button--quiet" href="/operations">
+            Operations
+          </a>
           <button
             className="button button--primary"
             onClick={() => void refresh()}

@@ -41,6 +41,9 @@ importers:
       '@cardforge/economy':
         specifier: workspace:*
         version: link:../../packages/economy
+      '@cardforge/live-ops':
+        specifier: workspace:*
+        version: link:../../packages/live-ops
       '@cardforge/persistence':
         specifier: workspace:*
         version: link:../../packages/persistence

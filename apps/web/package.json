@@ -12,6 +12,7 @@
     "smoke:competitive": "node scripts/competitive-smoke.ts",
     "smoke:collection": "node scripts/collection-smoke.ts",
     "smoke:academy": "node scripts/academy-smoke.ts",
+    "smoke:operations": "node scripts/operations-smoke.ts",
     "start": "next start"
   },
   "dependencies": {

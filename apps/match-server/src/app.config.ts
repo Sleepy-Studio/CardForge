@@ -1,4 +1,5 @@
 import { matchMaker, Server } from "@colyseus/core";
+import { randomUUID } from "node:crypto";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { json, type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
@@ -19,6 +20,12 @@ import { TempoFrontTrainingRoom } from "./training-room.js";
 import { cardForgeStore } from "./store.js";
 import { cosmeticCatalog } from "@cardforge/economy";
 import { trainingScenarios } from "@cardforge/training";
+import {
+  launchLiveOps,
+  stageLiveOps,
+  validateLiveOps,
+  type LiveOpsDefinition,
+} from "@cardforge/live-ops";
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_-]{3,80}$/);
 const accountBody = z
@@ -48,6 +55,31 @@ const cosmeticUnlockBody = z
     cosmeticId: z.string().min(3).max(120),
   })
   .strict();
+const supportCaseBody = z
+  .object({
+    caseId: z.string().regex(/^[a-zA-Z0-9:_-]{8,120}$/),
+    summary: z.string().trim().min(10).max(500),
+  })
+  .strict();
+const supportUpdateBody = z
+  .object({
+    status: z.enum(["open", "resolved"]).optional(),
+    note: z.string().trim().min(1).max(1_000).optional(),
+  })
+  .strict()
+  .refine((body) => body.status !== undefined || body.note !== undefined);
+const stageLiveOpsBody = z
+  .object({
+    revision: z.number().int().positive(),
+    featureFlags: z.record(z.string().min(3).max(100), z.boolean()),
+  })
+  .strict();
+const publishLiveOpsBody = z
+  .object({
+    sourceRevision: z.number().int().positive(),
+    revision: z.number().int().positive(),
+  })
+  .strict();
 
 function sendEconomyError(response: Response, error: unknown): void {
   const message =
@@ -70,6 +102,32 @@ function ownsAccount(request: Request, response: Response): boolean {
   return false;
 }
 
+function ownsAdmin(request: Request, response: Response): boolean {
+  const expected =
+    process.env.CARDFORGE_ADMIN_TOKEN ??
+    (process.env.NODE_ENV === "production" ? null : "cardforge-local-admin");
+  if (!expected) {
+    response.status(503).json({ error: "ADMIN_API_DISABLED" });
+    return false;
+  }
+  if (request.header("x-cardforge-admin-token") === expected) return true;
+  response.status(403).json({ error: "ADMIN_SCOPE_REQUIRED" });
+  return false;
+}
+
+async function currentLiveOps(): Promise<LiveOpsDefinition> {
+  const definitions = await cardForgeStore.listLiveOpsDefinitions();
+  return (
+    definitions
+      .filter(
+        (definition) =>
+          definition.configId === launchLiveOps.configId &&
+          definition.state === "published",
+      )
+      .sort((a, b) => b.revision - a.revision)[0] ?? launchLiveOps
+  );
+}
+
 const allowedOrigins = new Set(
   (
     process.env.CARDFORGE_ALLOWED_ORIGINS ??
@@ -85,7 +143,7 @@ matchMaker.controller.getCorsHeaders = (headers) => {
     "Access-Control-Allow-Origin":
       origin && allowedOrigins.has(origin) ? origin : "null",
     "Access-Control-Allow-Headers":
-      "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CardForge-Account-Id",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-CardForge-Account-Id, X-CardForge-Admin-Token, X-CardForge-Admin-Actor",
   };
 };
 
@@ -112,7 +170,7 @@ export const server = new Server({
         response.header("vary", "origin");
         response.header(
           "access-control-allow-headers",
-          "content-type,authorization,x-cardforge-account-id",
+          "content-type,authorization,x-cardforge-account-id,x-cardforge-admin-token,x-cardforge-admin-actor",
         );
         response.header("access-control-allow-methods", "GET,POST,OPTIONS");
       }
@@ -207,6 +265,12 @@ export const server = new Server({
       response.json({ scenarios: trainingScenarios });
     });
     app.get(
+      "/api/live-ops/current",
+      async (_request: Request, response: Response) => {
+        response.json({ definition: await currentLiveOps() });
+      },
+    );
+    app.get(
       "/api/accounts/:accountId/training-completions",
       async (request: Request, response: Response) => {
         if (!ownsAccount(request, response)) return;
@@ -220,6 +284,191 @@ export const server = new Server({
             accountId.data,
           ),
         });
+      },
+    );
+    app.get(
+      "/api/accounts/:accountId/support-cases",
+      async (request: Request, response: Response) => {
+        if (!ownsAccount(request, response)) return;
+        const accountId = identifier.safeParse(request.params.accountId);
+        if (!accountId.success) {
+          response.status(400).json({ error: "INVALID_ACCOUNT" });
+          return;
+        }
+        response.json({
+          cases: await cardForgeStore.listSupportCases({
+            accountId: accountId.data,
+          }),
+        });
+      },
+    );
+    app.post(
+      "/api/accounts/:accountId/support-cases",
+      async (request: Request, response: Response) => {
+        if (!ownsAccount(request, response)) return;
+        const accountId = identifier.safeParse(request.params.accountId);
+        const body = supportCaseBody.safeParse(request.body);
+        if (!accountId.success || !body.success) {
+          response.status(400).json({ error: "INVALID_SUPPORT_CASE" });
+          return;
+        }
+        try {
+          const supportCase = await cardForgeStore.createSupportCase({
+            accountId: accountId.data,
+            ...body.data,
+          });
+          await cardForgeStore.appendAudit({
+            auditId: `audit:${randomUUID()}`,
+            actorId: accountId.data,
+            action: "support.create",
+            targetId: supportCase.caseId,
+            payload: { summary: supportCase.summary },
+          });
+          response.status(201).json({ case: supportCase });
+        } catch (error) {
+          response.status(409).json({
+            error: "SUPPORT_CASE_REJECTED",
+            message:
+              error instanceof Error ? error.message : "Support case failed",
+          });
+        }
+      },
+    );
+    app.get(
+      "/api/admin/operations",
+      async (request: Request, response: Response) => {
+        if (!ownsAdmin(request, response)) return;
+        response.json({
+          current: await currentLiveOps(),
+          revisions: await cardForgeStore.listLiveOpsDefinitions(),
+          cases: await cardForgeStore.listSupportCases(),
+          audit: await cardForgeStore.listAudit(100),
+        });
+      },
+    );
+    app.post(
+      "/api/admin/live-ops/stage",
+      async (request: Request, response: Response) => {
+        if (!ownsAdmin(request, response)) return;
+        const body = stageLiveOpsBody.safeParse(request.body);
+        if (!body.success) {
+          response.status(400).json({ error: "INVALID_LIVE_OPS_STAGE" });
+          return;
+        }
+        try {
+          const base = await currentLiveOps();
+          const definition = {
+            ...stageLiveOps(base, body.data.revision),
+            featureFlags: {
+              ...base.featureFlags,
+              ...body.data.featureFlags,
+            },
+          };
+          const errors = validateLiveOps(definition);
+          if (errors.length) {
+            response
+              .status(422)
+              .json({ error: "INVALID_LIVE_OPS", details: errors });
+            return;
+          }
+          await cardForgeStore.saveLiveOpsDefinition(definition);
+          await cardForgeStore.appendAudit({
+            auditId: `audit:${randomUUID()}`,
+            actorId:
+              request.header("x-cardforge-admin-actor") ?? "local-operator",
+            action: "liveops.stage",
+            targetId: `${definition.configId}@${definition.revision}`,
+            payload: { featureFlags: body.data.featureFlags },
+          });
+          response.status(201).json({ definition });
+        } catch (error) {
+          response.status(409).json({
+            error: "LIVE_OPS_CONFLICT",
+            message: error instanceof Error ? error.message : "Stage failed",
+          });
+        }
+      },
+    );
+    app.post(
+      "/api/admin/live-ops/publish",
+      async (request: Request, response: Response) => {
+        if (!ownsAdmin(request, response)) return;
+        const body = publishLiveOpsBody.safeParse(request.body);
+        if (!body.success || body.data.revision <= body.data.sourceRevision) {
+          response.status(400).json({ error: "INVALID_LIVE_OPS_PUBLISH" });
+          return;
+        }
+        const revisions = await cardForgeStore.listLiveOpsDefinitions();
+        const source = revisions.find(
+          (definition) =>
+            definition.revision === body.data.sourceRevision &&
+            definition.state === "staged",
+        );
+        if (!source) {
+          response.status(404).json({ error: "STAGED_REVISION_NOT_FOUND" });
+          return;
+        }
+        try {
+          const definition: LiveOpsDefinition = {
+            ...source,
+            revision: body.data.revision,
+            state: "published",
+          };
+          await cardForgeStore.saveLiveOpsDefinition(definition);
+          await cardForgeStore.appendAudit({
+            auditId: `audit:${randomUUID()}`,
+            actorId:
+              request.header("x-cardforge-admin-actor") ?? "local-operator",
+            action: "liveops.publish",
+            targetId: `${definition.configId}@${definition.revision}`,
+            payload: { sourceRevision: source.revision },
+          });
+          response.status(201).json({ definition });
+        } catch (error) {
+          response.status(409).json({
+            error: "LIVE_OPS_CONFLICT",
+            message: error instanceof Error ? error.message : "Publish failed",
+          });
+        }
+      },
+    );
+    app.post(
+      "/api/admin/support-cases/:caseId",
+      async (request: Request, response: Response) => {
+        if (!ownsAdmin(request, response)) return;
+        const caseId = z
+          .string()
+          .min(8)
+          .max(120)
+          .safeParse(request.params.caseId);
+        const body = supportUpdateBody.safeParse(request.body);
+        if (!caseId.success || !body.success) {
+          response.status(400).json({ error: "INVALID_SUPPORT_UPDATE" });
+          return;
+        }
+        try {
+          const supportCase = await cardForgeStore.updateSupportCase({
+            caseId: caseId.data,
+            ...(body.data.status === undefined
+              ? {}
+              : { status: body.data.status }),
+            ...(body.data.note === undefined ? {} : { note: body.data.note }),
+          });
+          await cardForgeStore.appendAudit({
+            auditId: `audit:${randomUUID()}`,
+            actorId:
+              request.header("x-cardforge-admin-actor") ?? "local-operator",
+            action: "support.update",
+            targetId: supportCase.caseId,
+            payload: body.data,
+          });
+          response.json({ case: supportCase });
+        } catch (error) {
+          response.status(404).json({
+            error: "SUPPORT_CASE_NOT_FOUND",
+            message: error instanceof Error ? error.message : "Update failed",
+          });
+        }
       },
     );
     app.post(
