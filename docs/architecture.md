@@ -129,6 +129,14 @@ Leader IDs and supplies the corresponding decks to the production engine.
 Headless coverage completes and exactly replays a match involving every Leader,
 in addition to focused tests for all four Commands and starter-deck legality.
 
+The production-facing prototype pool is exactly sixty cards. The final content
+cut adds twelve Entities, two Reactions, two Attachments, one Relic, and one Site
+because the earlier proof set already overrepresented Tactics. All four starters
+use cards from the completed pool while retaining legal Aspect identities,
+forty-card size, at least twelve Entities, and the three-copy ceiling. A content
+contract test freezes the exact count, unique semantic IDs, fixture exclusions,
+and type distribution.
+
 A production-browser smoke test drives Chromium through mulligan, bot handoff,
 card selection, inspection, legal-action discovery, and action resolution. It
 then switches modes and verifies both hot-seat mulligans, hand blanking during
@@ -136,9 +144,8 @@ handoff, viewer rotation, a Main Action transfer, and the opposing Response
 seat. The first screenshot review confirms that all three Fronts and the
 Timeline remain readable at 1440×1000.
 
-The production-facing pool now contains four Leaders and thirty-eight
-collectible cards; the internal all-Aspect proof Leader and generated Token are
-not counted toward the sixty-card prototype target. Remaining Milestone 2 work
-is eighteen additional cards, richer semantic event animation, and a new-player
-comprehension pass. Kernel additions remain driven by those concrete prototype
-requirements rather than speculative universal-engine work.
+The internal all-Aspect proof Leader and generated Token are not counted toward
+the sixty-card prototype target. Remaining Milestone 2 work is richer semantic
+event animation and a new-player comprehension pass. Kernel additions remain
+driven by those concrete prototype requirements rather than speculative
+universal-engine work.

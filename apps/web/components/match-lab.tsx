@@ -7,6 +7,7 @@ import { generateRulesText } from "@cardforge/rules-tempofront";
 import { BoardCanvas, type BoardIntent } from "./board-canvas";
 import {
   activePlayer,
+  browserCardPoolSize,
   browserEngine,
   browserLeaderOptions,
   type BrowserLineup,
@@ -315,7 +316,7 @@ export function MatchLab() {
         <div className="brand-lockup">
           <span className="brand-mark">CF</span>
           <div>
-            <p>CARD FORGE // LAB BUILD 03</p>
+            <p>CARD FORGE // LAB BUILD 04 // {browserCardPoolSize} CARD POOL</p>
             <h1>TempoFront</h1>
           </div>
         </div>

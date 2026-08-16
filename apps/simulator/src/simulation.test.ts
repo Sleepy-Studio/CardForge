@@ -14,6 +14,7 @@ import {
   generateRulesText,
   prototypeDecks,
   prototypeLeaderOptions,
+  prototypeCards,
   TempoFrontEngine,
   validateDeck,
 } from "@cardforge/rules-tempofront";
@@ -200,6 +201,42 @@ void describe("TempoFront deterministic proof", () => {
         }),
       );
     }
+  });
+
+  void it("publishes an exact sixty-card production-facing prototype pool", () => {
+    assert.equal(prototypeCards.length, 60);
+    assert.equal(
+      new Set(prototypeCards.map((card) => card.cardId)).size,
+      prototypeCards.length,
+    );
+    assert.ok(
+      prototypeCards.every(
+        (card) => card.cardId !== "leader.proof" && !card.generatedOnly,
+      ),
+    );
+    const counts = Object.fromEntries(
+      [
+        "leader",
+        "entity",
+        "tactic",
+        "reaction",
+        "attachment",
+        "relic",
+        "site",
+      ].map((type) => [
+        type,
+        prototypeCards.filter((card) => card.type === type).length,
+      ]),
+    );
+    assert.deepEqual(counts, {
+      leader: 4,
+      entity: 29,
+      tactic: 15,
+      reaction: 5,
+      attachment: 3,
+      relic: 2,
+      site: 2,
+    });
   });
 
   void it("completes and replays a match for every prototype Leader", () => {

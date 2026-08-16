@@ -23,6 +23,7 @@ interface SmokeEntry {
 }
 
 interface LeaderSetup {
+  readonly poolLabel: string;
   readonly selectors: number;
   readonly p1Options: number;
   readonly p2Options: number;
@@ -125,6 +126,7 @@ async function evaluate<T>(expression: string): Promise<T> {
 
 await send("Runtime.enable");
 const initialLeaders = await evaluate<LeaderSetup>(`({
+  poolLabel: document.querySelector('.brand-lockup p')?.textContent ?? '',
   selectors: document.querySelectorAll('.leader-selector select').length,
   p1Options: document.querySelectorAll('select[data-player="p1"] option').length,
   p2Options: document.querySelectorAll('select[data-player="p2"] option').length,
@@ -132,6 +134,7 @@ const initialLeaders = await evaluate<LeaderSetup>(`({
   p2Leader: document.querySelector('select[data-player="p2"]')?.value ?? ''
 })`);
 if (
+  !initialLeaders.poolLabel.includes("60 CARD POOL") ||
   initialLeaders.selectors !== 2 ||
   initialLeaders.p1Options !== 4 ||
   initialLeaders.p2Options !== 4

@@ -9,12 +9,14 @@ import {
   defaultPrototypeLeaders,
   prototypeDecks,
   prototypeLeaderOptions,
+  prototypeCards,
   type PrototypeLeaderId,
   TempoFrontEngine,
 } from "@cardforge/rules-tempofront";
 
 export const browserEngine = new TempoFrontEngine();
 export const browserLeaderOptions = prototypeLeaderOptions;
+export const browserCardPoolSize = prototypeCards.length;
 
 export type BrowserLineup = Readonly<Record<PlayerId, PrototypeLeaderId>>;
 
