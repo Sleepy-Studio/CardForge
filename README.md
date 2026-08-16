@@ -34,8 +34,12 @@ apps/web                    React/Next application shell and Pixi match client
 apps/match-server           Authoritative sessions and Colyseus room transport
 packages/persistence       PostgreSQL schema, migrations, and storage contracts
 packages/card-schema       Semantic card, ability, format, and theme contracts
+packages/content-core-set  Versioned semantic core-set source pack
+packages/content-tools     Pack compiler, CSV import, linting, and SVG previews
 packages/rules-kernel      Commands, events, game state, PRNG, canonical hashing
 packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
+packages/theme-default     Aetherfront fantasy presentation pack
+packages/theme-test-scifi  Orbital Conflict science-fiction presentation pack
 ```
 
 ## Implemented rules slice
@@ -150,3 +154,18 @@ values from `.env.example`, and start the match server with `DATABASE_URL` set.
 Without that variable the server deliberately uses an in-memory test adapter.
 The alpha account header is a scope boundary, not production authentication;
 real identity-provider integration remains a launch hardening task.
+
+## Milestone 4 progress
+
+The content-factory foundation is now executable:
+
+- Zod runtime schemas validate cards, recursive typed effects, abilities, content manifests, and themes;
+- every prototype definition carries a Set ID and immutable publication metadata;
+- the core pack compiles sixty collectible/Leader cards plus its generated Token;
+- compilation rejects duplicate IDs, undeclared Sets, illegal effect graphs, missing generated Tokens, missing dependencies, and dependency cycles;
+- spreadsheet CSV rows import through the same authoritative card schema;
+- generated rules text and accessible SVG card previews consume theme terminology and palette tokens;
+- Aetherfront and Orbital Conflict provide complete terms, frames, icons, board, animation, audio, event, reduced-motion, and palette mappings;
+- both themes compile from one gameplay pack with an identical gameplay hash and distinct presentation hashes.
+
+The browser Card Studio and full live theme switch are the next Milestone 4 cut.

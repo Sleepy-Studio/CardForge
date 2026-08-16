@@ -20,6 +20,7 @@
     "@cardforge/persistence": "workspace:*",
     "@cardforge/rules-kernel": "workspace:*",
     "@cardforge/rules-tempofront": "workspace:*",
+    "@cardforge/theme-default": "workspace:*",
     "@colyseus/core": "^0.17.50",
     "@colyseus/ws-transport": "^0.17.13",
     "express": "^5.1.0",

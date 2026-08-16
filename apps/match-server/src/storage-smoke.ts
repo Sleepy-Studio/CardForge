@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  defaultTheme,
-  proofFormat,
-  prototypeDecks,
-} from "@cardforge/rules-tempofront";
+import { proofFormat, prototypeDecks } from "@cardforge/rules-tempofront";
+import { defaultTheme } from "@cardforge/theme-default";
 
 const endpoint = process.env.CARDFORGE_SERVER_URL ?? "http://127.0.0.1:2567";
 const accountId = "storage-smoke-account";

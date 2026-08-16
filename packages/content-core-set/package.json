@@ -1,5 +1,5 @@
 {
-  "name": "@cardforge/card-schema",
+  "name": "@cardforge/content-core-set",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "zod": "^4.4.3"
+    "@cardforge/card-schema": "workspace:*",
+    "@cardforge/rules-tempofront": "workspace:*"
   }
 }

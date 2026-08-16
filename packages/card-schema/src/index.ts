@@ -137,8 +137,48 @@ export interface FormatDefinition {
 }
 
 export interface ThemeManifest {
+  readonly themeId: string;
+  readonly revision: number;
   readonly gameId: string;
   readonly ruleset: string;
   readonly terms: Readonly<Record<string, string>>;
   readonly visuals: Readonly<Record<string, string>>;
+  readonly eventPresentation: Readonly<
+    Record<
+      string,
+      {
+        readonly animation: string;
+        readonly sound: string;
+        readonly emphasis: "none" | "low" | "medium" | "high";
+        readonly reducedMotion: string;
+      }
+    >
+  >;
+  readonly palette: Readonly<Record<string, string>>;
+  readonly cardOverrides?: Readonly<
+    Record<
+      string,
+      {
+        readonly name?: string;
+        readonly artId?: string;
+        readonly frameVariant?: string;
+      }
+    >
+  >;
 }
+
+export interface ContentPackManifest {
+  readonly packId: string;
+  readonly revision: number;
+  readonly gameId: string;
+  readonly ruleset: string;
+  readonly setIds: readonly string[];
+  readonly dependencies: readonly string[];
+}
+
+export interface ContentPackSource {
+  readonly manifest: ContentPackManifest;
+  readonly cards: readonly CardDefinition[];
+}
+
+export * from "./schemas.js";

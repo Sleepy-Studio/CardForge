@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../card-schema" },
+    { "path": "../content-core-set" },
+    { "path": "../rules-kernel" },
+    { "path": "../rules-tempofront" },
+    { "path": "../theme-default" },
+    { "path": "../theme-test-scifi" }
+  ]
+}

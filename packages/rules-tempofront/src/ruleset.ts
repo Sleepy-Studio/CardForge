@@ -1,4 +1,4 @@
-import type { FormatDefinition, ThemeManifest } from "@cardforge/card-schema";
+import type { FormatDefinition } from "@cardforge/card-schema";
 
 export const tempoFrontRules = {
   rulesetId: "tempofront",
@@ -21,24 +21,4 @@ export const proofFormat: FormatDefinition = {
   maxCopies: 3,
   maxUniqueCopies: 1,
   minimumEntities: 12,
-};
-
-export const defaultTheme: ThemeManifest = {
-  gameId: "cardforge-proof",
-  ruleset: tempoFrontRules.revision,
-  terms: {
-    leader: "Leader",
-    entity: "Entity",
-    focus: "Focus",
-    integrity: "Integrity",
-    dominion: "Dominion",
-    front: "Front",
-    discard: "Discard",
-    archive: "Archive",
-  },
-  visuals: {
-    cardFrames: "proof-wireframe-v1",
-    boardScene: "proof-grid-v1",
-    iconSet: "proof-icons-v1",
-  },
 };

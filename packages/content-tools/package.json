@@ -1,0 +1,22 @@
+{
+  "name": "@cardforge/content-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "compile": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@cardforge/card-schema": "workspace:*",
+    "@cardforge/content-core-set": "workspace:*",
+    "@cardforge/rules-kernel": "workspace:*",
+    "@cardforge/rules-tempofront": "workspace:*",
+    "@cardforge/theme-default": "workspace:*",
+    "@cardforge/theme-test-scifi": "workspace:*"
+  }
+}

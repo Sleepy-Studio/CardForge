@@ -1,0 +1,95 @@
+import type { ThemeManifest } from "@cardforge/card-schema";
+
+export const orbitalTheme: ThemeManifest = {
+  themeId: "orbital-conflict",
+  revision: 1,
+  gameId: "cardforge-proof",
+  ruleset: "tempofront@0.6.0",
+  terms: {
+    leader: "Commander",
+    entity: "Unit",
+    focus: "Power",
+    integrity: "Hull",
+    dominion: "Sector Control",
+    front: "Sector",
+    discard: "Scrapyard",
+    archive: "Void",
+  },
+  visuals: {
+    cardFrames: "fleet-neon-v1",
+    boardScene: "orbital-grid-v1",
+    iconSet: "fleet-glyphs-v1",
+    animationMap: "fleet-motion-v1",
+    audioMap: "fleet-audio-v1",
+  },
+  eventPresentation: {
+    ENTITY_DEPLOYED: {
+      animation: "drop-vector",
+      sound: "airlock-cycle",
+      emphasis: "medium",
+      reducedMotion: "sector-pulse",
+    },
+    ENTITY_SHIFTED: {
+      animation: "ion-vector",
+      sound: "thruster-tick",
+      emphasis: "low",
+      reducedMotion: "slot-flash",
+    },
+    STRIKE_STARTED: {
+      animation: "target-lock",
+      sound: "weapon-arm",
+      emphasis: "medium",
+      reducedMotion: "target-ring",
+    },
+    DAMAGE_DEALT: {
+      animation: "plasma-impact",
+      sound: "hull-impact",
+      emphasis: "medium",
+      reducedMotion: "damage-flash",
+    },
+    BARRIER_BROKEN: {
+      animation: "shield-collapse",
+      sound: "shield-break",
+      emphasis: "high",
+      reducedMotion: "shield-fade",
+    },
+    ENTITY_DEFEATED: {
+      animation: "system-failure",
+      sound: "unit-offline",
+      emphasis: "medium",
+      reducedMotion: "unit-fade",
+    },
+    LEADER_DAMAGED: {
+      animation: "bridge-shock",
+      sound: "hull-breach",
+      emphasis: "high",
+      reducedMotion: "commander-flash",
+    },
+    FRONT_CONTROL_CHANGED: {
+      animation: "sector-uplink",
+      sound: "sector-capture",
+      emphasis: "medium",
+      reducedMotion: "sector-outline",
+    },
+    DOMINION_GAINED: {
+      animation: "control-lock",
+      sound: "control-confirm",
+      emphasis: "high",
+      reducedMotion: "score-pulse",
+    },
+    CARD_ARCHIVED: {
+      animation: "void-transfer",
+      sound: "data-purge",
+      emphasis: "low",
+      reducedMotion: "card-fade",
+    },
+  },
+  palette: {
+    canvas: "#02060d",
+    panel: "#071522",
+    primary: "#4ef6ff",
+    secondary: "#ff4fd8",
+    danger: "#ff5f6d",
+    text: "#e8fbff",
+  },
+};

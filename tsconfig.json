@@ -5,6 +5,10 @@
     { "path": "packages/rules-kernel" },
     { "path": "packages/rules-tempofront" },
     { "path": "packages/persistence" },
+    { "path": "packages/theme-default" },
+    { "path": "packages/theme-test-scifi" },
+    { "path": "packages/content-core-set" },
+    { "path": "packages/content-tools" },
     { "path": "apps/simulator" },
     { "path": "apps/match-server" }
   ]

@@ -3,11 +3,11 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { json, type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
 import {
-  defaultTheme,
   proofCardMap,
   proofFormat,
   validateDeck,
 } from "@cardforge/rules-tempofront";
+import { defaultTheme } from "@cardforge/theme-default";
 import { TempoFrontRoom } from "./room.js";
 import { cardForgeStore } from "./store.js";
 

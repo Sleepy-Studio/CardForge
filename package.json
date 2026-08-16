@@ -18,7 +18,7 @@
     "smoke:storage": "pnpm --filter @cardforge/match-server smoke:storage",
     "smoke:selected-decks": "pnpm --filter @cardforge/match-server smoke:selected-decks",
     "smoke:online": "pnpm --filter @cardforge/web smoke:online",
-    "test": "pnpm build && node --test apps/simulator/dist/*.test.js apps/match-server/dist/*.test.js packages/persistence/dist/*.test.js",
+    "test": "pnpm build && node --test apps/simulator/dist/*.test.js apps/match-server/dist/*.test.js packages/persistence/dist/*.test.js packages/content-tools/dist/*.test.js",
     "smoke:persistence": "pnpm --filter @cardforge/persistence smoke"
   },
   "devDependencies": {

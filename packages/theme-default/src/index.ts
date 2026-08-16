@@ -1,0 +1,95 @@
+import type { ThemeManifest } from "@cardforge/card-schema";
+
+export const defaultTheme: ThemeManifest = {
+  themeId: "aetherfront",
+  revision: 1,
+  gameId: "cardforge-proof",
+  ruleset: "tempofront@0.6.0",
+  terms: {
+    leader: "Champion",
+    entity: "Ally",
+    focus: "Aether",
+    integrity: "Resolve",
+    dominion: "Renown",
+    front: "Realm",
+    discard: "Remnants",
+    archive: "Beyond",
+  },
+  visuals: {
+    cardFrames: "aether-rune-frames-v1",
+    boardScene: "aether-realms-v1",
+    iconSet: "aether-sigils-v1",
+    animationMap: "aether-motion-v1",
+    audioMap: "aether-audio-v1",
+  },
+  eventPresentation: {
+    ENTITY_DEPLOYED: {
+      animation: "rune-arrival",
+      sound: "summon-soft",
+      emphasis: "medium",
+      reducedMotion: "realm-pulse",
+    },
+    ENTITY_SHIFTED: {
+      animation: "wisp-trail",
+      sound: "cloth-pass",
+      emphasis: "low",
+      reducedMotion: "slot-flash",
+    },
+    STRIKE_STARTED: {
+      animation: "blade-arc",
+      sound: "steel-rise",
+      emphasis: "medium",
+      reducedMotion: "target-ring",
+    },
+    DAMAGE_DEALT: {
+      animation: "ember-burst",
+      sound: "impact-rune",
+      emphasis: "medium",
+      reducedMotion: "damage-flash",
+    },
+    BARRIER_BROKEN: {
+      animation: "ward-shatter",
+      sound: "crystal-break",
+      emphasis: "high",
+      reducedMotion: "ward-fade",
+    },
+    ENTITY_DEFEATED: {
+      animation: "ash-fall",
+      sound: "spirit-release",
+      emphasis: "medium",
+      reducedMotion: "entity-fade",
+    },
+    LEADER_DAMAGED: {
+      animation: "resolve-fracture",
+      sound: "heart-hit",
+      emphasis: "high",
+      reducedMotion: "leader-flash",
+    },
+    FRONT_CONTROL_CHANGED: {
+      animation: "banner-rise",
+      sound: "realm-chime",
+      emphasis: "medium",
+      reducedMotion: "realm-outline",
+    },
+    DOMINION_GAINED: {
+      animation: "renown-crown",
+      sound: "victory-chime",
+      emphasis: "high",
+      reducedMotion: "score-pulse",
+    },
+    CARD_ARCHIVED: {
+      animation: "beyond-portal",
+      sound: "void-whisper",
+      emphasis: "low",
+      reducedMotion: "card-fade",
+    },
+  },
+  palette: {
+    canvas: "#07111d",
+    panel: "#0d2030",
+    primary: "#6dffba",
+    secondary: "#45d9ff",
+    danger: "#ff6b7d",
+    text: "#eef8ff",
+  },
+};

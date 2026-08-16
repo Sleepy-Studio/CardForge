@@ -1,7 +1,7 @@
 import type { CardDefinition, PlayerId } from "@cardforge/card-schema";
 import { stateHash } from "@cardforge/rules-kernel";
 
-export const proofCards = [
+const rawProofCards = [
   {
     cardId: "leader.vanguard",
     revision: 1,
@@ -1086,6 +1086,14 @@ export const proofCards = [
     abilities: [{ abilityId: "convergence", type: "static", effects: [] }],
   },
 ] as const satisfies readonly CardDefinition[];
+
+export const proofCards: readonly CardDefinition[] = rawProofCards.map(
+  (card) => ({
+    ...card,
+    setId: "core-prototype",
+    release: { state: "published", availableFrom: "2026-08-16" },
+  }),
+);
 
 export const prototypeCards: readonly CardDefinition[] = proofCards.filter(
   (card) =>
