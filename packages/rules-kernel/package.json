@@ -1,0 +1,16 @@
+{
+  "name": "@cardforge/rules-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@cardforge/card-schema": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

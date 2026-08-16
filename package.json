@@ -1,0 +1,24 @@
+{
+  "name": "cardforge",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.17.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "dev": "pnpm build && node apps/simulator/dist/cli.js",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "sim": "pnpm build && node apps/simulator/dist/cli.js",
+    "test": "pnpm build && node --test apps/simulator/dist/*.test.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@types/node": "^24.3.0",
+    "eslint": "^9.34.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.41.0"
+  }
+}

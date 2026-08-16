@@ -1,0 +1,17 @@
+{
+  "name": "@cardforge/rules-tempofront",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@cardforge/card-schema": "workspace:*",
+    "@cardforge/rules-kernel": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  }
+}
