@@ -6,6 +6,13 @@ import type {
   RankedSettlement,
 } from "@cardforge/competitive";
 import type { PlayerId } from "@cardforge/card-schema";
+import type {
+  CosmeticDefinition,
+  CurrencyId,
+  EconomySnapshot,
+  EconomyTransaction,
+} from "@cardforge/economy";
+import type { CardDefinition } from "@cardforge/card-schema";
 
 export interface DeckRecord {
   readonly deckId: string;
@@ -55,5 +62,28 @@ export interface CardForgeStore {
   completeRankedMatch(
     completion: RankedCompletion,
   ): Promise<RankedSettlement | null>;
+  bootstrapEconomy(accountId: string): Promise<EconomySnapshot>;
+  getEconomySnapshot(accountId: string): Promise<EconomySnapshot>;
+  craftCard(
+    transactionId: string,
+    accountId: string,
+    card: CardDefinition,
+    quantity: number,
+  ): Promise<EconomySnapshot>;
+  unlockCosmetic(
+    transactionId: string,
+    accountId: string,
+    cosmetic: CosmeticDefinition,
+  ): Promise<EconomySnapshot>;
+  grantReward(
+    transactionId: string,
+    accountId: string,
+    currencyId: CurrencyId,
+    amount: number,
+  ): Promise<EconomySnapshot>;
+  listEconomyTransactions(
+    accountId: string,
+    limit?: number,
+  ): Promise<readonly EconomyTransaction[]>;
   close(): Promise<void>;
 }

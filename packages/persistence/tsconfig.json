@@ -9,6 +9,7 @@
   "references": [
     { "path": "../card-schema" },
     { "path": "../competitive" },
+    { "path": "../economy" },
     { "path": "../rules-kernel" }
   ]
 }

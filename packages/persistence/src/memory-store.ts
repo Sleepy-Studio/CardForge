@@ -9,6 +9,15 @@ import {
   type RankedSettlement,
 } from "@cardforge/competitive";
 import type { RankedCompletion } from "./types.js";
+import {
+  economyBootstrap,
+  quoteCraft,
+  type CosmeticDefinition,
+  type CurrencyId,
+  type EconomySnapshot,
+  type EconomyTransaction,
+} from "@cardforge/economy";
+import type { CardDefinition } from "@cardforge/card-schema";
 
 export class MemoryCardForgeStore implements CardForgeStore {
   readonly #accounts = new Map<string, string>();
@@ -17,6 +26,13 @@ export class MemoryCardForgeStore implements CardForgeStore {
   readonly #profiles = new Map<string, CompetitiveProfile>();
   readonly #telemetry = new Map<string, MatchTelemetry>();
   readonly #settlements = new Map<string, RankedSettlement>();
+  readonly #wallets = new Map<string, Map<CurrencyId, number>>();
+  readonly #inventory = new Map<string, Map<string, number>>();
+  readonly #entitlements = new Map<
+    string,
+    Map<string, CosmeticDefinition["category"]>
+  >();
+  readonly #economyTransactions = new Map<string, EconomyTransaction>();
 
   #deckKey(accountId: string, deckId: string): string {
     return `${accountId}\u0000${deckId}`;
@@ -154,7 +170,175 @@ export class MemoryCardForgeStore implements CardForgeStore {
     return Promise.resolve(structuredClone(settlement));
   }
 
+  bootstrapEconomy(accountId: string): Promise<EconomySnapshot> {
+    this.#assertAccount(accountId);
+    if (!this.#wallets.has(accountId)) {
+      this.#wallets.set(
+        accountId,
+        new Map<CurrencyId, number>([
+          ["shards", economyBootstrap.shards],
+          ["style_tokens", economyBootstrap.styleTokens],
+        ]),
+      );
+      this.#inventory.set(accountId, new Map());
+      this.#entitlements.set(
+        accountId,
+        new Map(
+          economyBootstrap.cosmeticIds.map((id) => [
+            id,
+            id.startsWith("card-back") ? "card_back" : "board",
+          ]),
+        ),
+      );
+      this.#economyTransactions.set(`bootstrap:${accountId}`, {
+        transactionId: `bootstrap:${accountId}`,
+        accountId,
+        kind: "bootstrap",
+      });
+    }
+    return Promise.resolve(this.#economySnapshot(accountId));
+  }
+
+  async getEconomySnapshot(accountId: string): Promise<EconomySnapshot> {
+    await this.bootstrapEconomy(accountId);
+    return this.#economySnapshot(accountId);
+  }
+
+  async craftCard(
+    transactionId: string,
+    accountId: string,
+    card: CardDefinition,
+    quantity: number,
+  ): Promise<EconomySnapshot> {
+    await this.bootstrapEconomy(accountId);
+    if (this.#isDuplicateTransaction(transactionId, accountId, "craft"))
+      return this.#economySnapshot(accountId);
+    const inventory = this.#inventory.get(accountId)!;
+    const wallet = this.#wallets.get(accountId)!;
+    const quote = quoteCraft(card, inventory.get(card.cardId) ?? 0, quantity);
+    const balance = wallet.get("shards") ?? 0;
+    if (balance < quote.totalCost) throw new Error("Insufficient shards");
+    wallet.set("shards", balance - quote.totalCost);
+    inventory.set(card.cardId, quote.resultingQuantity);
+    this.#economyTransactions.set(transactionId, {
+      transactionId,
+      accountId,
+      kind: "craft",
+      currencyId: "shards",
+      currencyDelta: -quote.totalCost,
+      itemId: card.cardId,
+      itemDelta: quantity,
+    });
+    return this.#economySnapshot(accountId);
+  }
+
+  async unlockCosmetic(
+    transactionId: string,
+    accountId: string,
+    cosmetic: CosmeticDefinition,
+  ): Promise<EconomySnapshot> {
+    await this.bootstrapEconomy(accountId);
+    if (
+      this.#isDuplicateTransaction(transactionId, accountId, "cosmetic_unlock")
+    )
+      return this.#economySnapshot(accountId);
+    const entitlements = this.#entitlements.get(accountId)!;
+    if (entitlements.has(cosmetic.cosmeticId))
+      throw new Error("Cosmetic already unlocked");
+    const wallet = this.#wallets.get(accountId)!;
+    const balance = wallet.get("style_tokens") ?? 0;
+    if (balance < cosmetic.styleTokenCost)
+      throw new Error("Insufficient style tokens");
+    wallet.set("style_tokens", balance - cosmetic.styleTokenCost);
+    entitlements.set(cosmetic.cosmeticId, cosmetic.category);
+    this.#economyTransactions.set(transactionId, {
+      transactionId,
+      accountId,
+      kind: "cosmetic_unlock",
+      currencyId: "style_tokens",
+      currencyDelta: -cosmetic.styleTokenCost,
+      itemId: cosmetic.cosmeticId,
+      itemDelta: 1,
+    });
+    return this.#economySnapshot(accountId);
+  }
+
+  async grantReward(
+    transactionId: string,
+    accountId: string,
+    currencyId: CurrencyId,
+    amount: number,
+  ): Promise<EconomySnapshot> {
+    await this.bootstrapEconomy(accountId);
+    if (this.#isDuplicateTransaction(transactionId, accountId, "reward"))
+      return this.#economySnapshot(accountId);
+    if (!Number.isSafeInteger(amount) || amount <= 0)
+      throw new Error("Reward amount must be a positive integer");
+    const wallet = this.#wallets.get(accountId)!;
+    wallet.set(currencyId, (wallet.get(currencyId) ?? 0) + amount);
+    this.#economyTransactions.set(transactionId, {
+      transactionId,
+      accountId,
+      kind: "reward",
+      currencyId,
+      currencyDelta: amount,
+    });
+    return this.#economySnapshot(accountId);
+  }
+
+  listEconomyTransactions(
+    accountId: string,
+    limit = 100,
+  ): Promise<readonly EconomyTransaction[]> {
+    return Promise.resolve(
+      [...this.#economyTransactions.values()]
+        .filter((transaction) => transaction.accountId === accountId)
+        .slice(-Math.max(0, limit))
+        .reverse()
+        .map((transaction) => structuredClone(transaction)),
+    );
+  }
+
   close(): Promise<void> {
     return Promise.resolve();
+  }
+
+  #assertAccount(accountId: string): void {
+    if (!this.#accounts.has(accountId))
+      throw new Error(`Unknown account: ${accountId}`);
+  }
+
+  #isDuplicateTransaction(
+    transactionId: string,
+    accountId: string,
+    kind: EconomyTransaction["kind"],
+  ): boolean {
+    if (!transactionId) throw new Error("Transaction id is required");
+    const existing = this.#economyTransactions.get(transactionId);
+    if (!existing) return false;
+    if (existing.accountId !== accountId || existing.kind !== kind)
+      throw new Error("Transaction id conflicts with an existing operation");
+    return true;
+  }
+
+  #economySnapshot(accountId: string): EconomySnapshot {
+    const wallets =
+      this.#wallets.get(accountId) ?? new Map<CurrencyId, number>();
+    const cards = this.#inventory.get(accountId) ?? new Map<string, number>();
+    const entitlements =
+      this.#entitlements.get(accountId) ??
+      new Map<string, CosmeticDefinition["category"]>();
+    return structuredClone({
+      accountId,
+      wallets: [...wallets].map(([currencyId, balance]) => ({
+        currencyId,
+        balance,
+      })),
+      cards: [...cards].map(([cardId, quantity]) => ({ cardId, quantity })),
+      entitlements: [...entitlements].map(([entitlementId, category]) => ({
+        entitlementId,
+        category,
+      })),
+    });
   }
 }

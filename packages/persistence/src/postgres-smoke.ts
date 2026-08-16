@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { persistenceTestReplay } from "./fixtures.js";
 import { PostgresCardForgeStore } from "./postgres-store.js";
 import { createMatchTelemetry, seasonOne } from "@cardforge/competitive";
+import { cosmeticCatalog } from "@cardforge/economy";
+import type { CardDefinition } from "@cardforge/card-schema";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
@@ -78,6 +80,48 @@ try {
     }),
     null,
   );
+  const economyAccount = `smoke-economy-${process.pid}`;
+  await store.upsertAccount(economyAccount, "Persistence Collector");
+  const economyCard: CardDefinition = {
+    cardId: "entity.persistence-smoke",
+    revision: 1,
+    name: "Persistence Smoke",
+    type: "entity",
+    aspects: ["neutral"],
+    rarity: "common",
+    focusCost: 1,
+    playTime: 2,
+    power: 1,
+    vitality: 2,
+    presence: 1,
+    strikeTime: 3,
+  };
+  const crafted = await store.craftCard(
+    `smoke-craft-${process.pid}`,
+    economyAccount,
+    economyCard,
+    1,
+  );
+  const duplicateCraft = await store.craftCard(
+    `smoke-craft-${process.pid}`,
+    economyAccount,
+    economyCard,
+    1,
+  );
+  assert.deepEqual(duplicateCraft, crafted);
+  const cosmetic = cosmeticCatalog.find(
+    (item) => item.cosmeticId === "card-back.orbital",
+  )!;
+  const unlocked = await store.unlockCosmetic(
+    `smoke-unlock-${process.pid}`,
+    economyAccount,
+    cosmetic,
+  );
+  assert.ok(
+    unlocked.entitlements.some(
+      (item) => item.entitlementId === cosmetic.cosmeticId,
+    ),
+  );
   console.log(
     JSON.stringify({
       accountId: "smoke-account",
@@ -85,6 +129,8 @@ try {
       matchId: replay.matchId,
       status: "active",
       rankedSettlement: settlement?.matchId,
+      craftedCards: crafted.cards.length,
+      entitlements: unlocked.entitlements.length,
     }),
   );
 } finally {

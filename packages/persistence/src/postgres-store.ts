@@ -14,6 +14,15 @@ import type {
   RankedCompletion,
   StoredMatchRecord,
 } from "./types.js";
+import {
+  economyBootstrap,
+  quoteCraft,
+  type CosmeticDefinition,
+  type CurrencyId,
+  type EconomySnapshot,
+  type EconomyTransaction,
+} from "@cardforge/economy";
+import type { CardDefinition } from "@cardforge/card-schema";
 
 interface DeckRow {
   deck_id: string;
@@ -47,6 +56,31 @@ interface TelemetryRow {
   telemetry: MatchTelemetry;
 }
 
+interface WalletRow {
+  currency_id: CurrencyId;
+  balance: number;
+}
+
+interface InventoryRow {
+  card_id: string;
+  quantity: number;
+}
+
+interface EntitlementRow {
+  entitlement_id: string;
+  category: CosmeticDefinition["category"];
+}
+
+interface EconomyTransactionRow {
+  transaction_id: string;
+  account_id: string;
+  kind: EconomyTransaction["kind"];
+  currency_id: CurrencyId | null;
+  currency_delta: number | null;
+  item_id: string | null;
+  item_delta: number | null;
+}
+
 export class PostgresCardForgeStore implements CardForgeStore {
   readonly #sql: Sql;
 
@@ -65,6 +99,7 @@ export class PostgresCardForgeStore implements CardForgeStore {
       "0001_alpha_storage",
       "0002_account_scoped_decks",
       "0003_competitive_beta",
+      "0004_launch_economy",
     ]) {
       const applied = await this.#sql<{ migration_id: string }[]>`
         SELECT migration_id FROM cardforge_schema_migrations
@@ -303,6 +338,174 @@ export class PostgresCardForgeStore implements CardForgeStore {
     });
   }
 
+  bootstrapEconomy(accountId: string): Promise<EconomySnapshot> {
+    return this.#sql.begin(async (sql) => {
+      await this.#bootstrapEconomy(sql, accountId);
+      return this.#economySnapshot(sql, accountId);
+    });
+  }
+
+  async getEconomySnapshot(accountId: string): Promise<EconomySnapshot> {
+    await this.bootstrapEconomy(accountId);
+    return this.#economySnapshot(this.#sql, accountId);
+  }
+
+  craftCard(
+    transactionId: string,
+    accountId: string,
+    card: CardDefinition,
+    quantity: number,
+  ): Promise<EconomySnapshot> {
+    return this.#sql.begin(async (sql) => {
+      await this.#bootstrapEconomy(sql, accountId);
+      if (
+        await this.#duplicateTransaction(sql, transactionId, accountId, "craft")
+      )
+        return this.#economySnapshot(sql, accountId);
+      const inventoryRows = await sql<InventoryRow[]>`
+        SELECT card_id, quantity FROM cardforge_inventory
+        WHERE account_id = ${accountId} AND card_id = ${card.cardId}
+        FOR UPDATE
+      `;
+      const quote = quoteCraft(card, inventoryRows[0]?.quantity ?? 0, quantity);
+      const wallets = await sql<WalletRow[]>`
+        SELECT currency_id, balance FROM cardforge_wallets
+        WHERE account_id = ${accountId} AND currency_id = 'shards'
+        FOR UPDATE
+      `;
+      const balance = wallets[0]?.balance ?? 0;
+      if (balance < quote.totalCost) throw new Error("Insufficient shards");
+      await sql`
+        UPDATE cardforge_wallets
+        SET balance = balance - ${quote.totalCost}, updated_at = now()
+        WHERE account_id = ${accountId} AND currency_id = 'shards'
+      `;
+      await sql`
+        INSERT INTO cardforge_inventory (account_id, card_id, quantity)
+        VALUES (${accountId}, ${card.cardId}, ${quantity})
+        ON CONFLICT (account_id, card_id) DO UPDATE SET
+          quantity = cardforge_inventory.quantity + EXCLUDED.quantity,
+          updated_at = now()
+      `;
+      await this.#recordEconomyTransaction(sql, {
+        transactionId,
+        accountId,
+        kind: "craft",
+        currencyId: "shards",
+        currencyDelta: -quote.totalCost,
+        itemId: card.cardId,
+        itemDelta: quantity,
+      });
+      return this.#economySnapshot(sql, accountId);
+    });
+  }
+
+  unlockCosmetic(
+    transactionId: string,
+    accountId: string,
+    cosmetic: CosmeticDefinition,
+  ): Promise<EconomySnapshot> {
+    return this.#sql.begin(async (sql) => {
+      await this.#bootstrapEconomy(sql, accountId);
+      if (
+        await this.#duplicateTransaction(
+          sql,
+          transactionId,
+          accountId,
+          "cosmetic_unlock",
+        )
+      )
+        return this.#economySnapshot(sql, accountId);
+      const entitlement = await sql<EntitlementRow[]>`
+        SELECT entitlement_id, category FROM cardforge_entitlements
+        WHERE account_id = ${accountId}
+          AND entitlement_id = ${cosmetic.cosmeticId}
+      `;
+      if (entitlement.length) throw new Error("Cosmetic already unlocked");
+      const wallets = await sql<WalletRow[]>`
+        SELECT currency_id, balance FROM cardforge_wallets
+        WHERE account_id = ${accountId} AND currency_id = 'style_tokens'
+        FOR UPDATE
+      `;
+      const balance = wallets[0]?.balance ?? 0;
+      if (balance < cosmetic.styleTokenCost)
+        throw new Error("Insufficient style tokens");
+      await sql`
+        UPDATE cardforge_wallets
+        SET balance = balance - ${cosmetic.styleTokenCost}, updated_at = now()
+        WHERE account_id = ${accountId} AND currency_id = 'style_tokens'
+      `;
+      await sql`
+        INSERT INTO cardforge_entitlements (
+          account_id, entitlement_id, category
+        ) VALUES (
+          ${accountId}, ${cosmetic.cosmeticId}, ${cosmetic.category}
+        )
+      `;
+      await this.#recordEconomyTransaction(sql, {
+        transactionId,
+        accountId,
+        kind: "cosmetic_unlock",
+        currencyId: "style_tokens",
+        currencyDelta: -cosmetic.styleTokenCost,
+        itemId: cosmetic.cosmeticId,
+        itemDelta: 1,
+      });
+      return this.#economySnapshot(sql, accountId);
+    });
+  }
+
+  grantReward(
+    transactionId: string,
+    accountId: string,
+    currencyId: CurrencyId,
+    amount: number,
+  ): Promise<EconomySnapshot> {
+    return this.#sql.begin(async (sql) => {
+      await this.#bootstrapEconomy(sql, accountId);
+      if (
+        await this.#duplicateTransaction(
+          sql,
+          transactionId,
+          accountId,
+          "reward",
+        )
+      )
+        return this.#economySnapshot(sql, accountId);
+      if (!Number.isSafeInteger(amount) || amount <= 0)
+        throw new Error("Reward amount must be a positive integer");
+      await sql`
+        UPDATE cardforge_wallets
+        SET balance = balance + ${amount}, updated_at = now()
+        WHERE account_id = ${accountId} AND currency_id = ${currencyId}
+      `;
+      await this.#recordEconomyTransaction(sql, {
+        transactionId,
+        accountId,
+        kind: "reward",
+        currencyId,
+        currencyDelta: amount,
+      });
+      return this.#economySnapshot(sql, accountId);
+    });
+  }
+
+  async listEconomyTransactions(
+    accountId: string,
+    limit = 100,
+  ): Promise<readonly EconomyTransaction[]> {
+    const boundedLimit = Math.max(0, Math.min(1_000, limit));
+    const rows = await this.#sql<EconomyTransactionRow[]>`
+      SELECT transaction_id, account_id, kind, currency_id, currency_delta,
+             item_id, item_delta
+      FROM cardforge_economy_transactions
+      WHERE account_id = ${accountId}
+      ORDER BY created_at DESC
+      LIMIT ${boundedLimit}
+    `;
+    return rows.map((row) => this.#economyTransactionFromRow(row));
+  }
+
   async close(): Promise<void> {
     await this.#sql.end();
   }
@@ -382,5 +585,116 @@ export class PostgresCardForgeStore implements CardForgeStore {
         command_count = EXCLUDED.command_count,
         telemetry = EXCLUDED.telemetry
     `;
+  }
+
+  async #bootstrapEconomy(
+    sql: Sql | TransactionSql,
+    accountId: string,
+  ): Promise<void> {
+    await sql`
+      INSERT INTO cardforge_wallets (account_id, currency_id, balance)
+      VALUES
+        (${accountId}, 'shards', ${economyBootstrap.shards}),
+        (${accountId}, 'style_tokens', ${economyBootstrap.styleTokens})
+      ON CONFLICT (account_id, currency_id) DO NOTHING
+    `;
+    await sql`
+      INSERT INTO cardforge_entitlements (account_id, entitlement_id, category)
+      VALUES
+        (${accountId}, 'card-back.aether', 'card_back'),
+        (${accountId}, 'board.aetherfront', 'board')
+      ON CONFLICT (account_id, entitlement_id) DO NOTHING
+    `;
+    await sql`
+      INSERT INTO cardforge_economy_transactions (
+        transaction_id, account_id, kind
+      ) VALUES (${`bootstrap:${accountId}`}, ${accountId}, 'bootstrap')
+      ON CONFLICT (transaction_id) DO NOTHING
+    `;
+  }
+
+  async #economySnapshot(
+    sql: Sql | TransactionSql,
+    accountId: string,
+  ): Promise<EconomySnapshot> {
+    const [wallets, cards, entitlements] = await Promise.all([
+      sql<WalletRow[]>`
+        SELECT currency_id, balance FROM cardforge_wallets
+        WHERE account_id = ${accountId} ORDER BY currency_id
+      `,
+      sql<InventoryRow[]>`
+        SELECT card_id, quantity FROM cardforge_inventory
+        WHERE account_id = ${accountId} ORDER BY card_id
+      `,
+      sql<EntitlementRow[]>`
+        SELECT entitlement_id, category FROM cardforge_entitlements
+        WHERE account_id = ${accountId} ORDER BY entitlement_id
+      `,
+    ]);
+    return {
+      accountId,
+      wallets: wallets.map((row) => ({
+        currencyId: row.currency_id,
+        balance: row.balance,
+      })),
+      cards: cards.map((row) => ({
+        cardId: row.card_id,
+        quantity: row.quantity,
+      })),
+      entitlements: entitlements.map((row) => ({
+        entitlementId: row.entitlement_id,
+        category: row.category,
+      })),
+    };
+  }
+
+  async #duplicateTransaction(
+    sql: Sql | TransactionSql,
+    transactionId: string,
+    accountId: string,
+    kind: EconomyTransaction["kind"],
+  ): Promise<boolean> {
+    if (!transactionId) throw new Error("Transaction id is required");
+    const rows = await sql<EconomyTransactionRow[]>`
+      SELECT transaction_id, account_id, kind, currency_id, currency_delta,
+             item_id, item_delta
+      FROM cardforge_economy_transactions
+      WHERE transaction_id = ${transactionId}
+    `;
+    if (!rows.length) return false;
+    if (rows[0]!.account_id !== accountId || rows[0]!.kind !== kind)
+      throw new Error("Transaction id conflicts with an existing operation");
+    return true;
+  }
+
+  async #recordEconomyTransaction(
+    sql: Sql | TransactionSql,
+    transaction: EconomyTransaction,
+  ): Promise<void> {
+    await sql`
+      INSERT INTO cardforge_economy_transactions (
+        transaction_id, account_id, kind, currency_id, currency_delta,
+        item_id, item_delta, payload
+      ) VALUES (
+        ${transaction.transactionId}, ${transaction.accountId},
+        ${transaction.kind}, ${transaction.currencyId ?? null},
+        ${transaction.currencyDelta ?? null}, ${transaction.itemId ?? null},
+        ${transaction.itemDelta ?? null}, ${sql.json(transaction as never)}
+      )
+    `;
+  }
+
+  #economyTransactionFromRow(row: EconomyTransactionRow): EconomyTransaction {
+    return {
+      transactionId: row.transaction_id,
+      accountId: row.account_id,
+      kind: row.kind,
+      ...(row.currency_id ? { currencyId: row.currency_id } : {}),
+      ...(row.currency_delta === null
+        ? {}
+        : { currencyDelta: row.currency_delta }),
+      ...(row.item_id ? { itemId: row.item_id } : {}),
+      ...(row.item_delta === null ? {} : { itemDelta: row.item_delta }),
+    };
   }
 }

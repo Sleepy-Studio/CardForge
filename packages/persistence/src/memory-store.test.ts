@@ -3,6 +3,23 @@ import { describe, it } from "node:test";
 import { persistenceTestReplay } from "./fixtures.js";
 import { MemoryCardForgeStore } from "./memory-store.js";
 import { createMatchTelemetry, seasonOne } from "@cardforge/competitive";
+import { cosmeticCatalog } from "@cardforge/economy";
+import type { CardDefinition } from "@cardforge/card-schema";
+
+const economyTestCard: CardDefinition = {
+  cardId: "entity.economy-test",
+  revision: 1,
+  name: "Economy Test",
+  type: "entity",
+  aspects: ["neutral"],
+  rarity: "common",
+  focusCost: 1,
+  playTime: 2,
+  power: 1,
+  vitality: 2,
+  presence: 1,
+  strikeTime: 3,
+};
 
 void describe("CardForge persistence contract", () => {
   void it("isolates account decks and clones stored records", async () => {
@@ -103,5 +120,62 @@ void describe("CardForge persistence contract", () => {
     assert.deepEqual(await store.listTelemetry(seasonOne.seasonId), [
       telemetry,
     ]);
+  });
+
+  void it("persists idempotent crafting, rewards, and cosmetic unlocks", async () => {
+    const store = new MemoryCardForgeStore();
+    await store.upsertAccount("economy-account", "Collector");
+    const initial = await store.bootstrapEconomy("economy-account");
+    assert.equal(
+      initial.wallets.find((wallet) => wallet.currencyId === "shards")?.balance,
+      3_000,
+    );
+
+    const crafted = await store.craftCard(
+      "craft-one",
+      "economy-account",
+      economyTestCard,
+      2,
+    );
+    const duplicate = await store.craftCard(
+      "craft-one",
+      "economy-account",
+      economyTestCard,
+      2,
+    );
+    assert.deepEqual(duplicate, crafted);
+    assert.equal(crafted.cards[0]?.quantity, 2);
+    assert.equal(
+      crafted.wallets.find((wallet) => wallet.currencyId === "shards")?.balance,
+      2_800,
+    );
+
+    await store.grantReward(
+      "reward-one",
+      "economy-account",
+      "style_tokens",
+      50,
+    );
+    const cosmetic = cosmeticCatalog.find(
+      (item) => item.cosmeticId === "card-back.orbital",
+    )!;
+    const unlocked = await store.unlockCosmetic(
+      "unlock-one",
+      "economy-account",
+      cosmetic,
+    );
+    assert.ok(
+      unlocked.entitlements.some(
+        (item) => item.entitlementId === cosmetic.cosmeticId,
+      ),
+    );
+    assert.equal(
+      (await store.listEconomyTransactions("economy-account")).length,
+      4,
+    );
+    await assert.rejects(
+      store.craftCard("craft-over-cap", "economy-account", economyTestCard, 2),
+      /capped at 3/,
+    );
   });
 });
