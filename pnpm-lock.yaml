@@ -185,6 +185,8 @@ importers:
         specifier: workspace:*
         version: link:../card-schema
 
+  packages/live-ops: {}
+
   packages/persistence:
     dependencies:
       '@cardforge/card-schema':
