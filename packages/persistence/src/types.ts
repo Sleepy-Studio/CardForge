@@ -13,6 +13,7 @@ import type {
   EconomyTransaction,
 } from "@cardforge/economy";
 import type { CardDefinition } from "@cardforge/card-schema";
+import type { LiveOpsDefinition } from "@cardforge/live-ops";
 
 export interface DeckRecord {
   readonly deckId: string;
@@ -45,6 +46,25 @@ export interface TrainingCompletionResult {
   readonly firstCompletion: boolean;
   readonly scenarioId: string;
   readonly snapshot: EconomySnapshot;
+}
+
+export interface AuditRecord {
+  readonly auditId: string;
+  readonly actorId: string;
+  readonly action: string;
+  readonly targetId: string;
+  readonly payload: Readonly<Record<string, unknown>>;
+  readonly createdAt: string;
+}
+
+export interface SupportCase {
+  readonly caseId: string;
+  readonly accountId: string;
+  readonly status: "open" | "resolved";
+  readonly summary: string;
+  readonly notes: readonly string[];
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 export interface CardForgeStore {
@@ -98,5 +118,23 @@ export interface CardForgeStore {
     reward: { readonly shards: number; readonly styleTokens: number },
   ): Promise<TrainingCompletionResult>;
   listTrainingCompletions(accountId: string): Promise<readonly string[]>;
+  saveLiveOpsDefinition(definition: LiveOpsDefinition): Promise<void>;
+  listLiveOpsDefinitions(): Promise<readonly LiveOpsDefinition[]>;
+  appendAudit(record: Omit<AuditRecord, "createdAt">): Promise<AuditRecord>;
+  listAudit(limit?: number): Promise<readonly AuditRecord[]>;
+  createSupportCase(input: {
+    readonly caseId: string;
+    readonly accountId: string;
+    readonly summary: string;
+  }): Promise<SupportCase>;
+  updateSupportCase(input: {
+    readonly caseId: string;
+    readonly status?: SupportCase["status"];
+    readonly note?: string;
+  }): Promise<SupportCase>;
+  listSupportCases(input?: {
+    readonly accountId?: string;
+    readonly status?: SupportCase["status"];
+  }): Promise<readonly SupportCase[]>;
   close(): Promise<void>;
 }

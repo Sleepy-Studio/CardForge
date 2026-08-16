@@ -4,6 +4,7 @@ import { PostgresCardForgeStore } from "./postgres-store.js";
 import { createMatchTelemetry, seasonOne } from "@cardforge/competitive";
 import { cosmeticCatalog } from "@cardforge/economy";
 import type { CardDefinition } from "@cardforge/card-schema";
+import { launchLiveOps } from "@cardforge/live-ops";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
@@ -139,6 +140,35 @@ try {
   assert.deepEqual(await store.listTrainingCompletions(economyAccount), [
     "tutorial.focus",
   ]);
+  const smokeLiveOps = {
+    ...launchLiveOps,
+    configId: `liveops.smoke-${process.pid}`,
+  };
+  await store.saveLiveOpsDefinition(smokeLiveOps);
+  assert.ok(
+    (await store.listLiveOpsDefinitions()).some(
+      (definition) => definition.configId === smokeLiveOps.configId,
+    ),
+  );
+  const supportCase = await store.createSupportCase({
+    caseId: `case-smoke-${process.pid}`,
+    accountId: economyAccount,
+    summary: "Persistence smoke support case",
+  });
+  const resolvedCase = await store.updateSupportCase({
+    caseId: supportCase.caseId,
+    status: "resolved",
+    note: "Verified by smoke test.",
+  });
+  assert.equal(resolvedCase.status, "resolved");
+  const audit = await store.appendAudit({
+    auditId: `audit-smoke-${process.pid}`,
+    actorId: "persistence-smoke",
+    action: "support.resolve",
+    targetId: supportCase.caseId,
+    payload: { status: "resolved" },
+  });
+  assert.equal(audit.targetId, supportCase.caseId);
   console.log(
     JSON.stringify({
       accountId: "smoke-account",
@@ -149,6 +179,7 @@ try {
       craftedCards: crafted.cards.length,
       entitlements: unlocked.entitlements.length,
       training: training.scenarioId,
+      supportCase: supportCase.caseId,
     }),
   );
 } finally {

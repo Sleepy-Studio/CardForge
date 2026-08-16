@@ -10,6 +10,7 @@
     { "path": "../card-schema" },
     { "path": "../competitive" },
     { "path": "../economy" },
+    { "path": "../live-ops" },
     { "path": "../rules-kernel" }
   ]
 }

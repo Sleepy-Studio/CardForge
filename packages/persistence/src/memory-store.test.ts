@@ -5,6 +5,7 @@ import { MemoryCardForgeStore } from "./memory-store.js";
 import { createMatchTelemetry, seasonOne } from "@cardforge/competitive";
 import { cosmeticCatalog } from "@cardforge/economy";
 import type { CardDefinition } from "@cardforge/card-schema";
+import { launchLiveOps, stageLiveOps } from "@cardforge/live-ops";
 
 const economyTestCard: CardDefinition = {
   cardId: "entity.economy-test",
@@ -206,5 +207,50 @@ void describe("CardForge persistence contract", () => {
     assert.deepEqual(await store.listTrainingCompletions("trainee"), [
       "tutorial.focus",
     ]);
+  });
+
+  void it("keeps immutable live-ops, support, and audit records", async () => {
+    const store = new MemoryCardForgeStore();
+    await store.upsertAccount("support-account", "Support Player");
+    await store.saveLiveOpsDefinition(launchLiveOps);
+    await store.saveLiveOpsDefinition(stageLiveOps(launchLiveOps, 2));
+    await assert.rejects(
+      store.saveLiveOpsDefinition(launchLiveOps),
+      /immutable/,
+    );
+    assert.deepEqual(
+      (await store.listLiveOpsDefinitions()).map((item) => item.revision),
+      [2, 1],
+    );
+    const supportCase = await store.createSupportCase({
+      caseId: "case-one",
+      accountId: "support-account",
+      summary: "Replay review requested",
+    });
+    assert.equal(supportCase.status, "open");
+    const resolved = await store.updateSupportCase({
+      caseId: "case-one",
+      status: "resolved",
+      note: "Replay hash verified.",
+    });
+    assert.deepEqual(resolved.notes, ["Replay hash verified."]);
+    const audit = await store.appendAudit({
+      auditId: "audit-one",
+      actorId: "operator",
+      action: "support.resolve",
+      targetId: "case-one",
+      payload: { status: "resolved" },
+    });
+    assert.deepEqual(
+      await store.appendAudit({
+        auditId: "audit-one",
+        actorId: "operator",
+        action: "support.resolve",
+        targetId: "case-one",
+        payload: { status: "resolved" },
+      }),
+      audit,
+    );
+    assert.equal((await store.listAudit()).length, 1);
   });
 });

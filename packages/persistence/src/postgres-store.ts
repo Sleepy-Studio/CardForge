@@ -9,10 +9,12 @@ import {
   type RankedSettlement,
 } from "@cardforge/competitive";
 import type {
+  AuditRecord,
   CardForgeStore,
   DeckRecord,
   RankedCompletion,
   StoredMatchRecord,
+  SupportCase,
   TrainingCompletionResult,
 } from "./types.js";
 import {
@@ -24,6 +26,7 @@ import {
   type EconomyTransaction,
 } from "@cardforge/economy";
 import type { CardDefinition } from "@cardforge/card-schema";
+import type { LiveOpsDefinition } from "@cardforge/live-ops";
 
 interface DeckRow {
   deck_id: string;
@@ -82,6 +85,29 @@ interface EconomyTransactionRow {
   item_delta: number | null;
 }
 
+interface LiveOpsRow {
+  definition: LiveOpsDefinition;
+}
+
+interface AuditRow {
+  audit_id: string;
+  actor_id: string;
+  action: string;
+  target_id: string;
+  payload: Readonly<Record<string, unknown>>;
+  created_at: Date;
+}
+
+interface SupportCaseRow {
+  case_id: string;
+  account_id: string;
+  status: SupportCase["status"];
+  summary: string;
+  notes: string[];
+  created_at: Date;
+  updated_at: Date;
+}
+
 export class PostgresCardForgeStore implements CardForgeStore {
   readonly #sql: Sql;
 
@@ -102,6 +128,7 @@ export class PostgresCardForgeStore implements CardForgeStore {
       "0003_competitive_beta",
       "0004_launch_economy",
       "0005_training_progress",
+      "0006_live_ops_support",
     ]) {
       const applied = await this.#sql<{ migration_id: string }[]>`
         SELECT migration_id FROM cardforge_schema_migrations
@@ -573,6 +600,120 @@ export class PostgresCardForgeStore implements CardForgeStore {
     return rows.map((row) => row.scenario_id);
   }
 
+  async saveLiveOpsDefinition(definition: LiveOpsDefinition): Promise<void> {
+    const inserted = await this.#sql<{ config_id: string }[]>`
+      INSERT INTO cardforge_live_ops_definitions (
+        config_id, revision, state, definition
+      ) VALUES (
+        ${definition.configId}, ${definition.revision}, ${definition.state},
+        ${this.#sql.json(definition as never)}
+      )
+      ON CONFLICT (config_id, revision) DO NOTHING
+      RETURNING config_id
+    `;
+    if (!inserted.length) throw new Error("Live-ops revisions are immutable");
+  }
+
+  async listLiveOpsDefinitions(): Promise<readonly LiveOpsDefinition[]> {
+    const rows = await this.#sql<LiveOpsRow[]>`
+      SELECT definition FROM cardforge_live_ops_definitions
+      ORDER BY revision DESC, created_at DESC
+    `;
+    return rows.map((row) => structuredClone(row.definition));
+  }
+
+  async appendAudit(
+    record: Omit<AuditRecord, "createdAt">,
+  ): Promise<AuditRecord> {
+    const inserted = await this.#sql<AuditRow[]>`
+      INSERT INTO cardforge_audit_log (
+        audit_id, actor_id, action, target_id, payload
+      ) VALUES (
+        ${record.auditId}, ${record.actorId}, ${record.action},
+        ${record.targetId}, ${this.#sql.json(record.payload as never)}
+      )
+      ON CONFLICT (audit_id) DO NOTHING
+      RETURNING audit_id, actor_id, action, target_id, payload, created_at
+    `;
+    if (inserted[0]) return this.#auditFromRow(inserted[0]);
+    const existing = await this.#sql<AuditRow[]>`
+      SELECT audit_id, actor_id, action, target_id, payload, created_at
+      FROM cardforge_audit_log WHERE audit_id = ${record.auditId}
+    `;
+    const row = existing[0]!;
+    if (
+      row.actor_id !== record.actorId ||
+      row.action !== record.action ||
+      row.target_id !== record.targetId
+    )
+      throw new Error("Audit id conflicts with an existing record");
+    return this.#auditFromRow(row);
+  }
+
+  async listAudit(limit = 100): Promise<readonly AuditRecord[]> {
+    const boundedLimit = Math.max(0, Math.min(1_000, limit));
+    const rows = await this.#sql<AuditRow[]>`
+      SELECT audit_id, actor_id, action, target_id, payload, created_at
+      FROM cardforge_audit_log
+      ORDER BY created_at DESC
+      LIMIT ${boundedLimit}
+    `;
+    return rows.map((row) => this.#auditFromRow(row));
+  }
+
+  async createSupportCase(input: {
+    readonly caseId: string;
+    readonly accountId: string;
+    readonly summary: string;
+  }): Promise<SupportCase> {
+    const rows = await this.#sql<SupportCaseRow[]>`
+      INSERT INTO cardforge_support_cases (
+        case_id, account_id, status, summary
+      ) VALUES (${input.caseId}, ${input.accountId}, 'open', ${input.summary})
+      RETURNING case_id, account_id, status, summary, notes,
+                created_at, updated_at
+    `;
+    return this.#supportCaseFromRow(rows[0]!);
+  }
+
+  async updateSupportCase(input: {
+    readonly caseId: string;
+    readonly status?: SupportCase["status"];
+    readonly note?: string;
+  }): Promise<SupportCase> {
+    const rows = await this.#sql<SupportCaseRow[]>`
+      UPDATE cardforge_support_cases
+      SET status = COALESCE(${input.status ?? null}, status),
+          notes = CASE
+            WHEN ${input.note ?? null}::text IS NULL THEN notes
+            ELSE notes || ${this.#sql.json(input.note ? [input.note] : [])}::jsonb
+          END,
+          updated_at = now()
+      WHERE case_id = ${input.caseId}
+      RETURNING case_id, account_id, status, summary, notes,
+                created_at, updated_at
+    `;
+    if (!rows[0]) throw new Error("Support case not found");
+    return this.#supportCaseFromRow(rows[0]);
+  }
+
+  async listSupportCases(input?: {
+    readonly accountId?: string;
+    readonly status?: SupportCase["status"];
+  }): Promise<readonly SupportCase[]> {
+    const rows = await this.#sql<SupportCaseRow[]>`
+      SELECT case_id, account_id, status, summary, notes,
+             created_at, updated_at
+      FROM cardforge_support_cases
+      WHERE (${input?.accountId ?? null}::text IS NULL
+             OR account_id = ${input?.accountId ?? null})
+        AND (${input?.status ?? null}::text IS NULL
+             OR status = ${input?.status ?? null})
+      ORDER BY updated_at DESC
+    `;
+    return rows.map((row) => this.#supportCaseFromRow(row));
+  }
+
   async close(): Promise<void> {
     await this.#sql.end();
   }
@@ -762,6 +903,29 @@ export class PostgresCardForgeStore implements CardForgeStore {
         : { currencyDelta: row.currency_delta }),
       ...(row.item_id ? { itemId: row.item_id } : {}),
       ...(row.item_delta === null ? {} : { itemDelta: row.item_delta }),
+    };
+  }
+
+  #auditFromRow(row: AuditRow): AuditRecord {
+    return {
+      auditId: row.audit_id,
+      actorId: row.actor_id,
+      action: row.action,
+      targetId: row.target_id,
+      payload: structuredClone(row.payload),
+      createdAt: row.created_at.toISOString(),
+    };
+  }
+
+  #supportCaseFromRow(row: SupportCaseRow): SupportCase {
+    return {
+      caseId: row.case_id,
+      accountId: row.account_id,
+      status: row.status,
+      summary: row.summary,
+      notes: [...row.notes],
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
     };
   }
 }

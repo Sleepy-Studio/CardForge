@@ -9,7 +9,12 @@ import {
   type RankedSettlement,
 } from "@cardforge/competitive";
 import type { RankedCompletion } from "./types.js";
-import type { TrainingCompletionResult } from "./types.js";
+import type {
+  AuditRecord,
+  SupportCase,
+  TrainingCompletionResult,
+} from "./types.js";
+import type { LiveOpsDefinition } from "@cardforge/live-ops";
 import {
   economyBootstrap,
   quoteCraft,
@@ -35,6 +40,9 @@ export class MemoryCardForgeStore implements CardForgeStore {
   >();
   readonly #economyTransactions = new Map<string, EconomyTransaction>();
   readonly #trainingCompletions = new Map<string, string>();
+  readonly #liveOps = new Map<string, LiveOpsDefinition>();
+  readonly #audit = new Map<string, AuditRecord>();
+  readonly #supportCases = new Map<string, SupportCase>();
 
   #deckKey(accountId: string, deckId: string): string {
     return `${accountId}\u0000${deckId}`;
@@ -352,6 +360,104 @@ export class MemoryCardForgeStore implements CardForgeStore {
       [...this.#trainingCompletions.keys()]
         .filter((key) => key.startsWith(`${accountId}\u0000`))
         .map((key) => key.slice(accountId.length + 1)),
+    );
+  }
+
+  saveLiveOpsDefinition(definition: LiveOpsDefinition): Promise<void> {
+    const key = `${definition.configId}\u0000${definition.revision}`;
+    if (this.#liveOps.has(key))
+      return Promise.reject(new Error("Live-ops revisions are immutable"));
+    this.#liveOps.set(key, structuredClone(definition));
+    return Promise.resolve();
+  }
+
+  listLiveOpsDefinitions(): Promise<readonly LiveOpsDefinition[]> {
+    return Promise.resolve(
+      [...this.#liveOps.values()]
+        .sort((a, b) => b.revision - a.revision)
+        .map((definition) => structuredClone(definition)),
+    );
+  }
+
+  appendAudit(record: Omit<AuditRecord, "createdAt">): Promise<AuditRecord> {
+    const existing = this.#audit.get(record.auditId);
+    if (existing) {
+      if (
+        existing.actorId !== record.actorId ||
+        existing.action !== record.action ||
+        existing.targetId !== record.targetId
+      )
+        return Promise.reject(
+          new Error("Audit id conflicts with an existing record"),
+        );
+      return Promise.resolve(structuredClone(existing));
+    }
+    const stored: AuditRecord = {
+      ...structuredClone(record),
+      createdAt: new Date().toISOString(),
+    };
+    this.#audit.set(record.auditId, stored);
+    return Promise.resolve(structuredClone(stored));
+  }
+
+  listAudit(limit = 100): Promise<readonly AuditRecord[]> {
+    return Promise.resolve(
+      [...this.#audit.values()]
+        .slice(-Math.max(0, limit))
+        .reverse()
+        .map((record) => structuredClone(record)),
+    );
+  }
+
+  createSupportCase(input: {
+    readonly caseId: string;
+    readonly accountId: string;
+    readonly summary: string;
+  }): Promise<SupportCase> {
+    this.#assertAccount(input.accountId);
+    if (this.#supportCases.has(input.caseId))
+      return Promise.reject(new Error("Support case already exists"));
+    const now = new Date().toISOString();
+    const supportCase: SupportCase = {
+      ...input,
+      status: "open",
+      notes: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.#supportCases.set(input.caseId, supportCase);
+    return Promise.resolve(structuredClone(supportCase));
+  }
+
+  updateSupportCase(input: {
+    readonly caseId: string;
+    readonly status?: SupportCase["status"];
+    readonly note?: string;
+  }): Promise<SupportCase> {
+    const existing = this.#supportCases.get(input.caseId);
+    if (!existing) return Promise.reject(new Error("Support case not found"));
+    const updated: SupportCase = {
+      ...existing,
+      status: input.status ?? existing.status,
+      notes: input.note ? [...existing.notes, input.note] : existing.notes,
+      updatedAt: new Date().toISOString(),
+    };
+    this.#supportCases.set(input.caseId, updated);
+    return Promise.resolve(structuredClone(updated));
+  }
+
+  listSupportCases(input?: {
+    readonly accountId?: string;
+    readonly status?: SupportCase["status"];
+  }): Promise<readonly SupportCase[]> {
+    return Promise.resolve(
+      [...this.#supportCases.values()]
+        .filter(
+          (supportCase) =>
+            (!input?.accountId || supportCase.accountId === input.accountId) &&
+            (!input?.status || supportCase.status === input.status),
+        )
+        .map((supportCase) => structuredClone(supportCase)),
     );
   }
 

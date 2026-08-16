@@ -201,6 +201,9 @@ importers:
       '@cardforge/economy':
         specifier: workspace:*
         version: link:../economy
+      '@cardforge/live-ops':
+        specifier: workspace:*
+        version: link:../live-ops
       '@cardforge/rules-kernel':
         specifier: workspace:*
         version: link:../rules-kernel
