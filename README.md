@@ -155,7 +155,7 @@ Without that variable the server deliberately uses an in-memory test adapter.
 The alpha account header is a scope boundary, not production authentication;
 real identity-provider integration remains a launch hardening task.
 
-## Milestone 4 progress
+## Milestone 4 complete
 
 The content-factory foundation is now executable:
 
@@ -168,4 +168,13 @@ The content-factory foundation is now executable:
 - Aetherfront and Orbital Conflict provide complete terms, frames, icons, board, animation, audio, event, reduced-motion, and palette mappings;
 - both themes compile from one gameplay pack with an identical gameplay hash and distinct presentation hashes.
 
-The browser Card Studio and full live theme switch are the next Milestone 4 cut.
+The browser now completes the rebrand proof:
+
+- `/studio` provides searchable content, structured graph editing, publication stages, validation, generated text, theme-aware SVG preview, and revision diff;
+- a global Theme Pack switch updates the match lab, online room, Field Guide, semantic event text, resource labels, DOM palette, and Pixi cue colors;
+- a browser smoke changes Aetherfront to Orbital Conflict while the gameplay hash stays fixed, the presentation hash changes, and generated text uses `Scrapyard` rather than an engine-owned term;
+- the live match smoke verifies `Power`, `Sector Control`, and `Sector` replace the corresponding semantic terms without rebuilding or mutating the rules kernel;
+- reusable procedural recipes and reduced-motion alternatives are recorded in `docs/game-studio/spec.md`.
+
+Milestone 5 is next: six mono-Aspect Leaders, a 120-card competitive pool,
+ranked seasons, analytics, balance telemetry, patches, and starter progression.

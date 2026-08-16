@@ -6,6 +6,7 @@ import type { Command, GameState } from "@cardforge/rules-kernel";
 import { generateRulesText } from "@cardforge/rules-tempofront";
 import { BoardCanvas, type BoardIntent } from "./board-canvas";
 import { FieldGuide, type FieldGuideResult } from "./field-guide";
+import { useGameTheme } from "./theme-provider";
 import {
   activePlayer,
   browserCardPoolSize,
@@ -96,6 +97,13 @@ function StatPill({
 }
 
 export function MatchLab() {
+  const { theme, term } = useGameTheme();
+  const rulesTextTerms = {
+    focus: term("focus"),
+    entity: term("entity"),
+    leader: term("leader"),
+    discard: term("discard"),
+  };
   const [lineup, setLineup] = useState<BrowserLineup>(defaultBrowserLineup);
   const [state, setState] = useState(() =>
     createBrowserMatch(20260816, defaultBrowserLineup),
@@ -150,13 +158,30 @@ export function MatchLab() {
       events: Parameters<typeof presentationCues>[0],
     ) => {
       setHistory((items) =>
-        [...events.map(eventLabel).reverse(), ...items].slice(0, 18),
+        [
+          ...events
+            .map((event) =>
+              eventLabel(event, {
+                entity: term("entity"),
+                leader: term("leader"),
+                front: term("front"),
+                dominion: term("dominion"),
+              }),
+            )
+            .reverse(),
+          ...items,
+        ].slice(0, 18),
       );
-      const cues = presentationCues(events, before, after);
+      const cues = presentationCues(events, before, after, {
+        entity: term("entity"),
+        leader: term("leader"),
+        front: term("front"),
+        dominion: term("dominion"),
+      });
       if (cues.length > 0)
         setPresentation({ sequence: after.commandNumber, cues });
     },
-    [],
+    [term],
   );
 
   const apply = useCallback(
@@ -348,8 +373,12 @@ export function MatchLab() {
         <div className="brand-lockup">
           <span className="brand-mark">CF</span>
           <div>
-            <p>CARD FORGE // LAB BUILD 06 // {browserCardPoolSize} CARD POOL</p>
-            <h1>TempoFront</h1>
+            <p>CARD FORGE // LAB BUILD 08 // {browserCardPoolSize} CARD POOL</p>
+            <h1>
+              {theme.themeId === "aetherfront"
+                ? "Aetherfront"
+                : "Orbital Conflict"}
+            </h1>
           </div>
         </div>
         <div className="match-meta">
@@ -392,6 +421,9 @@ export function MatchLab() {
           <a className="button button--quiet online-link" href="/online">
             ONLINE ALPHA
           </a>
+          <a className="button button--quiet online-link" href="/studio">
+            CARD STUDIO
+          </a>
           <button
             className={`button button--quiet fx-toggle ${effectsEnabled ? "is-active" : ""}`}
             data-fx={effectsEnabled ? "on" : "off"}
@@ -414,7 +446,10 @@ export function MatchLab() {
         </div>
       </header>
 
-      <section className="leader-selectors" aria-label="Prototype Leaders">
+      <section
+        className="leader-selectors"
+        aria-label={`Prototype ${term("leader")}s`}
+      >
         {(["p1", "p2"] as const).map((setupPlayerId) => {
           const selectedOption = browserLeaderOptions.find(
             (option) => option.cardId === lineup[setupPlayerId],
@@ -451,7 +486,7 @@ export function MatchLab() {
               </span>
               <span className="leader-selector__command">
                 {command?.focusCost ?? 0}F • {command?.timeCost ?? 0}T //{" "}
-                {generateRulesText(definition)}
+                {generateRulesText(definition, rulesTextTerms)}
               </span>
             </label>
           );
@@ -479,11 +514,11 @@ export function MatchLab() {
         </div>
         <div className="stat-cluster">
           <StatPill
-            label="FOCUS"
+            label={term("focus").toUpperCase()}
             value={`${state.players[rivalId].focus}/${state.players[rivalId].maxFocus}`}
           />
           <StatPill
-            label="DOM"
+            label={term("dominion").toUpperCase()}
             value={`${state.players[rivalId].dominion}/6`}
           />
         </div>
@@ -492,7 +527,7 @@ export function MatchLab() {
       <Timeline state={state} viewerId={viewerId} />
 
       <div className="match-grid">
-        <section className="arena-panel" aria-label="TempoFront board">
+        <section className="arena-panel" aria-label={`${term("front")} board`}>
           <BoardCanvas
             state={state}
             viewerId={viewerId}
@@ -502,6 +537,7 @@ export function MatchLab() {
             legalFronts={legalFronts}
             presentation={effectsEnabled ? presentation : null}
             reducedMotion={prefersReducedMotion}
+            themePalette={theme.palette}
             onIntent={onBoardIntent}
           />
           {primaryCue ? (
@@ -528,7 +564,9 @@ export function MatchLab() {
           <div className="sr-only">
             {(["left", "center", "right"] as const).map((front) => (
               <section key={front}>
-                <h2>{front} Front</h2>
+                <h2>
+                  {front} {term("front")}
+                </h2>
                 {([rivalId, viewerId] as const).flatMap((side) =>
                   (["vanguard", "support"] as const).map((slot) => {
                     const entity = state.fronts[front].slots[side][slot];
@@ -549,7 +587,9 @@ export function MatchLab() {
           </div>
           <div className="board-caption">
             <span>PIXI // WEBGL FIELD</span>
-            <span>Click an Entity or card, then a glowing destination.</span>
+            <span>
+              Click an {term("entity")} or card, then a glowing destination.
+            </span>
           </div>
         </section>
 
@@ -568,7 +608,7 @@ export function MatchLab() {
                 <h2>{selectedDefinition.name}</h2>
                 <div className="cost-line">
                   <StatPill
-                    label="FOCUS"
+                    label={term("focus").toUpperCase()}
                     value={
                       selectedCommand?.focusCost ?? selectedDefinition.focusCost
                     }
@@ -587,7 +627,7 @@ export function MatchLab() {
                   ) : null}
                 </div>
                 <p className="rules-text">
-                  {generateRulesText(selectedDefinition) ||
+                  {generateRulesText(selectedDefinition, rulesTextTerms) ||
                     "Persistent battlefield asset."}
                 </p>
                 {selected ? (
@@ -599,7 +639,8 @@ export function MatchLab() {
               </div>
             ) : (
               <p className="empty-copy">
-                Select a card or Entity to inspect its authoritative definition.
+                Select a card or {term("entity")} to inspect its authoritative
+                definition.
               </p>
             )}
           </section>
@@ -619,7 +660,14 @@ export function MatchLab() {
                     onClick={() => apply(command)}
                     type="button"
                   >
-                    <span>{commandLabel(state, command)}</span>
+                    <span>
+                      {commandLabel(state, command, {
+                        entity: term("entity"),
+                        leader: term("leader"),
+                        front: term("front"),
+                        dominion: term("dominion"),
+                      })}
+                    </span>
                     {delta > 0 ? (
                       <small>
                         +{delta}T → {state.players.p1.time + delta}
@@ -673,11 +721,11 @@ export function MatchLab() {
           </button>
           <div className="stat-cluster">
             <StatPill
-              label="FOCUS"
+              label={term("focus").toUpperCase()}
               value={`${state.players[viewerId].focus}/${state.players[viewerId].maxFocus}`}
             />
             <StatPill
-              label="DOM"
+              label={term("dominion").toUpperCase()}
               value={`${state.players[viewerId].dominion}/6`}
             />
           </div>

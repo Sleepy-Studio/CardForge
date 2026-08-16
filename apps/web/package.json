@@ -8,12 +8,17 @@
     "build": "next build",
     "smoke": "node scripts/smoke.ts",
     "smoke:online": "node scripts/online-smoke.ts",
+    "smoke:studio": "node scripts/studio-smoke.ts",
     "start": "next start"
   },
   "dependencies": {
     "@cardforge/card-schema": "workspace:*",
+    "@cardforge/content-core-set": "workspace:*",
+    "@cardforge/content-tools": "workspace:*",
     "@cardforge/rules-kernel": "workspace:*",
     "@cardforge/rules-tempofront": "workspace:*",
+    "@cardforge/theme-default": "workspace:*",
+    "@cardforge/theme-test-scifi": "workspace:*",
     "@colyseus/sdk": "^0.17.43",
     "next": "^16.3.1",
     "pixi.js": "^8.19.0",

@@ -9,6 +9,7 @@ import type {
   ProjectedGameView,
 } from "@cardforge/rules-kernel";
 import { BoardCanvas } from "./board-canvas";
+import { useGameTheme } from "./theme-provider";
 import { browserEngine, browserStarterDecks, eventLabel } from "@/lib/match-ui";
 
 type ClientIntent = Command extends infer Candidate
@@ -57,7 +58,10 @@ function clockLabel(
   return `${Math.ceil(remaining / 1_000)}s`;
 }
 
-function intentLabel(intent: ClientIntent): string {
+function intentLabel(
+  intent: ClientIntent,
+  term: (semanticId: string) => string,
+): string {
   switch (intent.type) {
     case "mulligan":
       return `Lock opening hand (${intent.instanceIds.length} out)`;
@@ -74,7 +78,7 @@ function intentLabel(intent: ClientIntent): string {
     case "activate_ability":
       return "Activate ability";
     case "strike":
-      return `Strike ${intent.targetId === "leader" ? "Leader" : "Entity"}`;
+      return `Strike ${intent.targetId === "leader" ? term("leader") : term("entity")}`;
     case "shift":
       return `Shift → ${intent.toFront} ${intent.toSlot}`;
     case "pass":
@@ -83,6 +87,7 @@ function intentLabel(intent: ClientIntent): string {
 }
 
 export function OnlineMatch() {
+  const { theme, term } = useGameTheme();
   const [connection, setConnection] = useState<ConnectionState>("offline");
   const [snapshot, setSnapshot] = useState<OnlineSnapshot | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -242,7 +247,12 @@ export function OnlineMatch() {
       <main className="online-shell online-shell--lobby">
         <section className="online-lobby">
           <p className="eyebrow">CARDFORGE // ONLINE ALPHA</p>
-          <h1>Authoritative TempoFront</h1>
+          <h1>
+            Authoritative{" "}
+            {theme.themeId === "aetherfront"
+              ? "Aetherfront"
+              : "Orbital Conflict"}
+          </h1>
           <p>
             Matchmaking assigns a seat. The server owns the seed, full state,
             legal actions, hidden information, and replay log.
@@ -278,6 +288,9 @@ export function OnlineMatch() {
             <a className="button button--quiet" href="/">
               Local lab
             </a>
+            <a className="button button--quiet" href="/studio">
+              Card Studio
+            </a>
           </div>
           {error ? <p className="online-error">{error}</p> : null}
         </section>
@@ -300,7 +313,11 @@ export function OnlineMatch() {
       <header className="online-header">
         <div>
           <p className="eyebrow">ONLINE ALPHA // ROOM {roomId}</p>
-          <h1>TempoFront</h1>
+          <h1>
+            {theme.themeId === "aetherfront"
+              ? "Aetherfront"
+              : "Orbital Conflict"}
+          </h1>
         </div>
         <div className="online-connection">
           <span
@@ -320,14 +337,16 @@ export function OnlineMatch() {
 
       <section className="online-scorebar">
         <span>
-          RIVAL {rival.integrity} INT // {rival.handCount} HAND //{" "}
-          {rival.dominion}/6 DOM // CLOCK{" "}
+          RIVAL {rival.integrity} {term("integrity").toUpperCase()} //{" "}
+          {rival.handCount} HAND // {rival.dominion}/6{" "}
+          {term("dominion").toUpperCase()} // CLOCK{" "}
           {clockLabel(snapshot, opponent, clientNowMs)}
         </span>
         <code>{snapshot.hash.slice(0, 12)}</code>
         <span>
-          YOU {player.integrity} INT // {player.focus}/{player.maxFocus} FOCUS
-          // {player.dominion}/6 DOM // CLOCK{" "}
+          YOU {player.integrity} {term("integrity").toUpperCase()} //{" "}
+          {player.focus}/{player.maxFocus} {term("focus").toUpperCase()} //{" "}
+          {player.dominion}/6 {term("dominion").toUpperCase()} // CLOCK{" "}
           {clockLabel(snapshot, seat, clientNowMs)}
         </span>
       </section>
@@ -343,6 +362,7 @@ export function OnlineMatch() {
             legalFronts={new Set()}
             presentation={null}
             reducedMotion={false}
+            themePalette={theme.palette}
             onIntent={(intent) =>
               intent.entityId && setSelectedId(intent.entityId)
             }
@@ -362,7 +382,7 @@ export function OnlineMatch() {
                   onClick={() => send(intent)}
                   type="button"
                 >
-                  <span>{intentLabel(intent)}</span>
+                  <span>{intentLabel(intent, term)}</span>
                 </button>
               ))}
               {snapshot.legalIntents.length === 0 ? (
@@ -376,10 +396,12 @@ export function OnlineMatch() {
               <small>{selectedDefinition?.type ?? "none"}</small>
             </div>
             <div className="inspector-card">
-              <h2>{selectedDefinition?.name ?? "Select an Entity"}</h2>
+              <h2>
+                {selectedDefinition?.name ?? `Select an ${term("entity")}`}
+              </h2>
               <p className="rules-text">
                 {selectedDefinition
-                  ? `${selectedDefinition.focusCost} Focus // ${selectedDefinition.playTime} Time`
+                  ? `${selectedDefinition.focusCost} ${term("focus")} // ${selectedDefinition.playTime} Time`
                   : "Only your projected state is available in this client."}
               </p>
             </div>
@@ -391,7 +413,14 @@ export function OnlineMatch() {
             </div>
             <ol className="history-list">
               {[...snapshot.events].reverse().map((event, index) => (
-                <li key={`${event.type}-${index}`}>{eventLabel(event)}</li>
+                <li key={`${event.type}-${index}`}>
+                  {eventLabel(event, {
+                    entity: term("entity"),
+                    leader: term("leader"),
+                    front: term("front"),
+                    dominion: term("dominion"),
+                  })}
+                </li>
               ))}
             </ol>
           </section>

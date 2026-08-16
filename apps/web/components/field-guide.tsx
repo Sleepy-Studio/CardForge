@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useGameTheme } from "./theme-provider";
 
 interface GuideAnswer {
   readonly label: string;
@@ -129,6 +130,20 @@ export function FieldGuide({
   readonly onClose: () => void;
   readonly onComplete: (result: FieldGuideResult) => void;
 }) {
+  const { theme, term } = useGameTheme();
+  const themedText = (text: string): string =>
+    text
+      .replaceAll(
+        "TempoFront",
+        theme.themeId === "aetherfront" ? "Aetherfront" : "Orbital Conflict",
+      )
+      .replaceAll("Fronts", `${term("front")}s`)
+      .replaceAll("Front", term("front"))
+      .replaceAll("Dominion", term("dominion"))
+      .replaceAll("Integrity", term("integrity"))
+      .replaceAll("Leader", term("leader"))
+      .replaceAll("Entity", term("entity"))
+      .replaceAll("Focus", term("focus"));
   const [lessonIndex, setLessonIndex] = useState(0);
   const [attempts, setAttempts] = useState(0);
   const [wrongAnswers, setWrongAnswers] = useState(0);
@@ -174,9 +189,15 @@ export function FieldGuide({
       <div className="field-guide__card">
         <div className="field-guide__header">
           <div>
-            <p className="eyebrow">TEMPOFRONT FIELD GUIDE</p>
+            <p className="eyebrow">
+              {(theme.themeId === "aetherfront"
+                ? "AETHERFRONT"
+                : "ORBITAL CONFLICT") + " FIELD GUIDE"}
+            </p>
             <h2 id="field-guide-title">
-              {complete ? "Ready for the shared timeline" : lesson.title}
+              {complete
+                ? "Ready for the shared timeline"
+                : themedText(lesson.title)}
             </h2>
           </div>
           <button
@@ -218,12 +239,12 @@ export function FieldGuide({
                 />
               ))}
             </div>
-            <p className="field-guide__code">{lesson.code}</p>
+            <p className="field-guide__code">{themedText(lesson.code)}</p>
             <p id="field-guide-description" className="field-guide__principle">
-              {lesson.principle}
+              {themedText(lesson.principle)}
             </p>
             <fieldset className="field-guide__question">
-              <legend>{lesson.question}</legend>
+              <legend>{themedText(lesson.question)}</legend>
               <div className="field-guide__answers">
                 {lesson.answers.map((answer) => (
                   <button
@@ -233,13 +254,15 @@ export function FieldGuide({
                     onClick={() => choose(answer)}
                     type="button"
                   >
-                    {answer.label}
+                    {themedText(answer.label)}
                   </button>
                 ))}
               </div>
             </fieldset>
             <div className="field-guide__feedback" aria-live="polite">
-              {feedback ?? "Choose an answer to test the rule."}
+              {feedback
+                ? themedText(feedback)
+                : "Choose an answer to test the rule."}
             </div>
             <button
               className="button button--primary field-guide__next"

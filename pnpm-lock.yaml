@@ -84,12 +84,24 @@ importers:
       '@cardforge/card-schema':
         specifier: workspace:*
         version: link:../../packages/card-schema
+      '@cardforge/content-core-set':
+        specifier: workspace:*
+        version: link:../../packages/content-core-set
+      '@cardforge/content-tools':
+        specifier: workspace:*
+        version: link:../../packages/content-tools
       '@cardforge/rules-kernel':
         specifier: workspace:*
         version: link:../../packages/rules-kernel
       '@cardforge/rules-tempofront':
         specifier: workspace:*
         version: link:../../packages/rules-tempofront
+      '@cardforge/theme-default':
+        specifier: workspace:*
+        version: link:../../packages/theme-default
+      '@cardforge/theme-test-scifi':
+        specifier: workspace:*
+        version: link:../../packages/theme-test-scifi
       '@colyseus/sdk':
         specifier: ^0.17.43
         version: 0.17.43(@colyseus/core@0.17.50)(typescript@5.9.3)(zod@4.4.3)

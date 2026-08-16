@@ -14,6 +14,46 @@
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
 }
 
+:root[data-game-theme="orbital-conflict"] {
+  --panel: rgba(5, 18, 31, 0.94);
+  --panel-2: rgba(8, 28, 45, 0.92);
+  --line: rgba(78, 246, 255, 0.2);
+  --line-hot: rgba(255, 79, 216, 0.7);
+  --muted: #88b3c4;
+  --violet: #ff4fd8;
+  --gold: #ffd166;
+}
+
+.global-theme-switcher {
+  position: fixed;
+  z-index: 90;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line-hot);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--muted);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font:
+    800 8px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.global-theme-switcher select {
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  letter-spacing: 0.04em;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -47,6 +87,23 @@ body {
     "Segoe UI",
     sans-serif;
   min-height: 100vh;
+}
+
+:root[data-game-theme="orbital-conflict"] body {
+  background:
+    linear-gradient(rgba(78, 246, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(78, 246, 255, 0.035) 1px, transparent 1px),
+    radial-gradient(
+      circle at 72% 12%,
+      rgba(255, 79, 216, 0.14),
+      transparent 32rem
+    ),
+    linear-gradient(145deg, #01040a, #06121e 52%, #020710);
+  background-size:
+    38px 38px,
+    38px 38px,
+    auto,
+    auto;
 }
 
 button {
@@ -1364,6 +1421,283 @@ button:focus-visible {
   padding: 10px 12px;
   color: var(--text);
   background: #091725;
+}
+
+.studio-shell {
+  min-height: 100vh;
+  padding: 20px;
+  background:
+    radial-gradient(
+      circle at 20% 0%,
+      color-mix(in srgb, var(--mint) 12%, transparent),
+      transparent 34rem
+    ),
+    radial-gradient(
+      circle at 90% 20%,
+      color-mix(in srgb, var(--violet) 10%, transparent),
+      transparent 38rem
+    );
+}
+
+.studio-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px 18px 8px 8px;
+  padding: 18px 22px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.studio-header h1 {
+  margin: 5px 0;
+  font-size: clamp(30px, 5vw, 54px);
+  letter-spacing: -0.055em;
+}
+
+.studio-header p:last-child {
+  margin: 0;
+  color: var(--muted);
+}
+
+.studio-hashes {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  color: var(--cyan);
+  font:
+    700 9px/1.2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.08em;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(420px, 1.35fr) minmax(
+      300px,
+      0.9fr
+    );
+  gap: 12px;
+}
+
+.studio-grid > .panel {
+  min-height: calc(100vh - 165px);
+  border-radius: 10px;
+  padding: 14px;
+  overflow: hidden;
+}
+
+.studio-library {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.studio-library > input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.studio-card-list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  overflow: auto;
+}
+
+.studio-card-list button {
+  display: grid;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--text);
+  text-align: left;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+}
+
+.studio-card-list button:hover,
+.studio-card-list button.is-active {
+  border-color: var(--cyan);
+  background: color-mix(in srgb, var(--cyan) 8%, transparent);
+}
+
+.studio-card-list small {
+  color: var(--muted);
+  font:
+    700 8px/1.2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  text-transform: uppercase;
+}
+
+.studio-editor {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.studio-workflow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.studio-workflow button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 8px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font:
+    700 8px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+
+.studio-workflow button.is-active {
+  border-color: var(--mint);
+  color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 8%, transparent);
+}
+
+.studio-json-label {
+  display: grid;
+  min-height: 0;
+  gap: 7px;
+  color: var(--muted);
+  font:
+    800 9px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.studio-json-label textarea {
+  min-height: 440px;
+  resize: none;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 14px;
+  color: #c8f5ff;
+  background: #020812;
+  font:
+    12px/1.55 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  tab-size: 2;
+}
+
+.studio-validation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.studio-validation p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.studio-preview {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  overflow: auto !important;
+}
+
+.studio-preview > img {
+  width: min(100%, 300px);
+  margin: 0 auto;
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.35));
+}
+
+.studio-rules,
+.studio-checks,
+.studio-diff {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.studio-rules h2,
+.studio-checks h3,
+.studio-diff h3 {
+  margin: 0 0 7px;
+}
+
+.studio-rules p,
+.studio-diff p,
+.studio-checks ul {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.studio-checks ul {
+  padding-left: 18px;
+}
+
+@media (max-width: 1050px) {
+  .studio-grid {
+    grid-template-columns: minmax(200px, 0.65fr) minmax(420px, 1.35fr);
+  }
+
+  .studio-preview {
+    grid-column: 1 / -1;
+    min-height: auto !important;
+    grid-template-columns: minmax(220px, 300px) 1fr;
+  }
+
+  .studio-preview .panel-heading {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .studio-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .studio-hashes {
+    justify-items: start;
+  }
+
+  .studio-grid {
+    display: block;
+  }
+
+  .studio-grid > .panel {
+    min-height: auto;
+    margin-bottom: 10px;
+  }
+
+  .studio-card-list {
+    max-height: 280px;
+  }
+
+  .studio-preview {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
 }
 
 .online-lobby__actions a,

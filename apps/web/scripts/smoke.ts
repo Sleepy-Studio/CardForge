@@ -138,7 +138,7 @@ await send("Runtime.enable");
 await send("Emulation.setEmulatedMedia", {
   features: [{ name: "prefers-reduced-motion", value: "reduce" }],
 });
-await delay(50);
+await delay(300);
 const initialLeaders = await evaluate<LeaderSetup>(`({
   poolLabel: document.querySelector('.brand-lockup p')?.textContent ?? '',
   fxLabel: document.querySelector('.fx-toggle')?.textContent ?? '',
@@ -150,7 +150,7 @@ const initialLeaders = await evaluate<LeaderSetup>(`({
 })`);
 if (
   !initialLeaders.poolLabel.includes("60 CARD POOL") ||
-  !initialLeaders.poolLabel.includes("LAB BUILD 06") ||
+  !initialLeaders.poolLabel.includes("LAB BUILD 08") ||
   !initialLeaders.fxLabel.includes("FX REDUCED") ||
   initialLeaders.selectors !== 2 ||
   initialLeaders.p1Options !== 4 ||
@@ -364,6 +364,33 @@ if (responseSeat.handCards === 0 || responseSeat.actionCount === 0)
     `Response seat reveal failed: ${JSON.stringify(responseSeat)}`,
   );
 
+await evaluate(`{
+  const select = document.querySelector('.global-theme-switcher select');
+  const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+  setter.call(select, 'orbital-conflict');
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+}`);
+await delay(120);
+const rebrand = await evaluate<{
+  theme: string;
+  title: string;
+  resourceLabels: string;
+  boardLabel: string;
+}>(`({
+  theme: document.documentElement.dataset.gameTheme ?? '',
+  title: document.querySelector('.brand-lockup h1')?.textContent ?? '',
+  resourceLabels: [...document.querySelectorAll('.stat-pill small')].map((node) => node.textContent).join(' // '),
+  boardLabel: document.querySelector('.arena-panel')?.getAttribute('aria-label') ?? ''
+})`);
+if (
+  rebrand.theme !== "orbital-conflict" ||
+  rebrand.title !== "Orbital Conflict" ||
+  !rebrand.resourceLabels.includes("POWER") ||
+  !rebrand.resourceLabels.includes("SECTOR CONTROL") ||
+  !rebrand.boardLabel.includes("Sector")
+)
+  throw new Error(`Live rebrand failed: ${JSON.stringify(rebrand)}`);
+
 socket.close();
 console.log(
   JSON.stringify(
@@ -381,6 +408,7 @@ console.log(
         lockedAfterAction,
         responseSeat,
       },
+      rebrand,
     },
     null,
     2,

@@ -26,6 +26,20 @@ export const browserCardPoolSize = prototypeCards.length;
 
 export type BrowserLineup = Readonly<Record<PlayerId, PrototypeLeaderId>>;
 
+export interface DisplayTerms {
+  readonly entity: string;
+  readonly leader: string;
+  readonly front: string;
+  readonly dominion: string;
+}
+
+const defaultDisplayTerms: DisplayTerms = {
+  entity: "Entity",
+  leader: "Leader",
+  front: "Front",
+  dominion: "Dominion",
+};
+
 export const defaultBrowserLineup: BrowserLineup = defaultPrototypeLeaders;
 
 export function createBrowserMatch(
@@ -104,7 +118,12 @@ export function commandTime(state: GameState, command: Command): number {
   return 0;
 }
 
-export function commandLabel(state: GameState, command: Command): string {
+export function commandLabel(
+  state: GameState,
+  command: Command,
+  terms: Partial<DisplayTerms> = {},
+): string {
+  const display = { ...defaultDisplayTerms, ...terms };
   const nameFor = (instanceId: string): string => {
     const instance = findInstance(state, instanceId);
     return instance
@@ -135,7 +154,7 @@ export function commandLabel(state: GameState, command: Command): string {
     case "activate_ability":
       return `${command.sourceId.endsWith("-leader") ? "Command" : "Activate"} — ${nameFor(command.sourceId)}`;
     case "strike":
-      return `Strike ${command.targetId === "leader" ? "Leader" : nameFor(command.targetId)}`;
+      return `Strike ${command.targetId === "leader" ? display.leader : nameFor(command.targetId)}`;
     case "shift":
       return `Shift → ${command.toFront} ${command.toSlot}`;
     case "pass":
@@ -143,7 +162,11 @@ export function commandLabel(state: GameState, command: Command): string {
   }
 }
 
-export function eventLabel(event: GameEvent): string {
+export function eventLabel(
+  event: GameEvent,
+  terms: Partial<DisplayTerms> = {},
+): string {
+  const display = { ...defaultDisplayTerms, ...terms };
   switch (event.type) {
     case "mulligan_submitted":
       return `${event.playerId} replaced ${event.count} card${event.count === 1 ? "" : "s"}`;
@@ -178,15 +201,15 @@ export function eventLabel(event: GameEvent): string {
     case "damage_dealt":
       return `${event.amount} damage dealt`;
     case "entity_defeated":
-      return "An Entity was defeated";
+      return `An ${display.entity} was defeated`;
     case "entity_shifted":
-      return `Entity shifted ${event.from} → ${event.to}`;
+      return `${display.entity} shifted ${event.from} → ${event.to}`;
     case "front_control_resolved":
-      return `${event.front} Front: ${event.controllerId ?? "contested"} (${event.p1Presence}–${event.p2Presence})`;
+      return `${event.front} ${display.front}: ${event.controllerId ?? "contested"} (${event.p1Presence}–${event.p2Presence})`;
     case "player_passed":
       return `${event.playerId} passed for the Cycle`;
     case "dominion_gained":
-      return `${event.playerId} gained Dominion (${event.total}/6)`;
+      return `${event.playerId} gained ${display.dominion} (${event.total}/6)`;
     case "cycle_started":
       return `Cycle ${event.cycle} started`;
     case "game_won":
@@ -272,7 +295,9 @@ export function presentationCues(
   events: readonly GameEvent[],
   before: GameState,
   after: GameState,
+  terms: Partial<DisplayTerms> = {},
 ): readonly PresentationCue[] {
+  const display = { ...defaultDisplayTerms, ...terms };
   return events.flatMap((event, index): readonly PresentationCue[] => {
     const id = `${after.commandNumber}-${index}-${event.type}`;
     switch (event.type) {
@@ -382,7 +407,7 @@ export function presentationCues(
           {
             id,
             kind: "control",
-            label: `${event.front.toUpperCase()} FRONT`,
+            label: `${event.front.toUpperCase()} ${display.front.toUpperCase()}`,
             detail: event.controllerId
               ? `${event.controllerId.toUpperCase()} CONTROL // ${event.p1Presence}–${event.p2Presence}`
               : `CONTESTED // ${event.p1Presence}–${event.p2Presence}`,
@@ -395,7 +420,7 @@ export function presentationCues(
           {
             id,
             kind: "dominion",
-            label: "DOMINION",
+            label: display.dominion.toUpperCase(),
             detail: `${event.playerId.toUpperCase()} // ${event.total}/6`,
             tone: "objective",
             target: { playerId: event.playerId, leader: true },

@@ -242,3 +242,25 @@ server-validated deck storage. `X-CardForge-Account-Id` prevents accidental
 cross-account operations but is explicitly not an authentication credential.
 Replacing it with verified identity is required before exposing the service to
 untrusted users.
+
+## Content factory and rebrand proof
+
+The authoritative content boundary is `ContentPackSource`: a versioned manifest
+and semantic card revisions. Zod validates recursive effect graphs at runtime;
+the TempoFront publication linter then enforces engine limits and token
+dependencies. The compiler emits generated rules text and a gameplay hash that
+does not include presentation data. Spreadsheet rows enter through the same
+schema rather than a second permissive import path.
+
+Theme Packs are separately versioned and must provide every semantic term,
+visual asset family, palette token, gameplay-event presentation recipe, audio
+mapping, emphasis level, and reduced-motion alternative. Compilation resolves
+themed card views and produces a separate presentation hash. Aetherfront and
+Orbital Conflict compile over one gameplay pack with the same gameplay hash.
+
+The browser's global theme provider applies those manifests to the match lab,
+online room, Field Guide, generated text, DOM tokens, and Pixi cue palette.
+`/studio` exposes the pack library, structured JSON graph draft, publication
+workflow, compiler feedback, theme-aware SVG card preview, checks, and revision
+diff. Browser smoke changes the entire live vocabulary from Aetherfront to
+Orbital Conflict without importing a Theme Pack into the rules kernel.

@@ -27,6 +27,7 @@ interface BoardCanvasProps {
   readonly legalFronts: ReadonlySet<FrontId>;
   readonly presentation: PresentationBatch | null;
   readonly reducedMotion: boolean;
+  readonly themePalette?: Readonly<Record<string, string>>;
   readonly onIntent: (intent: BoardIntent) => void;
 }
 
@@ -39,6 +40,12 @@ const cueColors: Readonly<Record<PresentationTone, number>> = {
   objective: 0xffbf54,
   victory: 0xffffff,
 };
+
+function themeColor(value: string | undefined, fallback: number): number {
+  return value?.startsWith("#")
+    ? Number.parseInt(value.slice(1), 16)
+    : fallback;
+}
 
 function destroyChildren(app: Application): void {
   for (const child of app.stage.removeChildren())
@@ -54,6 +61,7 @@ export function BoardCanvas({
   legalFronts,
   presentation,
   reducedMotion,
+  themePalette,
   onIntent,
 }: BoardCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -293,7 +301,14 @@ export function BoardCanvas({
     if (presentation && presentation.cues.length > 0) {
       const cueLayer = new Graphics();
       for (const cue of presentation.cues.slice(-4)) {
-        const color = cueColors[cue.tone];
+        const color =
+          cue.tone === "impact"
+            ? themeColor(themePalette?.danger, cueColors[cue.tone])
+            : cue.tone === "motion"
+              ? themeColor(themePalette?.primary, cueColors[cue.tone])
+              : cue.tone === "guard"
+                ? themeColor(themePalette?.secondary, cueColors[cue.tone])
+                : cueColors[cue.tone];
         const source = cue.source ? anchorPoint(cue.source) : undefined;
         const target = cue.target ? anchorPoint(cue.target) : undefined;
         if (source && target)
@@ -352,6 +367,7 @@ export function BoardCanvas({
     canvasRevision,
     presentation,
     reducedMotion,
+    themePalette,
   ]);
 
   return (
