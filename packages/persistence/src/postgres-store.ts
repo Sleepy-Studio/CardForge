@@ -13,6 +13,7 @@ import type {
   DeckRecord,
   RankedCompletion,
   StoredMatchRecord,
+  TrainingCompletionResult,
 } from "./types.js";
 import {
   economyBootstrap,
@@ -100,6 +101,7 @@ export class PostgresCardForgeStore implements CardForgeStore {
       "0002_account_scoped_decks",
       "0003_competitive_beta",
       "0004_launch_economy",
+      "0005_training_progress",
     ]) {
       const applied = await this.#sql<{ migration_id: string }[]>`
         SELECT migration_id FROM cardforge_schema_migrations
@@ -504,6 +506,71 @@ export class PostgresCardForgeStore implements CardForgeStore {
       LIMIT ${boundedLimit}
     `;
     return rows.map((row) => this.#economyTransactionFromRow(row));
+  }
+
+  completeTrainingScenario(
+    completionId: string,
+    accountId: string,
+    scenarioId: string,
+    reward: { readonly shards: number; readonly styleTokens: number },
+  ): Promise<TrainingCompletionResult> {
+    return this.#sql.begin(async (sql) => {
+      await this.#bootstrapEconomy(sql, accountId);
+      if (!completionId) throw new Error("Completion id is required");
+      if (
+        !Number.isSafeInteger(reward.shards) ||
+        reward.shards < 0 ||
+        !Number.isSafeInteger(reward.styleTokens) ||
+        reward.styleTokens < 0
+      )
+        throw new Error("Training reward must use non-negative integers");
+      const inserted = await sql<{ scenario_id: string }[]>`
+        INSERT INTO cardforge_training_completions (
+          account_id, scenario_id, completion_id, reward
+        ) VALUES (
+          ${accountId}, ${scenarioId}, ${completionId}, ${sql.json(reward)}
+        )
+        ON CONFLICT (account_id, scenario_id) DO NOTHING
+        RETURNING scenario_id
+      `;
+      if (!inserted.length)
+        return {
+          firstCompletion: false,
+          scenarioId,
+          snapshot: await this.#economySnapshot(sql, accountId),
+        };
+      await sql`
+        UPDATE cardforge_wallets
+        SET balance = balance + CASE
+          WHEN currency_id = 'shards' THEN ${reward.shards}::integer
+          ELSE ${reward.styleTokens}::integer
+        END,
+        updated_at = now()
+        WHERE account_id = ${accountId}
+          AND currency_id IN ('shards', 'style_tokens')
+      `;
+      await this.#recordEconomyTransaction(sql, {
+        transactionId: `training:${accountId}:${scenarioId}`,
+        accountId,
+        kind: "reward",
+        itemId: scenarioId,
+        itemDelta: 1,
+      });
+      return {
+        firstCompletion: true,
+        scenarioId,
+        snapshot: await this.#economySnapshot(sql, accountId),
+      };
+    });
+  }
+
+  async listTrainingCompletions(accountId: string): Promise<readonly string[]> {
+    const rows = await this.#sql<{ scenario_id: string }[]>`
+      SELECT scenario_id FROM cardforge_training_completions
+      WHERE account_id = ${accountId}
+      ORDER BY completed_at, scenario_id
+    `;
+    return rows.map((row) => row.scenario_id);
   }
 
   async close(): Promise<void> {

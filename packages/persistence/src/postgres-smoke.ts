@@ -122,6 +122,23 @@ try {
       (item) => item.entitlementId === cosmetic.cosmeticId,
     ),
   );
+  const training = await store.completeTrainingScenario(
+    `smoke-training-${process.pid}`,
+    economyAccount,
+    "tutorial.focus",
+    { shards: 150, styleTokens: 0 },
+  );
+  const trainingDuplicate = await store.completeTrainingScenario(
+    `smoke-training-duplicate-${process.pid}`,
+    economyAccount,
+    "tutorial.focus",
+    { shards: 150, styleTokens: 0 },
+  );
+  assert.equal(training.firstCompletion, true);
+  assert.equal(trainingDuplicate.firstCompletion, false);
+  assert.deepEqual(await store.listTrainingCompletions(economyAccount), [
+    "tutorial.focus",
+  ]);
   console.log(
     JSON.stringify({
       accountId: "smoke-account",
@@ -131,6 +148,7 @@ try {
       rankedSettlement: settlement?.matchId,
       craftedCards: crafted.cards.length,
       entitlements: unlocked.entitlements.length,
+      training: training.scenarioId,
     }),
   );
 } finally {

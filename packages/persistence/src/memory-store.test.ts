@@ -178,4 +178,33 @@ void describe("CardForge persistence contract", () => {
       /capped at 3/,
     );
   });
+
+  void it("rewards each training scenario exactly once", async () => {
+    const store = new MemoryCardForgeStore();
+    await store.upsertAccount("trainee", "Trainee");
+    const initial = await store.bootstrapEconomy("trainee");
+    const first = await store.completeTrainingScenario(
+      "completion-one",
+      "trainee",
+      "tutorial.focus",
+      { shards: 150, styleTokens: 0 },
+    );
+    const duplicate = await store.completeTrainingScenario(
+      "completion-two",
+      "trainee",
+      "tutorial.focus",
+      { shards: 150, styleTokens: 0 },
+    );
+    assert.equal(first.firstCompletion, true);
+    assert.equal(duplicate.firstCompletion, false);
+    assert.equal(
+      first.snapshot.wallets.find((wallet) => wallet.currencyId === "shards")!
+        .balance,
+      initial.wallets.find((wallet) => wallet.currencyId === "shards")!
+        .balance + 150,
+    );
+    assert.deepEqual(await store.listTrainingCompletions("trainee"), [
+      "tutorial.focus",
+    ]);
+  });
 });

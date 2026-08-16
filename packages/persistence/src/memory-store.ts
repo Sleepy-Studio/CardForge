@@ -9,6 +9,7 @@ import {
   type RankedSettlement,
 } from "@cardforge/competitive";
 import type { RankedCompletion } from "./types.js";
+import type { TrainingCompletionResult } from "./types.js";
 import {
   economyBootstrap,
   quoteCraft,
@@ -33,6 +34,7 @@ export class MemoryCardForgeStore implements CardForgeStore {
     Map<string, CosmeticDefinition["category"]>
   >();
   readonly #economyTransactions = new Map<string, EconomyTransaction>();
+  readonly #trainingCompletions = new Map<string, string>();
 
   #deckKey(accountId: string, deckId: string): string {
     return `${accountId}\u0000${deckId}`;
@@ -296,6 +298,60 @@ export class MemoryCardForgeStore implements CardForgeStore {
         .slice(-Math.max(0, limit))
         .reverse()
         .map((transaction) => structuredClone(transaction)),
+    );
+  }
+
+  async completeTrainingScenario(
+    completionId: string,
+    accountId: string,
+    scenarioId: string,
+    reward: { readonly shards: number; readonly styleTokens: number },
+  ): Promise<TrainingCompletionResult> {
+    await this.bootstrapEconomy(accountId);
+    const key = `${accountId}\u0000${scenarioId}`;
+    const existing = this.#trainingCompletions.get(key);
+    if (existing)
+      return {
+        firstCompletion: false,
+        scenarioId,
+        snapshot: this.#economySnapshot(accountId),
+      };
+    if (!completionId) throw new Error("Completion id is required");
+    if ([...this.#trainingCompletions.values()].includes(completionId))
+      throw new Error("Completion id conflicts with an existing scenario");
+    if (
+      !Number.isSafeInteger(reward.shards) ||
+      reward.shards < 0 ||
+      !Number.isSafeInteger(reward.styleTokens) ||
+      reward.styleTokens < 0
+    )
+      throw new Error("Training reward must use non-negative integers");
+    const wallet = this.#wallets.get(accountId)!;
+    wallet.set("shards", (wallet.get("shards") ?? 0) + reward.shards);
+    wallet.set(
+      "style_tokens",
+      (wallet.get("style_tokens") ?? 0) + reward.styleTokens,
+    );
+    this.#trainingCompletions.set(key, completionId);
+    this.#economyTransactions.set(`training:${accountId}:${scenarioId}`, {
+      transactionId: `training:${accountId}:${scenarioId}`,
+      accountId,
+      kind: "reward",
+      itemId: scenarioId,
+      itemDelta: 1,
+    });
+    return {
+      firstCompletion: true,
+      scenarioId,
+      snapshot: this.#economySnapshot(accountId),
+    };
+  }
+
+  listTrainingCompletions(accountId: string): Promise<readonly string[]> {
+    return Promise.resolve(
+      [...this.#trainingCompletions.keys()]
+        .filter((key) => key.startsWith(`${accountId}\u0000`))
+        .map((key) => key.slice(accountId.length + 1)),
     );
   }
 

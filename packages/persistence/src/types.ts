@@ -41,6 +41,12 @@ export interface RankedCompletion {
   readonly telemetry: MatchTelemetry;
 }
 
+export interface TrainingCompletionResult {
+  readonly firstCompletion: boolean;
+  readonly scenarioId: string;
+  readonly snapshot: EconomySnapshot;
+}
+
 export interface CardForgeStore {
   migrate(): Promise<void>;
   upsertAccount(accountId: string, displayName: string): Promise<void>;
@@ -85,5 +91,12 @@ export interface CardForgeStore {
     accountId: string,
     limit?: number,
   ): Promise<readonly EconomyTransaction[]>;
+  completeTrainingScenario(
+    completionId: string,
+    accountId: string,
+    scenarioId: string,
+    reward: { readonly shards: number; readonly styleTokens: number },
+  ): Promise<TrainingCompletionResult>;
+  listTrainingCompletions(accountId: string): Promise<readonly string[]>;
   close(): Promise<void>;
 }
