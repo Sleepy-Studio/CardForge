@@ -54,10 +54,11 @@ packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
 - deterministic Barrier-before-Armor damage replacement ordering;
 - authoritative simultaneous setup with one deterministic mulligan per player;
 - format validation for deck size, copy limits, generated cards, and minimum Entities;
+- set rotation, ban-list, Leader Aspect identity, and Leader subtype restrictions;
 - 40-card proof decks and a semantic 20-card-plus-token content fixture.
 
 ## Deliberately deferred
 
-General modal and multi-target choices, redirect/set-value replacement effects, Aspect and release legality, attachments, Relic/Site board zones, full keyword/status pools, rules-text generation, and full publication tooling remain deferred. Their schema seams are present, but pretending they are implemented would be dishonest.
+General modal and multi-target choices, redirect/set-value replacement effects, release-date legality, attachments, Relic/Site board zones, full keyword/status pools, rules-text generation, and full publication tooling remain deferred. Their schema seams are present, but pretending they are implemented would be dishonest.
 
 See [docs/architecture.md](docs/architecture.md) for boundaries and the next implementation cut.

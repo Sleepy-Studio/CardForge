@@ -63,6 +63,8 @@ export interface CardDefinition {
   readonly name: string;
   readonly type: CardType;
   readonly aspects: readonly Aspect[];
+  readonly setId?: string;
+  readonly tags?: readonly string[];
   readonly focusCost: number;
   readonly playTime: number;
   readonly subtypes?: readonly string[];
@@ -76,6 +78,10 @@ export interface CardDefinition {
   readonly generatedOnly?: boolean;
   readonly unique?: boolean;
   readonly deckLimit?: number;
+  readonly deckRestriction?: {
+    readonly requiredSubtype: string;
+    readonly minimum: number;
+  };
 }
 
 export interface FormatDefinition {
@@ -85,6 +91,8 @@ export interface FormatDefinition {
   readonly maxCopies: number;
   readonly maxUniqueCopies: number;
   readonly minimumEntities: number;
+  readonly legalSetIds?: readonly string[];
+  readonly bannedCardIds?: readonly string[];
 }
 
 export interface ThemeManifest {

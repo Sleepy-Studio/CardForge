@@ -44,6 +44,8 @@ Games begin in an explicit `mulligan` phase. Either player may submit once; norm
 
 Deck validation runs before instances are created or shuffled. The selected Format enforces exact size, ordinary and Unique copy limits, per-card overrides, generated/Leader exclusion, known definitions, and the minimum Entity count. Invalid decks fail with all discovered reasons rather than the first convenient complaint.
 
+Formats may additionally declare legal set IDs and banned card IDs. When a Leader is supplied, every non-Neutral Aspect on every card must belong to that Leader's identity. Leaders may also require a minimum number of cards sharing a subtype. These checks remain pure content validation, so they can run in deckbuilders, publication tools, matchmaking, and the authoritative match service without constructing a match.
+
 ## Bias and scope note
 
 The product brief naturally pulls toward a complete monorepo and polished UI. That is the wrong proof. The main architectural risk is nondeterministic, unbounded card behavior; therefore this slice tests the rules seam under repeated complete games before application infrastructure is introduced.
@@ -51,7 +53,7 @@ The product brief naturally pulls toward a complete monorepo and polished UI. Th
 ## Next cut
 
 1. Add general modal, multi-target, and ordered-trigger choices.
-2. Add Aspect, set, ban-list, and Leader-specific deck legality.
+2. Add release-state and date-based legality.
 3. Add Prepare/Reserve, Attachments, Relics, and Sites.
 4. Generate localized rules text from the same ability graph used by the engine.
 5. Grow property-based tests around setup, damage batches, zone ownership, responses, choices, and effect limits.

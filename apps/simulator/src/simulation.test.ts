@@ -9,6 +9,7 @@ import {
 import {
   proofCardMap,
   proofDeck,
+  proofFormat,
   TempoFrontEngine,
   validateDeck,
 } from "@cardforge/rules-tempofront";
@@ -144,6 +145,40 @@ void describe("TempoFront deterministic proof", () => {
       index % 2 === 0 ? "tactic.survey" : "reaction.deflect",
     );
     assert.match(validateDeck(noEntities).join("; "), /at least 12 Entities/);
+  });
+
+  void it("validates sets, bans, Leader Aspects, and Leader restrictions", () => {
+    const cards = new Map(
+      [...proofCardMap].map(([cardId, card]) => [
+        cardId,
+        { ...card, setId: "proof-core" },
+      ]),
+    );
+    const restrictedLeader = {
+      ...cards.get("leader.vanguard")!,
+      deckRestriction: { requiredSubtype: "structure", minimum: 4 },
+    };
+    cards.set("leader.vanguard", restrictedLeader);
+    const format = {
+      ...proofFormat,
+      legalSetIds: ["proof-core"],
+      bannedCardIds: ["tactic.survey"],
+    };
+    const errors = validateDeck(proofDeck, cards, format, {
+      leaderCardId: "leader.vanguard",
+    }).join("; ");
+    assert.match(errors, /tactic\.survey is banned/);
+    assert.match(errors, /outside leader\.vanguard's Aspect identity/);
+    assert.match(errors, /requires at least 4 structure cards/);
+    const wrongSetCards = new Map(cards);
+    wrongSetCards.set("entity.linebreaker", {
+      ...wrongSetCards.get("entity.linebreaker")!,
+      setId: "rotated-set",
+    });
+    assert.match(
+      validateDeck(proofDeck, wrongSetCards, format).join("; "),
+      /entity\.linebreaker is not from a legal set/,
+    );
   });
 
   void it("does not resolve a declared action before the Response window closes", () => {

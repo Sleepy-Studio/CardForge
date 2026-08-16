@@ -878,6 +878,22 @@ export function validateContentDefinitions(
     assertInteger(definition.playTime, `${definition.cardId} Play Time`);
     if (definition.focusCost < 0 || definition.playTime < 0)
       throw new Error(`${definition.cardId} has a negative cost`);
+    if (definition.deckLimit !== undefined) {
+      assertInteger(definition.deckLimit, `${definition.cardId} deck limit`);
+      if (definition.deckLimit <= 0)
+        throw new Error(`${definition.cardId} has an invalid deck limit`);
+    }
+    if (definition.deckRestriction) {
+      assertInteger(
+        definition.deckRestriction.minimum,
+        `${definition.cardId} deck restriction minimum`,
+      );
+      if (
+        definition.type !== "leader" ||
+        definition.deckRestriction.minimum <= 0
+      )
+        throw new Error(`${definition.cardId} has an invalid deck restriction`);
+    }
     for (const ability of definition.abilities ?? []) {
       if (ability.tempoDebt !== undefined) {
         assertInteger(
@@ -916,12 +932,22 @@ export function validateDeck(
   deck: readonly string[],
   cards: ReadonlyMap<string, CardDefinition> = proofCardMap,
   format: FormatDefinition = proofFormat,
+  options: { readonly leaderCardId?: string } = {},
 ): readonly string[] {
   const errors: string[] = [];
   if (deck.length !== format.deckSize)
     errors.push(`Deck must contain exactly ${format.deckSize} cards`);
   const counts = new Map<string, number>();
+  const banned = new Set(format.bannedCardIds ?? []);
+  const legalSets = format.legalSetIds ? new Set(format.legalSetIds) : null;
+  const leader = options.leaderCardId
+    ? cards.get(options.leaderCardId)
+    : undefined;
+  if (options.leaderCardId && (!leader || leader.type !== "leader"))
+    errors.push(`${options.leaderCardId} is not a valid Leader`);
+  const leaderAspects = new Set(leader?.aspects ?? []);
   let entities = 0;
+  let restrictedSubtypeCount = 0;
   for (const cardId of deck) {
     const definition = cards.get(cardId);
     if (!definition) {
@@ -932,7 +958,23 @@ export function validateDeck(
       errors.push(`${cardId} is not legal in a deck`);
       continue;
     }
+    if (banned.has(cardId))
+      errors.push(`${cardId} is banned in ${format.formatId}`);
+    if (legalSets && (!definition.setId || !legalSets.has(definition.setId)))
+      errors.push(`${cardId} is not from a legal set in ${format.formatId}`);
+    if (
+      leader &&
+      definition.aspects.some(
+        (aspect) => aspect !== "neutral" && !leaderAspects.has(aspect),
+      )
+    )
+      errors.push(`${cardId} is outside ${leader.cardId}'s Aspect identity`);
     if (definition.type === "entity") entities += 1;
+    if (
+      leader?.deckRestriction &&
+      definition.subtypes?.includes(leader.deckRestriction.requiredSubtype)
+    )
+      restrictedSubtypeCount += 1;
     counts.set(cardId, (counts.get(cardId) ?? 0) + 1);
   }
   for (const [cardId, count] of counts) {
@@ -945,6 +987,13 @@ export function validateDeck(
   }
   if (entities < format.minimumEntities)
     errors.push(`Deck requires at least ${format.minimumEntities} Entities`);
+  if (
+    leader?.deckRestriction &&
+    restrictedSubtypeCount < leader.deckRestriction.minimum
+  )
+    errors.push(
+      `${leader.cardId} requires at least ${leader.deckRestriction.minimum} ${leader.deckRestriction.requiredSubtype} cards`,
+    );
   return errors;
 }
 
