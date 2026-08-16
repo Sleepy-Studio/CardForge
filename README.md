@@ -49,10 +49,13 @@ packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
 - serializable Main Action, Response, and Counter-Response windows;
 - reverse-order chain resolution with immediate Tempo Debt;
 - a bounded effect/trigger queue and publish-time content limits;
+- resumable, replayed `PendingChoice` commands with private option projection;
+- interactive Scout selection and optional Focus payment branches;
+- deterministic Barrier-before-Armor damage replacement ordering;
 - 40-card proof decks and a semantic 20-card-plus-token content fixture.
 
 ## Deliberately deferred
 
-Mulligans, interactive choices, replacement effects, attachments, Relic/Site board zones, full keyword/status pools, deckbuilding legality, rules-text generation, and full publication tooling remain deferred. Their schema seams are present, but pretending they are implemented would be dishonest.
+Mulligans, general modal and multi-target choices, redirect/set-value replacement effects, attachments, Relic/Site board zones, full keyword/status pools, deckbuilding legality, rules-text generation, and full publication tooling remain deferred. Their schema seams are present, but pretending they are implemented would be dishonest.
 
 See [docs/architecture.md](docs/architecture.md) for boundaries and the next implementation cut.

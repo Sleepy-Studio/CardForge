@@ -197,7 +197,13 @@ export const proofCards = [
         abilityId: "brood",
         type: "triggered",
         trigger: "on_deploy",
-        effects: [{ op: "spawn", tokenCardId: "token.sprout" }],
+        effects: [
+          {
+            op: "optional_focus",
+            amount: 1,
+            effects: [{ op: "spawn", tokenCardId: "token.sprout" }],
+          },
+        ],
       },
     ],
   },

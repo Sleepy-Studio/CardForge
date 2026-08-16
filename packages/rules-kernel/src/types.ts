@@ -45,9 +45,11 @@ export interface GameState {
   initiative: PlayerId;
   nextInstance: number;
   commandNumber: number;
+  nextChoice: number;
   winner: PlayerId | null;
   victoryReason: "integrity" | "dominion" | null;
   pendingAction: PendingAction | null;
+  pendingChoice: PendingChoice | null;
   readonly effectQueue: QueuedEffect[];
   readonly players: Record<PlayerId, PlayerState>;
   readonly fronts: Record<FrontId, FrontState>;
@@ -86,7 +88,15 @@ export type ResponseCommand =
     }
   | { readonly type: "pass_response"; readonly playerId: PlayerId };
 
-export type Command = MainActionCommand | ResponseCommand;
+export interface ResolveChoiceCommand {
+  readonly type: "resolve_choice";
+  readonly playerId: PlayerId;
+  readonly choiceId: string;
+  readonly optionIds: readonly string[];
+}
+
+export type Command =
+  MainActionCommand | ResponseCommand | ResolveChoiceCommand;
 
 export type ResolvableMainAction = Exclude<MainActionCommand, { type: "pass" }>;
 
@@ -113,7 +123,44 @@ export interface QueuedEffect {
   readonly sourceFront?: FrontId;
 }
 
+export type PendingChoice =
+  | {
+      readonly choiceId: string;
+      readonly chooserId: PlayerId;
+      readonly kind: "select_card";
+      readonly options: readonly CardInstance[];
+      readonly minimum: 1;
+      readonly maximum: 1;
+    }
+  | {
+      readonly choiceId: string;
+      readonly chooserId: PlayerId;
+      readonly kind: "optional_focus";
+      readonly amount: number;
+      readonly continuation: readonly QueuedEffect[];
+    };
+
 export type GameEvent =
+  | {
+      readonly type: "choice_created";
+      readonly playerId: PlayerId;
+      readonly choiceId: string;
+      readonly choiceKind: PendingChoice["kind"];
+      readonly optionCount: number;
+    }
+  | {
+      readonly type: "choice_resolved";
+      readonly playerId: PlayerId;
+      readonly choiceId: string;
+      readonly optionIds: readonly string[];
+    }
+  | {
+      readonly type: "damage_replaced";
+      readonly sourceId: string;
+      readonly targetId: string;
+      readonly replacement: "barrier" | "armor";
+      readonly prevented: number;
+    }
   | {
       readonly type: "action_declared";
       readonly playerId: PlayerId;
@@ -216,7 +263,18 @@ export interface ProjectedGameView {
   readonly players: Record<PlayerId, ProjectedPlayerView>;
   readonly fronts: GameState["fronts"];
   readonly pendingAction: PendingAction | null;
+  readonly pendingChoice: ProjectedPendingChoice | null;
   readonly winner: PlayerId | null;
+}
+
+export interface ProjectedPendingChoice {
+  readonly choiceId: string;
+  readonly chooserId: PlayerId;
+  readonly kind: PendingChoice["kind"];
+  readonly optionCount: number;
+  readonly cardOptions?: readonly CardInstance[];
+  readonly optionIds?: readonly string[];
+  readonly focusAmount?: number;
 }
 
 export interface RulesEngine {

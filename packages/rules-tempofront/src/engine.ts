@@ -30,6 +30,7 @@ const slotIds = ["vanguard", "support"] as const;
 const maximumQueuedEffects = 64;
 const maximumResolvedEffects = 128;
 const maximumEffectsPerAbility = 16;
+const maximumEffectGraphDepth = 8;
 
 function opponentOf(playerId: PlayerId): PlayerId {
   return playerId === "p1" ? "p2" : "p1";
@@ -113,6 +114,12 @@ function makeInstance(
   return instance;
 }
 
+function nextChoiceId(state: GameState): string {
+  const choiceId = `choice-${state.nextChoice}`;
+  state.nextChoice += 1;
+  return choiceId;
+}
+
 function checkWin(state: GameState, events: GameEvent[]): void {
   if (state.winner) return;
   for (const playerId of playerIds) {
@@ -156,10 +163,28 @@ function dealEntityDamage(
   let applied = amount;
   if (target.barrier) {
     target.barrier = false;
+    events.push({
+      type: "damage_replaced",
+      sourceId,
+      targetId: target.instanceId,
+      replacement: "barrier",
+      prevented: applied,
+    });
     applied = 0;
-  } else {
+  }
+  if (applied > 0) {
     const armor = definitionFor(cards, target).keywords?.armor;
-    if (typeof armor === "number") applied = Math.max(0, applied - armor);
+    if (typeof armor === "number") {
+      const beforeArmor = applied;
+      applied = Math.max(0, applied - armor);
+      events.push({
+        type: "damage_replaced",
+        sourceId,
+        targetId: target.instanceId,
+        replacement: "armor",
+        prevented: beforeArmor - applied,
+      });
+    }
   }
   target.damage += applied;
   events.push({
@@ -334,10 +359,50 @@ function resolveEffect(
   }
   if (effect.op === "scout") {
     const player = state.players[playerId];
-    const viewed = player.deck.splice(0, effect.amount);
-    const selected = viewed.shift();
-    if (selected) player.hand.push(selected);
-    player.deck.push(...viewed);
+    const options = player.deck.splice(0, effect.amount);
+    if (options.length === 0) return;
+    const choiceId = nextChoiceId(state);
+    state.pendingChoice = {
+      choiceId,
+      chooserId: playerId,
+      kind: "select_card",
+      options,
+      minimum: 1,
+      maximum: 1,
+    };
+    events.push({
+      type: "choice_created",
+      playerId,
+      choiceId,
+      choiceKind: "select_card",
+      optionCount: options.length,
+    });
+    return;
+  }
+  if (effect.op === "optional_focus") {
+    if (state.players[playerId].focus < effect.amount) return;
+    const choiceId = nextChoiceId(state);
+    const continuation = effect.effects.map((nestedEffect) => ({
+      source,
+      controllerId: playerId,
+      effect: nestedEffect,
+      ...(chosenTargetId === undefined ? {} : { chosenTargetId }),
+      ...(sourceFront === undefined ? {} : { sourceFront }),
+    }));
+    state.pendingChoice = {
+      choiceId,
+      chooserId: playerId,
+      kind: "optional_focus",
+      amount: effect.amount,
+      continuation,
+    };
+    events.push({
+      type: "choice_created",
+      playerId,
+      choiceId,
+      choiceKind: "optional_focus",
+      optionCount: 2,
+    });
     return;
   }
   const target = resolveTarget(
@@ -406,7 +471,11 @@ function drainEffectQueue(
   events: GameEvent[],
 ): void {
   let resolved = 0;
-  while (state.effectQueue.length > 0 && !state.winner) {
+  while (
+    state.effectQueue.length > 0 &&
+    !state.winner &&
+    !state.pendingChoice
+  ) {
     if (resolved >= maximumResolvedEffects)
       throw new Error(
         `Effect resolution exceeded ${maximumResolvedEffects} operations`,
@@ -760,12 +829,49 @@ function resolvePendingChain(
     });
   } else if (!state.winner) resolveMainAction(cards, state, pending, events);
   state.pendingAction = null;
-  state.effectQueue.length = 0;
+  if (!state.pendingChoice) state.effectQueue.length = 0;
 }
 
 export function validateContentDefinitions(
   cards: ReadonlyMap<string, CardDefinition>,
 ): void {
+  const validateEffect = (
+    definition: CardDefinition,
+    ability: AbilityDefinition,
+    effect: EffectNode,
+    depth: number,
+  ): void => {
+    if (depth > maximumEffectGraphDepth)
+      throw new Error(
+        `${definition.cardId}/${ability.abilityId} exceeds effect depth ${maximumEffectGraphDepth}`,
+      );
+    if (
+      effect.op === "spawn" &&
+      (!cards.has(effect.tokenCardId) ||
+        cards.get(effect.tokenCardId)?.generatedOnly !== true)
+    )
+      throw new Error(
+        `${definition.cardId} references invalid Token ${effect.tokenCardId}`,
+      );
+    if (effect.op === "optional_focus") {
+      assertInteger(
+        effect.amount,
+        `${definition.cardId}/${ability.abilityId} optional Focus`,
+      );
+      if (effect.amount <= 0)
+        throw new Error(
+          `${definition.cardId} has a non-positive optional cost`,
+        );
+      if (effect.effects.length > maximumEffectsPerAbility)
+        throw new Error(
+          `${definition.cardId}/${ability.abilityId} optional branch exceeds ${maximumEffectsPerAbility} effects`,
+        );
+      for (const nested of effect.effects)
+        validateEffect(definition, ability, nested, depth + 1);
+    }
+  };
+  const createsChoice = (effect: EffectNode): boolean =>
+    effect.op === "scout" || effect.op === "optional_focus";
   for (const definition of cards.values()) {
     assertInteger(definition.focusCost, `${definition.cardId} Focus cost`);
     assertInteger(definition.playTime, `${definition.cardId} Play Time`);
@@ -795,16 +901,12 @@ export function validateContentDefinitions(
         throw new Error(
           `${definition.cardId} uses chain cancellation outside a Reaction`,
         );
-      for (const effect of ability.effects) {
-        if (
-          effect.op === "spawn" &&
-          (!cards.has(effect.tokenCardId) ||
-            cards.get(effect.tokenCardId)?.generatedOnly !== true)
-        )
-          throw new Error(
-            `${definition.cardId} references invalid Token ${effect.tokenCardId}`,
-          );
-      }
+      if (ability.type === "reaction" && ability.effects.some(createsChoice))
+        throw new Error(
+          `${definition.cardId} creates an unsupported choice during a Reaction`,
+        );
+      for (const effect of ability.effects)
+        validateEffect(definition, ability, effect, 1);
     }
   }
 }
@@ -844,10 +946,12 @@ export class TempoFrontEngine implements RulesEngine {
       cycle: 1,
       initiative: "p1",
       nextInstance: 1,
+      nextChoice: 1,
       commandNumber: 0,
       winner: null,
       victoryReason: null,
       pendingAction: null,
+      pendingChoice: null,
       effectQueue: [],
       players: {
         p1: {
@@ -893,6 +997,31 @@ export class TempoFrontEngine implements RulesEngine {
 
   getLegalCommands(state: GameState, playerId: PlayerId): readonly Command[] {
     if (state.winner) return [];
+    if (state.pendingChoice) {
+      const choice = state.pendingChoice;
+      if (choice.chooserId !== playerId) return [];
+      if (choice.kind === "select_card")
+        return choice.options.map((option) => ({
+          type: "resolve_choice" as const,
+          playerId,
+          choiceId: choice.choiceId,
+          optionIds: [option.instanceId],
+        }));
+      return [
+        {
+          type: "resolve_choice",
+          playerId,
+          choiceId: choice.choiceId,
+          optionIds: ["decline"],
+        },
+        {
+          type: "resolve_choice",
+          playerId,
+          choiceId: choice.choiceId,
+          optionIds: ["pay"],
+        },
+      ];
+    }
     if (state.pendingAction) {
       const expectedPlayer =
         state.pendingAction.phase === "response"
@@ -1026,7 +1155,40 @@ export class TempoFrontEngine implements RulesEngine {
       throw new Error(`Illegal command: ${JSON.stringify(command)}`);
     const events: GameEvent[] = [];
     const player = state.players[command.playerId];
-    if (command.type === "pass_response") {
+    if (command.type === "resolve_choice") {
+      const choice = state.pendingChoice!;
+      if (choice.kind === "select_card") {
+        const selectedId = command.optionIds[0]!;
+        const selected = choice.options.find(
+          (option) => option.instanceId === selectedId,
+        )!;
+        const unselected = choice.options.filter(
+          (option) => option.instanceId !== selectedId,
+        );
+        if (player.hand.length >= tempoFrontRules.handLimit)
+          player.discard.push(selected);
+        else player.hand.push(selected);
+        player.deck.push(...unselected);
+      } else if (command.optionIds[0] === "pay") {
+        player.focus -= choice.amount;
+        if (
+          state.effectQueue.length + choice.continuation.length >
+          maximumQueuedEffects
+        )
+          throw new Error(
+            `Effect queue exceeded ${maximumQueuedEffects} pending operations`,
+          );
+        state.effectQueue.unshift(...choice.continuation);
+      }
+      state.pendingChoice = null;
+      events.push({
+        type: "choice_resolved",
+        playerId: command.playerId,
+        choiceId: command.choiceId,
+        optionIds: command.optionIds,
+      });
+      drainEffectQueue(this.cards, state, events);
+    } else if (command.type === "pass_response") {
       const pending = state.pendingAction!;
       const depth = pending.phase === "response" ? 1 : 2;
       events.push({
@@ -1114,7 +1276,12 @@ export class TempoFrontEngine implements RulesEngine {
       });
     }
     state.commandNumber += 1;
-    if (!state.winner && !state.pendingAction && currentPlayer(state) === null)
+    if (
+      !state.winner &&
+      !state.pendingAction &&
+      !state.pendingChoice &&
+      currentPlayer(state) === null
+    )
       advanceCycle(this.cards, state, events);
     return { state, events, hash: stateHash(state) };
   }
@@ -1137,6 +1304,30 @@ export class TempoFrontEngine implements RulesEngine {
         discard: structuredClone(player.discard),
       };
     };
+    const projectChoice = (): ProjectedGameView["pendingChoice"] => {
+      const choice = state.pendingChoice;
+      if (!choice) return null;
+      const base = {
+        choiceId: choice.choiceId,
+        chooserId: choice.chooserId,
+        kind: choice.kind,
+        optionCount: choice.kind === "select_card" ? choice.options.length : 2,
+      };
+      if (choice.kind === "select_card")
+        return {
+          ...base,
+          ...(choice.chooserId === playerId
+            ? { cardOptions: structuredClone(choice.options) }
+            : {}),
+        };
+      return {
+        ...base,
+        focusAmount: choice.amount,
+        ...(choice.chooserId === playerId
+          ? { optionIds: ["decline", "pay"] }
+          : {}),
+      };
+    };
     return {
       matchId: state.matchId,
       cycle: state.cycle,
@@ -1145,6 +1336,7 @@ export class TempoFrontEngine implements RulesEngine {
       players: { p1: projectPlayer("p1"), p2: projectPlayer("p2") },
       fronts: structuredClone(state.fronts),
       pendingAction: structuredClone(state.pendingAction),
+      pendingChoice: projectChoice(),
       winner: state.winner,
     };
   }

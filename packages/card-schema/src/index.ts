@@ -38,6 +38,11 @@ export type EffectNode =
   | { readonly op: "salvage"; readonly cardType?: CardType }
   | { readonly op: "scout"; readonly amount: number }
   | { readonly op: "add_barrier"; readonly target: TargetRef }
+  | {
+      readonly op: "optional_focus";
+      readonly amount: number;
+      readonly effects: readonly EffectNode[];
+    }
   | { readonly op: "cancel_previous_chain_link" };
 
 export interface AbilityDefinition {

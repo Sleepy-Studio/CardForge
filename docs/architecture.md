@@ -28,16 +28,26 @@ The chain has a hard depth of two reactions. A passed player may still respond, 
 
 Effects resolve through an explicit FIFO queue. An ability may publish at most 16 effects, at most 64 effects may wait at once, and no command may resolve more than 128 effects. Content that violates static limits is rejected when the engine loads it; runtime limits remain a final defense against cross-card recursion.
 
+## Resumable choices
+
+Effects may suspend resolution by creating `PendingChoice`. The chooser submits a normal validated `resolve_choice` command, so the decision is preserved in the replay log. Scout removes its candidate cards from the deck while the choice is pending, exposes the card options only to the chooser, then puts unselected cards on the bottom in deterministic order.
+
+Optional Focus branches use the same mechanism. Paying prepends the gated effects ahead of later queued effects; declining discards the continuation. Choice state and the remaining queue survive the command boundary without process-local callbacks.
+
+## Damage replacement order
+
+Entity damage collects prevention in a fixed order. Barrier consumes and prevents the complete instance first. Armor applies only when damage remains. Semantic `damage_replaced` events record which rule applied and how much it prevented before the final `damage_dealt` event.
+
 ## Bias and scope note
 
 The product brief naturally pulls toward a complete monorepo and polished UI. That is the wrong proof. The main architectural risk is nondeterministic, unbounded card behavior; therefore this slice tests the rules seam under repeated complete games before application infrastructure is introduced.
 
 ## Next cut
 
-1. Add `PendingChoice`, choice commands, and optional costs.
-2. Add replacement-effect ordering and broader trigger collection.
-3. Implement mulligan, Prepare/Reserve, Attachments, Relics, Sites, and full deck validation.
+1. Add general modal, multi-target, and ordered-trigger choices.
+2. Implement mulligan and full deck validation.
+3. Add Prepare/Reserve, Attachments, Relics, and Sites.
 4. Generate localized rules text from the same ability graph used by the engine.
-5. Grow property-based tests around damage batches, zone ownership, response legality, and effect limits.
+5. Grow property-based tests around damage batches, zone ownership, response legality, choices, and effect limits.
 
 Only after those invariants hold should the browser renderer become the critical path.

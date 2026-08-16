@@ -116,7 +116,7 @@ void describe("TempoFront deterministic proof", () => {
       decks: { p1: proofDeck, p2: proofDeck },
     });
     const attacker = putInVanguard(state, "p1", "entity.linebreaker");
-    const defender = putInVanguard(state, "p2", "entity.linebreaker");
+    const defender = putInVanguard(state, "p2", "entity.ironhide");
     const deflect = putInHand(state, "p2", "reaction.deflect");
     const declared = engine.applyCommand(state, {
       type: "strike",
@@ -130,10 +130,11 @@ void describe("TempoFront deterministic proof", () => {
       instanceId: deflect.instanceId,
       targetId: defender.instanceId,
     }).state;
-    const resolved = engine.applyCommand(responded, {
+    const resolution = engine.applyCommand(responded, {
       type: "pass_response",
       playerId: "p1",
-    }).state;
+    });
+    const resolved = resolution.state;
     assert.equal(
       defender.instanceId,
       resolved.fronts.center.slots.p2.vanguard?.instanceId,
@@ -141,6 +142,135 @@ void describe("TempoFront deterministic proof", () => {
     assert.equal(resolved.fronts.center.slots.p2.vanguard?.damage, 0);
     assert.equal(resolved.fronts.center.slots.p2.vanguard?.barrier, false);
     assert.equal(resolved.players.p2.time, 1);
+    assert.deepEqual(
+      resolution.events
+        .filter((event) => event.type === "damage_replaced")
+        .map((event) => event.replacement),
+      ["barrier"],
+    );
+  });
+
+  void it("applies Armor when no earlier Barrier replacement consumes damage", () => {
+    const engine = new TempoFrontEngine();
+    const state = engine.createGame({
+      matchId: "armor-order",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const attacker = putInVanguard(state, "p1", "entity.linebreaker");
+    const defender = putInVanguard(state, "p2", "entity.ironhide");
+    const declared = engine.applyCommand(state, {
+      type: "strike",
+      playerId: "p1",
+      attackerId: attacker.instanceId,
+      targetId: defender.instanceId,
+    }).state;
+    const resolution = engine.applyCommand(declared, {
+      type: "pass_response",
+      playerId: "p2",
+    });
+    assert.deepEqual(
+      resolution.events
+        .filter((event) => event.type === "damage_replaced")
+        .map((event) => [event.replacement, event.prevented]),
+      [["armor", 1]],
+    );
+    assert.equal(resolution.state.fronts.center.slots.p2.vanguard?.damage, 1);
+  });
+
+  void it("suspends Scout for a private card choice and resumes deterministically", () => {
+    const engine = new TempoFrontEngine();
+    const state = engine.createGame({
+      matchId: "scout-choice",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    const survey = putInHand(state, "p1", "tactic.survey");
+    const declared = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: survey.instanceId,
+    }).state;
+    const choosing = engine.applyCommand(declared, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(choosing.pendingAction, null);
+    assert.equal(choosing.pendingChoice?.kind, "select_card");
+    assert.equal(
+      choosing.pendingChoice?.kind === "select_card"
+        ? choosing.pendingChoice.options.length
+        : 0,
+      3,
+    );
+    const ownView = engine.projectView(choosing, "p1");
+    const opponentView = engine.projectView(choosing, "p2");
+    assert.equal(ownView.pendingChoice?.cardOptions?.length, 3);
+    assert.equal(opponentView.pendingChoice?.optionCount, 3);
+    assert.equal(opponentView.pendingChoice?.cardOptions, undefined);
+    const selectedId = ownView.pendingChoice?.cardOptions?.[1]?.instanceId;
+    assert.ok(selectedId);
+    const choiceId = choosing.pendingChoice.choiceId;
+    const unselectedIds =
+      choosing.pendingChoice?.kind === "select_card"
+        ? choosing.pendingChoice.options
+            .filter((card) => card.instanceId !== selectedId)
+            .map((card) => card.instanceId)
+        : [];
+    const resolved = engine.applyCommand(choosing, {
+      type: "resolve_choice",
+      playerId: "p1",
+      choiceId,
+      optionIds: [selectedId],
+    }).state;
+    assert.equal(resolved.pendingChoice, null);
+    assert.ok(
+      resolved.players.p1.hand.some((card) => card.instanceId === selectedId),
+    );
+    assert.deepEqual(
+      resolved.players.p1.deck
+        .slice(-unselectedIds.length)
+        .map((card) => card.instanceId),
+      unselectedIds,
+    );
+  });
+
+  void it("suspends and resumes an optional Focus payment", () => {
+    const engine = new TempoFrontEngine();
+    const state = engine.createGame({
+      matchId: "optional-focus",
+      seed: 42,
+      decks: { p1: proofDeck, p2: proofDeck },
+    });
+    state.players.p1.maxFocus = 4;
+    state.players.p1.focus = 4;
+    const broodcaller = putInHand(state, "p1", "entity.broodcaller");
+    const declared = engine.applyCommand(state, {
+      type: "play_card",
+      playerId: "p1",
+      instanceId: broodcaller.instanceId,
+      front: "center",
+      slot: "vanguard",
+    }).state;
+    const choosing = engine.applyCommand(declared, {
+      type: "pass_response",
+      playerId: "p2",
+    }).state;
+    assert.equal(choosing.pendingChoice?.kind, "optional_focus");
+    assert.equal(choosing.players.p1.focus, 1);
+    const resolved = engine.applyCommand(choosing, {
+      type: "resolve_choice",
+      playerId: "p1",
+      choiceId: choosing.pendingChoice.choiceId,
+      optionIds: ["pay"],
+    }).state;
+    assert.equal(resolved.players.p1.focus, 0);
+    assert.equal(
+      resolved.fronts.center.slots.p1.support?.cardId,
+      "token.sprout",
+    );
+    assert.equal(resolved.pendingChoice, null);
+    assert.equal(resolved.effectQueue.length, 0);
   });
 
   void it("lets Denial cancel a main action", () => {
@@ -233,5 +363,6 @@ void describe("TempoFront deterministic proof", () => {
     assert.equal(summary.p1Wins + summary.p2Wins, 100);
     assert.equal(summary.integrityWins + summary.dominionWins, 100);
     assert.ok(summary.averageReactions > 0);
+    assert.ok(summary.averageChoices > 0);
   });
 });

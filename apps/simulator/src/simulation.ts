@@ -19,9 +19,11 @@ export interface SimulationResult {
   readonly finalState: GameState;
   readonly commandCount: number;
   readonly reactionCount: number;
+  readonly choiceCount: number;
 }
 
 function activePlayer(state: GameState): PlayerId | null {
+  if (state.pendingChoice) return state.pendingChoice.chooserId;
   if (state.pendingAction)
     return state.pendingAction.phase === "response"
       ? state.pendingAction.actorId === "p1"
@@ -47,6 +49,10 @@ function chooseCommand(
   commands: readonly Command[],
   botRng: { seed: number; index: number },
 ): Command {
+  const choices = commands.filter(
+    (command) => command.type === "resolve_choice",
+  );
+  if (choices.length > 0) return choices[nextInt(botRng, choices.length)]!;
   const responsePass = commands.find(
     (command) => command.type === "pass_response",
   );
@@ -109,6 +115,8 @@ export function assertGameInvariants(state: GameState): void {
     instances.push(state.pendingAction.response.card);
   if (state.pendingAction?.counterResponse)
     instances.push(state.pendingAction.counterResponse.card);
+  if (state.pendingChoice?.kind === "select_card")
+    instances.push(...state.pendingChoice.options);
   const ids = instances.map((instance) => instance.instanceId);
   if (ids.length !== new Set(ids).size)
     throw new Error("A card instance exists in multiple zones");
@@ -118,8 +126,12 @@ export function assertGameInvariants(state: GameState): void {
   }
   if ((state.winner === null) !== (state.victoryReason === null))
     throw new Error("Winner and victory reason disagree");
-  if (state.effectQueue.length !== 0)
+  if (state.effectQueue.length > 0 && !state.pendingChoice)
     throw new Error("Effect queue leaked across a command boundary");
+  if (state.effectQueue.length > 64)
+    throw new Error("Effect queue exceeded its runtime bound");
+  if (state.pendingAction && state.pendingChoice)
+    throw new Error("Action and choice priority are simultaneously pending");
   if (
     state.pendingAction?.phase === "response" &&
     (state.pendingAction.response || state.pendingAction.counterResponse)
@@ -140,6 +152,7 @@ export function simulateGame(
   let state = engine.createGame({ matchId: `proof-${seed}`, seed, decks });
   const acceptedCommands: Command[] = [];
   let reactionCount = 0;
+  let choiceCount = 0;
   const botRng = { seed: (seed ^ 0xa5a5a5a5) >>> 0, index: 0 };
   assertGameInvariants(state);
   while (!state.winner) {
@@ -157,6 +170,7 @@ export function simulateGame(
       );
     const command = chooseCommand(legal, botRng);
     if (command.type === "play_reaction") reactionCount += 1;
+    if (command.type === "resolve_choice") choiceCount += 1;
     const result = engine.applyCommand(state, command);
     state = result.state;
     acceptedCommands.push(command);
@@ -178,6 +192,7 @@ export function simulateGame(
     finalState: state,
     commandCount: acceptedCommands.length,
     reactionCount,
+    choiceCount,
   };
 }
 
@@ -203,6 +218,7 @@ export interface BatchSummary {
   readonly averageCycles: number;
   readonly averageCommands: number;
   readonly averageReactions: number;
+  readonly averageChoices: number;
 }
 
 export function runBatch(games: number, startingSeed: number): BatchSummary {
@@ -215,6 +231,7 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
   let cycles = 0;
   let commands = 0;
   let reactions = 0;
+  let choices = 0;
   const engine = new TempoFrontEngine();
   for (let offset = 0; offset < games; offset += 1) {
     const result = simulateGame((startingSeed + offset) >>> 0, engine);
@@ -226,6 +243,7 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
     cycles += result.finalState.cycle;
     commands += result.commandCount;
     reactions += result.reactionCount;
+    choices += result.choiceCount;
   }
   return {
     games,
@@ -236,5 +254,6 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
     averageCycles: Number((cycles / games).toFixed(2)),
     averageCommands: Number((commands / games).toFixed(2)),
     averageReactions: Number((reactions / games).toFixed(2)),
+    averageChoices: Number((choices / games).toFixed(2)),
   };
 }
