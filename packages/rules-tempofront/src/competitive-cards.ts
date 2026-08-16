@@ -22,12 +22,13 @@ interface EntitySpec {
   readonly slot?: "vanguard" | "support";
   readonly subtype?: string;
   readonly ability?: AbilityDefinition;
+  readonly revision?: number;
 }
 
 function entity(spec: EntitySpec): CardDefinition {
   return {
     cardId: `entity.${spec.id}`,
-    revision: 1,
+    revision: spec.revision ?? 1,
     name: spec.name,
     type: "entity",
     aspects: [spec.aspect],
@@ -86,10 +87,12 @@ function leader(
   name: string,
   aspects: readonly PlayableAspect[],
   command: EffectNode,
+  revision = 1,
+  commandFocus = 1,
 ): CardDefinition {
   return {
     cardId: `leader.${id}`,
-    revision: 1,
+    revision,
     name,
     type: "leader",
     aspects,
@@ -99,7 +102,7 @@ function leader(
       {
         abilityId: `${id}-command`,
         type: "leader_command",
-        focusCost: 1,
+        focusCost: commandFocus,
         timeCost: 2,
         oncePerCycle: true,
         effects: [command],
@@ -223,36 +226,39 @@ const bastionCards = [
   }),
   entity({
     id: "granite_warden",
+    revision: 2,
     name: "Granite Warden",
     aspect: "bastion",
     cost: 5,
     time: 4,
     power: 3,
     vitality: 8,
-    presence: 3,
+    presence: 2,
     keywords: { armor: 1 },
   }),
   entity({
     id: "wallwright",
+    revision: 2,
     name: "Wallwright",
     aspect: "bastion",
     cost: 3,
     time: 3,
     power: 1,
     vitality: 5,
-    presence: 3,
+    presence: 2,
     subtype: "structure",
     slot: "support",
   }),
   entity({
     id: "standard_bearer",
+    revision: 2,
     name: "Standard Bearer",
     aspect: "bastion",
     cost: 4,
     time: 3,
     power: 3,
     vitality: 5,
-    presence: 3,
+    presence: 2,
   }),
   action({
     id: "hold_the_center",
@@ -301,57 +307,62 @@ const bastionCards = [
 const motionCards = [
   entity({
     id: "vector_scout",
+    revision: 2,
     name: "Vector Scout",
     aspect: "motion",
     cost: 1,
     time: 1,
     power: 1,
     vitality: 2,
-    presence: 1,
+    presence: 2,
     keywords: { mobile: true },
   }),
   entity({
     id: "gale_marksman",
+    revision: 2,
     name: "Gale Marksman",
     aspect: "motion",
     cost: 3,
     time: 2,
     power: 2,
     vitality: 3,
-    presence: 1,
+    presence: 2,
     keywords: { ranged: true },
   }),
   entity({
     id: "relay_rider",
+    revision: 2,
     name: "Relay Rider",
     aspect: "motion",
     cost: 2,
     time: 2,
     power: 2,
     vitality: 2,
-    presence: 1,
+    presence: 2,
     keywords: { rapid: true, mobile: true },
   }),
   entity({
     id: "crosswind_ace",
+    revision: 2,
     name: "Crosswind Ace",
     aspect: "motion",
     cost: 4,
     time: 3,
     power: 4,
     vitality: 4,
-    presence: 2,
+    presence: 3,
     keywords: { mobile: true },
   }),
   entity({
     id: "farline_observer",
+    revision: 2,
     name: "Farline Observer",
     aspect: "motion",
     cost: 3,
     time: 3,
     power: 2,
     vitality: 4,
-    presence: 2,
+    presence: 3,
     keywords: { ranged: true },
     slot: "support",
   }),
@@ -760,19 +771,44 @@ const neutralCards = [
 ] satisfies readonly CardDefinition[];
 
 export const competitiveExpansionCards: readonly CardDefinition[] = [
-  leader("ember", "Rheya Ember-Crowned", ["force"], {
-    op: "deal_damage",
-    target: { kind: "enemy_leader" },
-    amount: 1,
-  }),
-  leader("citadel", "Torren of the Citadel", ["bastion"], {
-    op: "add_barrier",
-    target: { kind: "chosen_friendly_entity" },
-  }),
-  leader("vector", "Sio Vector", ["motion"], {
-    op: "shift",
-    target: { kind: "chosen_friendly_entity" },
-  }),
+  leader(
+    "ember",
+    "Rheya Ember-Crowned",
+    ["force"],
+    {
+      op: "deal_damage",
+      target: { kind: "enemy_leader" },
+      amount: 1,
+    },
+    2,
+    2,
+  ),
+  leader(
+    "citadel",
+    "Torren of the Citadel",
+    ["bastion"],
+    {
+      op: "add_status",
+      target: { kind: "chosen_friendly_entity" },
+      status: {
+        statusId: "protected",
+        value: 1,
+        duration: "until_cycle_end",
+        stackingPolicy: "highest",
+      },
+    },
+    2,
+  ),
+  leader(
+    "vector",
+    "Sio Vector",
+    ["motion"],
+    {
+      op: "draw",
+      amount: 1,
+    },
+    2,
+  ),
   leader("verdant", "Maelin Verdant", ["growth"], {
     op: "spawn",
     tokenCardId: "token.sprout",
@@ -787,16 +823,17 @@ export const competitiveExpansionCards: readonly CardDefinition[] = [
     target: { kind: "friendly_leader" },
     amount: 2,
   }),
-  leader("null", "The Null Regent", ["cunning", "entropy"], {
-    op: "add_status",
-    target: { kind: "chosen_enemy_entity" },
-    status: {
-      statusId: "exposed",
-      value: 1,
-      duration: "until_cycle_end",
-      stackingPolicy: "highest",
+  leader(
+    "null",
+    "The Null Regent",
+    ["cunning", "entropy"],
+    {
+      op: "deal_damage",
+      target: { kind: "chosen_enemy_entity" },
+      amount: 2,
     },
-  }),
+    2,
+  ),
   ...forceCards,
   ...bastionCards,
   ...motionCards,

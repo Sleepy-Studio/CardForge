@@ -197,3 +197,14 @@ The remaining competitive-beta gate is evidence rather than another feature:
 run larger archetype simulations and collect external playtest telemetry before
 claiming Initiative neutrality, broad archetype viability, or zero recurring
 rules confusion.
+
+The automated gate now includes a seat-swapped 12×12 archetype matrix. A fixed
+576-game run verified every replay, produced a 47.57% starting-Initiative win
+rate, averaged 10.55 Cycles, and split wins between 212 Integrity and 364
+Dominion finishes. Its first pass exposed severe Bastion/Force and Motion
+outliers; immutable balance patch `tempofront-competitive-2` revised twenty-one
+cards and narrowed the heuristic Leader range to 36.46–66.67%. Those bot rates
+are regression evidence, not a substitute for skill-banded human playtests.
+
+Milestone 5 engineering is complete. External usability and competitive balance
+validation remain release gates while Milestone 6 launch systems are built.

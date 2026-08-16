@@ -8,7 +8,7 @@ import {
   settleRankedMatch,
   unlockedLeadersForLevel,
 } from "./competitive.js";
-import { launchPatch, seasonOne } from "./catalog.js";
+import { betaBalancePatch, launchPatch, seasonOne } from "./catalog.js";
 
 const participants = {
   p1: {
@@ -95,9 +95,10 @@ void describe("competitive domain", () => {
   });
 
   void it("pins a season to an immutable patch and format revision", () => {
-    assert.equal(seasonOne.patchId, launchPatch.patchId);
-    assert.equal(seasonOne.formatRevision, launchPatch.formatRevision);
+    assert.equal(seasonOne.patchId, betaBalancePatch.patchId);
+    assert.equal(seasonOne.formatRevision, betaBalancePatch.formatRevision);
     assert.equal(launchPatch.revision, 1);
     assert.deepEqual(launchPatch.cardRevisions, {});
+    assert.equal(betaBalancePatch.cardRevisions["leader.vector"], 2);
   });
 });

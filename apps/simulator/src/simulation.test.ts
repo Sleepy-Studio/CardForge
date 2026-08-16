@@ -18,7 +18,12 @@ import {
   TempoFrontEngine,
   validateDeck,
 } from "@cardforge/rules-tempofront";
-import { runBatch, simulateGame, verifyReplay } from "./simulation.js";
+import {
+  runArchetypeMatrix,
+  runBatch,
+  simulateGame,
+  verifyReplay,
+} from "./simulation.js";
 
 function takeCard(
   state: GameState,
@@ -255,6 +260,18 @@ void describe("TempoFront deterministic proof", () => {
       assert.notEqual(result.finalState.winner, null);
       assert.doesNotThrow(() => verifyReplay(result, engine));
     }
+  });
+
+  void it("seat-swaps every archetype in a replay-verified matchup matrix", () => {
+    const matrix = runArchetypeMatrix(1, 70_000);
+    assert.equal(matrix.games, 144);
+    assert.equal(matrix.matchups.length, 78);
+    assert.equal(matrix.leaders.length, 12);
+    assert.equal(
+      matrix.leaders.reduce((total, leader) => total + leader.matches, 0),
+      matrix.games * 2,
+    );
+    assert.equal(matrix.integrityWins + matrix.dominionWins, matrix.games);
   });
 
   void it("validates sets, bans, Leader Aspects, and Leader restrictions", () => {
@@ -828,7 +845,7 @@ void describe("TempoFront deterministic proof", () => {
     ]);
   });
 
-  void it("executes the Relay Leader's targeted Shift Command", () => {
+  void it("executes the Relay Leader's draw Command", () => {
     const engine = new TempoFrontEngine();
     const deck = prototypeDecks["leader.relay"];
     let state = createPlayingGame(engine, {
@@ -837,26 +854,20 @@ void describe("TempoFront deterministic proof", () => {
       decks: { p1: deck, p2: deck },
       leaders: { p1: "leader.relay", p2: "leader.relay" },
     });
-    const courier = putInVanguard(state, "p1", "entity.windknife");
+    const handBefore = state.players.p1.hand.length;
+    const deckBefore = state.players.p1.deck.length;
     state = engine.applyCommand(state, {
       type: "activate_ability",
       playerId: "p1",
       sourceId: "p1-leader",
       abilityId: "vector-command",
-      targetId: courier.instanceId,
     }).state;
     state = engine.applyCommand(state, {
       type: "pass_response",
       playerId: "p2",
     }).state;
-    assert.equal(state.fronts.center.slots.p1.vanguard, null);
-    assert.ok(
-      Object.values(state.fronts).some((front) =>
-        Object.values(front.slots.p1).some(
-          (entity) => entity?.instanceId === courier.instanceId,
-        ),
-      ),
-    );
+    assert.equal(state.players.p1.hand.length, handBefore + 1);
+    assert.equal(state.players.p1.deck.length, deckBefore - 1);
   });
 
   void it("executes the Rootbound Leader's recovery Command", () => {

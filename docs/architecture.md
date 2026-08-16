@@ -296,3 +296,10 @@ telemetry from its accepted replay and commits the ranked settlement; no client
 message can claim a result or award progression. Public season and aggregate
 balance endpoints plus an account-scoped profile endpoint feed the
 `/competitive` operations screen.
+
+The simulator's archetype matrix covers every Leader pairing, swaps seats,
+tracks starting Initiative, and replays every result. Its fixed 576-game beta
+run found a 47.57% Initiative win rate and exposed real archetype outliers. The
+resulting changes were published as card revision two in an additive balance
+patch rather than mutating the launch patch. Bot outcomes remain heuristic and
+cannot close the external comprehension or skill-banded balance gates.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runBatch } from "./simulation.js";
+import { runArchetypeMatrix, runBatch } from "./simulation.js";
 
 function integerOption(name: string, fallback: number): number {
   const index = process.argv.indexOf(name);
@@ -14,9 +14,21 @@ function integerOption(name: string, fallback: number): number {
 const games = integerOption("--games", 1_000);
 const seed = integerOption("--seed", 1);
 const started = performance.now();
-const summary = runBatch(games, seed);
+const matrix = process.argv.includes("--matrix");
+const gamesPerSeat = integerOption("--games-per-seat", 2);
+const summary = matrix
+  ? runArchetypeMatrix(gamesPerSeat, seed)
+  : runBatch(games, seed);
 const elapsedMs = Math.round(performance.now() - started);
 
 console.log(
-  JSON.stringify({ ...summary, elapsedMs, replaysVerified: games }, null, 2),
+  JSON.stringify(
+    {
+      ...summary,
+      elapsedMs,
+      replaysVerified: matrix ? summary.games : games,
+    },
+    null,
+    2,
+  ),
 );

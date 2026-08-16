@@ -81,7 +81,7 @@ if (
   !before.status.includes("recorded matches") ||
   before.metrics !== 6 ||
   before.leaders < 2 ||
-  !before.patch.includes("tempofront-competitive-1")
+  !before.patch.includes("tempofront-competitive-2")
 )
   throw new Error(`Competitive dashboard failed: ${JSON.stringify(before)}`);
 

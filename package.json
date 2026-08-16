@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "sim": "pnpm build && node apps/simulator/dist/cli.js",
+    "sim:matrix": "tsc -b && node apps/simulator/dist/cli.js --matrix",
     "smoke:web": "pnpm --filter @cardforge/web smoke",
     "smoke:server": "pnpm --filter @cardforge/match-server smoke",
     "smoke:storage": "pnpm --filter @cardforge/match-server smoke:storage",
