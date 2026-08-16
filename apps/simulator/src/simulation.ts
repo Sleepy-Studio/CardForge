@@ -18,9 +18,16 @@ export interface SimulationResult {
   readonly replay: ReplayRecord;
   readonly finalState: GameState;
   readonly commandCount: number;
+  readonly reactionCount: number;
 }
 
 function activePlayer(state: GameState): PlayerId | null {
+  if (state.pendingAction)
+    return state.pendingAction.phase === "response"
+      ? state.pendingAction.actorId === "p1"
+        ? "p2"
+        : "p1"
+      : state.pendingAction.actorId;
   const available = (["p1", "p2"] as const).filter(
     (playerId) =>
       !state.players[playerId].passed &&
@@ -40,6 +47,17 @@ function chooseCommand(
   commands: readonly Command[],
   botRng: { seed: number; index: number },
 ): Command {
+  const responsePass = commands.find(
+    (command) => command.type === "pass_response",
+  );
+  if (responsePass) {
+    const reactions = commands.filter(
+      (command) => command.type === "play_reaction",
+    );
+    if (reactions.length > 0 && nextInt(botRng, 100) < 55)
+      return reactions[nextInt(botRng, reactions.length)]!;
+    return responsePass;
+  }
   const nonPass = commands.filter((command) => command.type !== "pass");
   const strikesToLeader = nonPass.filter(
     (command) => command.type === "strike" && command.targetId === "leader",
@@ -85,6 +103,12 @@ export function assertGameInvariants(state: GameState): void {
         if (entity) instances.push(entity);
     }
   }
+  if (state.pendingAction?.committedCard)
+    instances.push(state.pendingAction.committedCard);
+  if (state.pendingAction?.response)
+    instances.push(state.pendingAction.response.card);
+  if (state.pendingAction?.counterResponse)
+    instances.push(state.pendingAction.counterResponse.card);
   const ids = instances.map((instance) => instance.instanceId);
   if (ids.length !== new Set(ids).size)
     throw new Error("A card instance exists in multiple zones");
@@ -94,6 +118,18 @@ export function assertGameInvariants(state: GameState): void {
   }
   if ((state.winner === null) !== (state.victoryReason === null))
     throw new Error("Winner and victory reason disagree");
+  if (state.effectQueue.length !== 0)
+    throw new Error("Effect queue leaked across a command boundary");
+  if (
+    state.pendingAction?.phase === "response" &&
+    (state.pendingAction.response || state.pendingAction.counterResponse)
+  )
+    throw new Error("Response chain contains cards before its first window");
+  if (
+    state.pendingAction?.phase === "counter_response" &&
+    !state.pendingAction.response
+  )
+    throw new Error("Counter-Response window has no defending Response");
 }
 
 export function simulateGame(
@@ -103,6 +139,7 @@ export function simulateGame(
   const decks = { p1: proofDeck, p2: proofDeck } as const;
   let state = engine.createGame({ matchId: `proof-${seed}`, seed, decks });
   const acceptedCommands: Command[] = [];
+  let reactionCount = 0;
   const botRng = { seed: (seed ^ 0xa5a5a5a5) >>> 0, index: 0 };
   assertGameInvariants(state);
   while (!state.winner) {
@@ -119,6 +156,7 @@ export function simulateGame(
         `Simulation ${seed} has no legal commands for ${playerId}`,
       );
     const command = chooseCommand(legal, botRng);
+    if (command.type === "play_reaction") reactionCount += 1;
     const result = engine.applyCommand(state, command);
     state = result.state;
     acceptedCommands.push(command);
@@ -135,7 +173,12 @@ export function simulateGame(
     acceptedCommands,
     finalStateHash,
   };
-  return { replay, finalState: state, commandCount: acceptedCommands.length };
+  return {
+    replay,
+    finalState: state,
+    commandCount: acceptedCommands.length,
+    reactionCount,
+  };
 }
 
 export function verifyReplay(
@@ -159,6 +202,7 @@ export interface BatchSummary {
   readonly dominionWins: number;
   readonly averageCycles: number;
   readonly averageCommands: number;
+  readonly averageReactions: number;
 }
 
 export function runBatch(games: number, startingSeed: number): BatchSummary {
@@ -170,6 +214,7 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
   let dominionWins = 0;
   let cycles = 0;
   let commands = 0;
+  let reactions = 0;
   const engine = new TempoFrontEngine();
   for (let offset = 0; offset < games; offset += 1) {
     const result = simulateGame((startingSeed + offset) >>> 0, engine);
@@ -180,6 +225,7 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
     else dominionWins += 1;
     cycles += result.finalState.cycle;
     commands += result.commandCount;
+    reactions += result.reactionCount;
   }
   return {
     games,
@@ -189,5 +235,6 @@ export function runBatch(games: number, startingSeed: number): BatchSummary {
     dominionWins,
     averageCycles: Number((cycles / games).toFixed(2)),
     averageCommands: Number((commands / games).toFixed(2)),
+    averageReactions: Number((reactions / games).toFixed(2)),
   };
 }

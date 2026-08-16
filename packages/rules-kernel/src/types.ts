@@ -1,5 +1,6 @@
 import type {
   CardDefinition,
+  EffectNode,
   FrontId,
   PlayerId,
   SlotId,
@@ -46,11 +47,13 @@ export interface GameState {
   commandNumber: number;
   winner: PlayerId | null;
   victoryReason: "integrity" | "dominion" | null;
+  pendingAction: PendingAction | null;
+  readonly effectQueue: QueuedEffect[];
   readonly players: Record<PlayerId, PlayerState>;
   readonly fronts: Record<FrontId, FrontState>;
 }
 
-export type Command =
+export type MainActionCommand =
   | {
       readonly type: "play_card";
       readonly playerId: PlayerId;
@@ -74,7 +77,69 @@ export type Command =
     }
   | { readonly type: "pass"; readonly playerId: PlayerId };
 
+export type ResponseCommand =
+  | {
+      readonly type: "play_reaction";
+      readonly playerId: PlayerId;
+      readonly instanceId: string;
+      readonly targetId?: string;
+    }
+  | { readonly type: "pass_response"; readonly playerId: PlayerId };
+
+export type Command = MainActionCommand | ResponseCommand;
+
+export type ResolvableMainAction = Exclude<MainActionCommand, { type: "pass" }>;
+
+export interface PendingReaction {
+  readonly playerId: PlayerId;
+  readonly card: CardInstance;
+  readonly targetId?: string;
+}
+
+export interface PendingAction {
+  readonly actorId: PlayerId;
+  readonly main: ResolvableMainAction;
+  readonly committedCard?: CardInstance;
+  phase: "response" | "counter_response";
+  response: PendingReaction | null;
+  counterResponse: PendingReaction | null;
+}
+
+export interface QueuedEffect {
+  readonly source: CardInstance;
+  readonly controllerId: PlayerId;
+  readonly effect: EffectNode;
+  readonly chosenTargetId?: string;
+  readonly sourceFront?: FrontId;
+}
+
 export type GameEvent =
+  | {
+      readonly type: "action_declared";
+      readonly playerId: PlayerId;
+      readonly actionType: ResolvableMainAction["type"];
+    }
+  | {
+      readonly type: "reaction_played";
+      readonly playerId: PlayerId;
+      readonly instanceId: string;
+      readonly chainDepth: 1 | 2;
+    }
+  | {
+      readonly type: "response_passed";
+      readonly playerId: PlayerId;
+      readonly chainDepth: 1 | 2;
+    }
+  | {
+      readonly type: "action_canceled";
+      readonly playerId: PlayerId;
+      readonly actionType: ResolvableMainAction["type"] | "reaction";
+    }
+  | {
+      readonly type: "action_resolved";
+      readonly playerId: PlayerId;
+      readonly actionType: ResolvableMainAction["type"];
+    }
   | {
       readonly type: "card_played";
       readonly playerId: PlayerId;
@@ -150,6 +215,7 @@ export interface ProjectedGameView {
   readonly viewer: PlayerId;
   readonly players: Record<PlayerId, ProjectedPlayerView>;
   readonly fronts: GameState["fronts"];
+  readonly pendingAction: PendingAction | null;
   readonly winner: PlayerId | null;
 }
 

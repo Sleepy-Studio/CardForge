@@ -1,4 +1,4 @@
-# Milestone 0 architecture
+# Milestone 1 interaction architecture
 
 ## Kernel boundary
 
@@ -13,28 +13,31 @@ Card definitions are immutable content. A logical card ID and revision produce m
 ```text
 Command
   -> timeline and legality validation
-  -> immutable state clone
-  -> semantic event generation
-  -> state reduction
-  -> batch defeat processing
-  -> victory/state checks
+  -> commit Focus, Time, and source state
+  -> serializable PendingAction
+  -> Defender Response or pass
+  -> Acting-player Counter-Response or pass
+  -> reverse-order chain resolution
+  -> bounded effect and trigger queue
+  -> batch defeat and victory checks
   -> cycle transition when both players lock
   -> canonical state hash
 ```
 
-Replacement effects, response windows, pending choices, and a general trigger queue are intentionally the next cut. They need explicit pending-state types rather than clever recursion inside card effects.
+The chain has a hard depth of two reactions. A passed player may still respond, and each Reaction commits its Focus and Tempo Debt when declared. The pending chain is match state, so reconnects and replays do not depend on process-local callbacks.
+
+Effects resolve through an explicit FIFO queue. An ability may publish at most 16 effects, at most 64 effects may wait at once, and no command may resolve more than 128 effects. Content that violates static limits is rejected when the engine loads it; runtime limits remain a final defense against cross-card recursion.
 
 ## Bias and scope note
 
 The product brief naturally pulls toward a complete monorepo and polished UI. That is the wrong proof. The main architectural risk is nondeterministic, unbounded card behavior; therefore this slice tests the rules seam under repeated complete games before application infrastructure is introduced.
 
-## Next cut: Milestone 1
+## Next cut
 
-1. Add a `PendingAction` state machine for Main Action, Response, Counter-Response, and reverse resolution.
-2. Replace direct effect iteration with an explicit bounded effect and trigger queue.
-3. Add `PendingChoice`, choice commands, replacement effects, and operator publication limits.
-4. Implement mulligan, Prepare/Reserve, Attachments, Relics, Sites, and full deck validation.
-5. Generate localized rules text from the same ability graph used by the engine.
-6. Grow property-based tests around damage batches, zone ownership, response depth, and effect limits.
+1. Add `PendingChoice`, choice commands, and optional costs.
+2. Add replacement-effect ordering and broader trigger collection.
+3. Implement mulligan, Prepare/Reserve, Attachments, Relics, Sites, and full deck validation.
+4. Generate localized rules text from the same ability graph used by the engine.
+5. Grow property-based tests around damage batches, zone ownership, response legality, and effect limits.
 
 Only after those invariants hold should the browser renderer become the critical path.

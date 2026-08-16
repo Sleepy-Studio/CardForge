@@ -263,6 +263,7 @@ export const proofCards = [
       {
         abilityId: "deflect",
         type: "reaction",
+        tempoDebt: 1,
         effects: [
           { op: "add_barrier", target: { kind: "chosen_friendly_entity" } },
         ],
@@ -277,7 +278,14 @@ export const proofCards = [
     aspects: ["cunning"],
     focusCost: 2,
     playTime: 2,
-    abilities: [{ abilityId: "denial", type: "reaction", effects: [] }],
+    abilities: [
+      {
+        abilityId: "denial",
+        type: "reaction",
+        tempoDebt: 2,
+        effects: [{ op: "cancel_previous_chain_link" }],
+      },
+    ],
   },
   {
     cardId: "tactic.recover",
@@ -356,6 +364,8 @@ const deckPattern = [
   "tactic.displace",
   "tactic.recover",
   "tactic.survey",
+  "reaction.deflect",
+  "reaction.denial",
 ] as const;
 
 export const proofDeck: readonly string[] = Array.from(

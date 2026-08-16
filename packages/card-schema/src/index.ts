@@ -37,7 +37,8 @@ export type EffectNode =
   | { readonly op: "spawn"; readonly tokenCardId: string }
   | { readonly op: "salvage"; readonly cardType?: CardType }
   | { readonly op: "scout"; readonly amount: number }
-  | { readonly op: "add_barrier"; readonly target: TargetRef };
+  | { readonly op: "add_barrier"; readonly target: TargetRef }
+  | { readonly op: "cancel_previous_chain_link" };
 
 export interface AbilityDefinition {
   readonly abilityId: string;
@@ -47,6 +48,7 @@ export interface AbilityDefinition {
   readonly effects: readonly EffectNode[];
   readonly focusCost?: number;
   readonly timeCost?: number;
+  readonly tempoDebt?: number;
   readonly oncePerCycle?: boolean;
 }
 

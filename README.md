@@ -46,10 +46,13 @@ packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
 - Presence scoring, Dominion victory, Integrity victory, and escalating fatigue;
 - typed Tactic effects for damage, healing, movement, spawning, salvage, and scouting;
 - deployment and defeat triggers;
+- serializable Main Action, Response, and Counter-Response windows;
+- reverse-order chain resolution with immediate Tempo Debt;
+- a bounded effect/trigger queue and publish-time content limits;
 - 40-card proof decks and a semantic 20-card-plus-token content fixture.
 
 ## Deliberately deferred
 
-The bounded Response/Counter-Response state machine, mulligans, choices, attachments, Relic/Site board zones, full keyword/status pools, deckbuilding legality, rules-text generation, and publication tooling belong to Milestone 1. Their schema seams are present, but pretending they are implemented would be dishonest.
+Mulligans, interactive choices, replacement effects, attachments, Relic/Site board zones, full keyword/status pools, deckbuilding legality, rules-text generation, and full publication tooling remain deferred. Their schema seams are present, but pretending they are implemented would be dishonest.
 
 See [docs/architecture.md](docs/architecture.md) for boundaries and the next implementation cut.

@@ -13,7 +13,10 @@ import type {
   CommandResult,
   GameEvent,
   GameState,
+  PendingAction,
+  PendingReaction,
   ProjectedGameView,
+  QueuedEffect,
   ReplayRecord,
   RulesEngine,
 } from "@cardforge/rules-kernel";
@@ -24,6 +27,9 @@ import { tempoFrontRules } from "./ruleset.js";
 const playerIds = ["p1", "p2"] as const;
 const frontIds = ["left", "center", "right"] as const;
 const slotIds = ["vanguard", "support"] as const;
+const maximumQueuedEffects = 64;
+const maximumResolvedEffects = 128;
+const maximumEffectsPerAbility = 16;
 
 function opponentOf(playerId: PlayerId): PlayerId {
   return playerId === "p1" ? "p2" : "p1";
@@ -200,14 +206,12 @@ function processDefeats(
     for (const ability of item.definition.abilities?.filter(
       (candidate) => candidate.trigger === "on_defeat",
     ) ?? []) {
-      resolveAbility(
-        cards,
+      enqueueAbility(
         state,
         item.playerId,
         item.entity,
         ability,
         undefined,
-        events,
         item.front,
       );
     }
@@ -294,6 +298,7 @@ function resolveEffect(
   events: GameEvent[],
   sourceFront?: FrontId,
 ): void {
+  if (effect.op === "cancel_previous_chain_link") return;
   if (effect.op === "draw") {
     for (let count = 0; count < effect.amount; count += 1)
       drawCard(state, playerId, events);
@@ -371,28 +376,53 @@ function resolveEffect(
   checkWin(state, events);
 }
 
-function resolveAbility(
-  cards: ReadonlyMap<string, CardDefinition>,
+function enqueueAbility(
   state: GameState,
   playerId: PlayerId,
   source: CardInstance,
   ability: AbilityDefinition,
   chosenTargetId: string | undefined,
-  events: GameEvent[],
   sourceFront?: FrontId,
 ): void {
   for (const effect of ability.effects) {
+    if (state.effectQueue.length >= maximumQueuedEffects)
+      throw new Error(
+        `Effect queue exceeded ${maximumQueuedEffects} pending operations`,
+      );
+    const queued: QueuedEffect = {
+      source,
+      controllerId: playerId,
+      effect,
+      ...(chosenTargetId === undefined ? {} : { chosenTargetId }),
+      ...(sourceFront === undefined ? {} : { sourceFront }),
+    };
+    state.effectQueue.push(queued);
+  }
+}
+
+function drainEffectQueue(
+  cards: ReadonlyMap<string, CardDefinition>,
+  state: GameState,
+  events: GameEvent[],
+): void {
+  let resolved = 0;
+  while (state.effectQueue.length > 0 && !state.winner) {
+    if (resolved >= maximumResolvedEffects)
+      throw new Error(
+        `Effect resolution exceeded ${maximumResolvedEffects} operations`,
+      );
+    const queued = state.effectQueue.shift()!;
     resolveEffect(
       cards,
       state,
-      playerId,
-      source,
-      effect,
-      chosenTargetId,
+      queued.controllerId,
+      queued.source,
+      queued.effect,
+      queued.chosenTargetId,
       events,
-      sourceFront,
+      queued.sourceFront,
     );
-    if (state.winner) break;
+    resolved += 1;
   }
 }
 
@@ -512,17 +542,278 @@ function legalStrikeTargets(
   return ["leader"];
 }
 
-function validateTurn(state: GameState, playerId: PlayerId): void {
-  if (state.winner) throw new Error("The match is already complete");
-  const active = currentPlayer(state);
-  if (active !== playerId)
-    throw new Error(`It is ${active ?? "no player's"} timeline priority`);
+function reactionAbility(definition: CardDefinition): AbilityDefinition {
+  const ability = definition.abilities?.find(
+    (candidate) => candidate.type === "reaction",
+  );
+  if (!ability) throw new Error(`${definition.cardId} has no Reaction ability`);
+  return ability;
+}
+
+function reactionCancelsPrevious(definition: CardDefinition): boolean {
+  return reactionAbility(definition).effects.some(
+    (effect) => effect.op === "cancel_previous_chain_link",
+  );
+}
+
+function enqueueReactionEffects(
+  cards: ReadonlyMap<string, CardDefinition>,
+  state: GameState,
+  reaction: PendingReaction,
+): void {
+  const definition = definitionFor(cards, reaction.card);
+  const ability = reactionAbility(definition);
+  const filtered: AbilityDefinition = {
+    ...ability,
+    effects: ability.effects.filter(
+      (effect) => effect.op !== "cancel_previous_chain_link",
+    ),
+  };
+  enqueueAbility(
+    state,
+    reaction.playerId,
+    reaction.card,
+    filtered,
+    reaction.targetId,
+  );
+}
+
+function resolveMainAction(
+  cards: ReadonlyMap<string, CardDefinition>,
+  state: GameState,
+  pending: PendingAction,
+  events: GameEvent[],
+): void {
+  const command = pending.main;
+  const player = state.players[pending.actorId];
+  if (command.type === "play_card") {
+    const card = pending.committedCard!;
+    const definition = definitionFor(cards, card);
+    if (definition.type === "entity") {
+      const front = command.front!;
+      const slot = command.slot!;
+      if (state.fronts[front].slots[pending.actorId][slot]) {
+        player.discard.push(card);
+        events.push({
+          type: "action_canceled",
+          playerId: pending.actorId,
+          actionType: command.type,
+        });
+        return;
+      }
+      card.ready = definition.keywords?.rapid === true;
+      card.barrier = definition.keywords?.barrier === true;
+      state.fronts[front].slots[pending.actorId][slot] = card;
+      events.push({
+        type: "entity_deployed",
+        playerId: pending.actorId,
+        instanceId: card.instanceId,
+        front,
+        slot,
+      });
+      for (const ability of definition.abilities?.filter(
+        (candidate) => candidate.trigger === "on_deploy",
+      ) ?? [])
+        enqueueAbility(
+          state,
+          pending.actorId,
+          card,
+          ability,
+          command.targetId,
+          front,
+        );
+    } else {
+      for (const ability of definition.abilities ?? [])
+        enqueueAbility(state, pending.actorId, card, ability, command.targetId);
+      player.discard.push(card);
+    }
+    drainEffectQueue(cards, state, events);
+  } else if (command.type === "shift") {
+    const located = locateEntity(state, command.entityId);
+    if (
+      !located ||
+      state.fronts[command.toFront].slots[pending.actorId][command.toSlot]
+    ) {
+      events.push({
+        type: "action_canceled",
+        playerId: pending.actorId,
+        actionType: command.type,
+      });
+      return;
+    }
+    state.fronts[located.front].slots[pending.actorId][located.slot] = null;
+    state.fronts[command.toFront].slots[pending.actorId][command.toSlot] =
+      located.entity;
+    located.entity.shiftsThisCycle += 1;
+    events.push({
+      type: "entity_shifted",
+      instanceId: located.entity.instanceId,
+      from: located.front,
+      to: command.toFront,
+    });
+  } else {
+    const located = locateEntity(state, command.attackerId);
+    if (!located) {
+      events.push({
+        type: "action_canceled",
+        playerId: pending.actorId,
+        actionType: command.type,
+      });
+      return;
+    }
+    const attacker = located.entity;
+    const attackerDefinition = definitionFor(cards, attacker);
+    if (command.targetId === "leader") {
+      const damage = attackerDefinition.power ?? 0;
+      state.players[opponentOf(pending.actorId)].integrity -= damage;
+      events.push({
+        type: "damage_dealt",
+        sourceId: attacker.instanceId,
+        targetId: "leader",
+        amount: damage,
+      });
+    } else {
+      const defenderLocation = locateEntity(state, command.targetId);
+      if (!defenderLocation) {
+        events.push({
+          type: "action_canceled",
+          playerId: pending.actorId,
+          actionType: command.type,
+        });
+        return;
+      }
+      const defender = defenderLocation.entity;
+      const defenderDefinition = definitionFor(cards, defender);
+      dealEntityDamage(
+        cards,
+        defender,
+        attackerDefinition.power ?? 0,
+        attacker.instanceId,
+        events,
+      );
+      const canRetaliate =
+        defenderDefinition.keywords?.ranged === true ||
+        (defenderLocation.slot === "vanguard" && located.slot === "vanguard");
+      if (canRetaliate)
+        dealEntityDamage(
+          cards,
+          attacker,
+          defenderDefinition.power ?? 0,
+          defender.instanceId,
+          events,
+        );
+      processDefeats(cards, state, events);
+      drainEffectQueue(cards, state, events);
+    }
+    checkWin(state, events);
+  }
+  events.push({
+    type: "action_resolved",
+    playerId: pending.actorId,
+    actionType: command.type,
+  });
+}
+
+function resolvePendingChain(
+  cards: ReadonlyMap<string, CardDefinition>,
+  state: GameState,
+  events: GameEvent[],
+): void {
+  const pending = state.pendingAction!;
+  let responseCanceled = false;
+  let mainCanceled = false;
+  if (pending.counterResponse) {
+    const definition = definitionFor(cards, pending.counterResponse.card);
+    responseCanceled = reactionCancelsPrevious(definition);
+    enqueueReactionEffects(cards, state, pending.counterResponse);
+    drainEffectQueue(cards, state, events);
+    state.players[pending.counterResponse.playerId].discard.push(
+      pending.counterResponse.card,
+    );
+  }
+  if (pending.response) {
+    if (responseCanceled) {
+      events.push({
+        type: "action_canceled",
+        playerId: pending.response.playerId,
+        actionType: "reaction",
+      });
+    } else {
+      const definition = definitionFor(cards, pending.response.card);
+      mainCanceled = reactionCancelsPrevious(definition);
+      enqueueReactionEffects(cards, state, pending.response);
+      drainEffectQueue(cards, state, events);
+    }
+    state.players[pending.response.playerId].discard.push(
+      pending.response.card,
+    );
+  }
+  if (mainCanceled) {
+    if (pending.committedCard)
+      state.players[pending.committedCard.ownerId].discard.push(
+        pending.committedCard,
+      );
+    events.push({
+      type: "action_canceled",
+      playerId: pending.actorId,
+      actionType: pending.main.type,
+    });
+  } else if (!state.winner) resolveMainAction(cards, state, pending, events);
+  state.pendingAction = null;
+  state.effectQueue.length = 0;
+}
+
+export function validateContentDefinitions(
+  cards: ReadonlyMap<string, CardDefinition>,
+): void {
+  for (const definition of cards.values()) {
+    assertInteger(definition.focusCost, `${definition.cardId} Focus cost`);
+    assertInteger(definition.playTime, `${definition.cardId} Play Time`);
+    if (definition.focusCost < 0 || definition.playTime < 0)
+      throw new Error(`${definition.cardId} has a negative cost`);
+    for (const ability of definition.abilities ?? []) {
+      if (ability.tempoDebt !== undefined) {
+        assertInteger(
+          ability.tempoDebt,
+          `${definition.cardId}/${ability.abilityId} Tempo Debt`,
+        );
+        if (ability.type !== "reaction" || ability.tempoDebt < 0)
+          throw new Error(
+            `${definition.cardId}/${ability.abilityId} has invalid Tempo Debt`,
+          );
+      }
+      if (ability.effects.length > maximumEffectsPerAbility)
+        throw new Error(
+          `${definition.cardId}/${ability.abilityId} exceeds ${maximumEffectsPerAbility} effects`,
+        );
+      if (
+        ability.type !== "reaction" &&
+        ability.effects.some(
+          (effect) => effect.op === "cancel_previous_chain_link",
+        )
+      )
+        throw new Error(
+          `${definition.cardId} uses chain cancellation outside a Reaction`,
+        );
+      for (const effect of ability.effects) {
+        if (
+          effect.op === "spawn" &&
+          (!cards.has(effect.tokenCardId) ||
+            cards.get(effect.tokenCardId)?.generatedOnly !== true)
+        )
+          throw new Error(
+            `${definition.cardId} references invalid Token ${effect.tokenCardId}`,
+          );
+      }
+    }
+  }
 }
 
 export class TempoFrontEngine implements RulesEngine {
   readonly cards: ReadonlyMap<string, CardDefinition>;
 
   constructor(cards: ReadonlyMap<string, CardDefinition> = proofCardMap) {
+    validateContentDefinitions(cards);
     this.cards = cards;
   }
 
@@ -556,6 +847,8 @@ export class TempoFrontEngine implements RulesEngine {
       commandNumber: 0,
       winner: null,
       victoryReason: null,
+      pendingAction: null,
+      effectQueue: [],
       players: {
         p1: {
           playerId: "p1",
@@ -599,16 +892,54 @@ export class TempoFrontEngine implements RulesEngine {
   }
 
   getLegalCommands(state: GameState, playerId: PlayerId): readonly Command[] {
-    if (state.winner || currentPlayer(state) !== playerId) return [];
+    if (state.winner) return [];
+    if (state.pendingAction) {
+      const expectedPlayer =
+        state.pendingAction.phase === "response"
+          ? opponentOf(state.pendingAction.actorId)
+          : state.pendingAction.actorId;
+      if (playerId !== expectedPlayer) return [];
+      const reactionCommands: Command[] = [];
+      const player = state.players[playerId];
+      for (const card of player.hand) {
+        const definition = definitionFor(this.cards, card);
+        if (
+          definition.type !== "reaction" ||
+          definition.focusCost > player.focus
+        )
+          continue;
+        const targetKind = requiresTarget(definition);
+        if (!targetKind) {
+          reactionCommands.push({
+            type: "play_reaction",
+            playerId,
+            instanceId: card.instanceId,
+          });
+          continue;
+        }
+        const side =
+          targetKind === "friendly"
+            ? playerId
+            : targetKind === "enemy"
+              ? opponentOf(playerId)
+              : undefined;
+        for (const target of allEntities(state, side))
+          reactionCommands.push({
+            type: "play_reaction",
+            playerId,
+            instanceId: card.instanceId,
+            targetId: target.instanceId,
+          });
+      }
+      reactionCommands.push({ type: "pass_response", playerId });
+      return reactionCommands;
+    }
+    if (currentPlayer(state) !== playerId) return [];
     const player = state.players[playerId];
     const commands: Command[] = [];
     for (const card of player.hand) {
       const definition = definitionFor(this.cards, card);
-      if (
-        definition.focusCost > player.focus ||
-        player.time + definition.playTime > 17
-      )
-        continue;
+      if (definition.focusCost > player.focus) continue;
       if (definition.type === "entity") {
         for (const front of frontIds) {
           for (const slot of slotIds) {
@@ -686,7 +1017,6 @@ export class TempoFrontEngine implements RulesEngine {
 
   applyCommand(inputState: GameState, command: Command): CommandResult {
     const state = structuredClone(inputState);
-    validateTurn(state, command.playerId);
     const legal = this.getLegalCommands(state, command.playerId);
     if (
       !legal.some(
@@ -696,122 +1026,95 @@ export class TempoFrontEngine implements RulesEngine {
       throw new Error(`Illegal command: ${JSON.stringify(command)}`);
     const events: GameEvent[] = [];
     const player = state.players[command.playerId];
-    if (command.type === "pass") {
-      player.passed = true;
-      events.push({ type: "player_passed", playerId: command.playerId });
-    } else if (command.type === "play_card") {
+    if (command.type === "pass_response") {
+      const pending = state.pendingAction!;
+      const depth = pending.phase === "response" ? 1 : 2;
+      events.push({
+        type: "response_passed",
+        playerId: command.playerId,
+        chainDepth: depth,
+      });
+      resolvePendingChain(this.cards, state, events);
+    } else if (command.type === "play_reaction") {
+      const pending = state.pendingAction!;
       const handIndex = player.hand.findIndex(
         (card) => card.instanceId === command.instanceId,
       );
-      const card = player.hand[handIndex]!;
+      const card = player.hand.splice(handIndex, 1)[0]!;
       const definition = definitionFor(this.cards, card);
-      player.hand.splice(handIndex, 1);
+      const ability = reactionAbility(definition);
       player.focus -= definition.focusCost;
-      player.time += definition.playTime;
-      events.push({
-        type: "card_played",
+      player.time += ability.tempoDebt ?? definition.playTime;
+      const reaction: PendingReaction = {
         playerId: command.playerId,
-        instanceId: card.instanceId,
-      });
-      if (definition.type === "entity") {
-        const front = command.front!;
-        const slot = command.slot!;
-        card.ready = definition.keywords?.rapid === true;
-        card.barrier = definition.keywords?.barrier === true;
-        state.fronts[front].slots[command.playerId][slot] = card;
+        card,
+        ...(command.targetId === undefined
+          ? {}
+          : { targetId: command.targetId }),
+      };
+      if (pending.phase === "response") {
+        pending.response = reaction;
+        pending.phase = "counter_response";
         events.push({
-          type: "entity_deployed",
+          type: "reaction_played",
           playerId: command.playerId,
           instanceId: card.instanceId,
-          front,
-          slot,
+          chainDepth: 1,
         });
-        for (const ability of definition.abilities?.filter(
-          (candidate) => candidate.trigger === "on_deploy",
-        ) ?? []) {
-          resolveAbility(
-            this.cards,
-            state,
-            command.playerId,
-            card,
-            ability,
-            command.targetId,
-            events,
-            front,
-          );
-        }
       } else {
-        for (const ability of definition.abilities ?? [])
-          resolveAbility(
-            this.cards,
-            state,
-            command.playerId,
-            card,
-            ability,
-            command.targetId,
-            events,
-          );
-        player.discard.push(card);
-      }
-    } else if (command.type === "shift") {
-      const located = locateEntity(state, command.entityId)!;
-      state.fronts[located.front].slots[command.playerId][located.slot] = null;
-      state.fronts[command.toFront].slots[command.playerId][command.toSlot] =
-        located.entity;
-      located.entity.shiftsThisCycle += 1;
-      const mobile =
-        definitionFor(this.cards, located.entity).keywords?.mobile === true;
-      player.time += mobile ? 1 : 2;
-      events.push({
-        type: "entity_shifted",
-        instanceId: located.entity.instanceId,
-        from: located.front,
-        to: command.toFront,
-      });
-    } else {
-      const located = locateEntity(state, command.attackerId)!;
-      const attacker = located.entity;
-      const attackerDefinition = definitionFor(this.cards, attacker);
-      player.time += attackerDefinition.strikeTime ?? 3;
-      attacker.ready = false;
-      if (command.targetId === "leader") {
-        const defenderId = opponentOf(command.playerId);
-        const damage = attackerDefinition.power ?? 0;
-        state.players[defenderId].integrity -= damage;
+        pending.counterResponse = reaction;
         events.push({
-          type: "damage_dealt",
-          sourceId: attacker.instanceId,
-          targetId: "leader",
-          amount: damage,
+          type: "reaction_played",
+          playerId: command.playerId,
+          instanceId: card.instanceId,
+          chainDepth: 2,
         });
-      } else {
-        const defender = locateEntity(state, command.targetId)!.entity;
-        const defenderDefinition = definitionFor(this.cards, defender);
-        dealEntityDamage(
-          this.cards,
-          defender,
-          attackerDefinition.power ?? 0,
-          attacker.instanceId,
-          events,
-        );
-        const defenderLocation = locateEntity(state, defender.instanceId)!;
-        const canRetaliate =
-          defenderDefinition.keywords?.ranged === true ||
-          (defenderLocation.slot === "vanguard" && located.slot === "vanguard");
-        if (canRetaliate)
-          dealEntityDamage(
-            this.cards,
-            attacker,
-            defenderDefinition.power ?? 0,
-            defender.instanceId,
-            events,
-          );
-        processDefeats(this.cards, state, events);
+        resolvePendingChain(this.cards, state, events);
       }
-      checkWin(state, events);
+    } else if (command.type === "pass") {
+      player.passed = true;
+      events.push({ type: "player_passed", playerId: command.playerId });
+    } else {
+      let committedCard: CardInstance | undefined;
+      if (command.type === "play_card") {
+        const handIndex = player.hand.findIndex(
+          (card) => card.instanceId === command.instanceId,
+        );
+        committedCard = player.hand.splice(handIndex, 1)[0]!;
+        const definition = definitionFor(this.cards, committedCard);
+        player.focus -= definition.focusCost;
+        player.time += definition.playTime;
+        events.push({
+          type: "card_played",
+          playerId: command.playerId,
+          instanceId: committedCard.instanceId,
+        });
+      } else if (command.type === "strike") {
+        const attacker = locateEntity(state, command.attackerId)!.entity;
+        player.time += definitionFor(this.cards, attacker).strikeTime ?? 3;
+        attacker.ready = false;
+      } else {
+        const entity = locateEntity(state, command.entityId)!.entity;
+        const mobile =
+          definitionFor(this.cards, entity).keywords?.mobile === true;
+        player.time += mobile ? 1 : 2;
+      }
+      state.pendingAction = {
+        actorId: command.playerId,
+        main: command,
+        phase: "response",
+        response: null,
+        counterResponse: null,
+        ...(committedCard === undefined ? {} : { committedCard }),
+      };
+      events.push({
+        type: "action_declared",
+        playerId: command.playerId,
+        actionType: command.type,
+      });
     }
     state.commandNumber += 1;
-    if (!state.winner && currentPlayer(state) === null)
+    if (!state.winner && !state.pendingAction && currentPlayer(state) === null)
       advanceCycle(this.cards, state, events);
     return { state, events, hash: stateHash(state) };
   }
@@ -841,6 +1144,7 @@ export class TempoFrontEngine implements RulesEngine {
       viewer: playerId,
       players: { p1: projectPlayer("p1"), p2: projectPlayer("p2") },
       fronts: structuredClone(state.fronts),
+      pendingAction: structuredClone(state.pendingAction),
       winner: state.winner,
     };
   }
