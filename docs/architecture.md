@@ -274,3 +274,10 @@ mono-Aspect Leaders and six dual-Aspect Leaders map to the twelve launch
 archetypes; each ships with a legal forty-card starter deck. The same immutable
 definitions feed deck validation, simulation, browser play, match rooms, Card
 Studio compilation, and both Theme Packs.
+
+`packages/competitive` owns ladder arithmetic outside the match kernel. Season
+definitions pin one Format revision and one immutable balance patch. Ranked
+settlement calculates ratings, account experience, Aspect mastery, and Leader
+unlocks from explicit match inputs. Telemetry derives action, Reaction, choice,
+victory-route, cycle, Initiative, and per-Leader metrics from accepted command
+records, keeping the dashboard reproducible rather than client-reported.

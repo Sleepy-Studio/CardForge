@@ -4,6 +4,7 @@
     { "path": "packages/card-schema" },
     { "path": "packages/rules-kernel" },
     { "path": "packages/rules-tempofront" },
+    { "path": "packages/competitive" },
     { "path": "packages/persistence" },
     { "path": "packages/theme-default" },
     { "path": "packages/theme-test-scifi" },

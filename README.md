@@ -188,6 +188,7 @@ The competitive content target is now executable:
 - every Leader has a legal forty-card starter deck pinned to its Aspect identity;
 - all twelve starter matchups complete through the deterministic simulator and replay through the production engine;
 - the browser exposes all twelve Leaders and Card Studio compiles 121 definitions under both complete Theme Packs.
+- a pure competitive domain pins seasons to immutable patch and Format revisions, calculates Elo-style ratings, grants account and Aspect mastery, unlocks Leaders through deterministic starter progression, and aggregates replay-derived balance telemetry.
 
 Ranked seasons, match analytics, the balance dashboard, versioned patches, and
 starter progression are the next competitive-beta slice.

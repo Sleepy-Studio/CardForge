@@ -131,6 +131,15 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
 
+  packages/competitive:
+    dependencies:
+      '@cardforge/card-schema':
+        specifier: workspace:*
+        version: link:../card-schema
+      '@cardforge/rules-kernel':
+        specifier: workspace:*
+        version: link:../rules-kernel
+
   packages/content-core-set:
     dependencies:
       '@cardforge/card-schema':
