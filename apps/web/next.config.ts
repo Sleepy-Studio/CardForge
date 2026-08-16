@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: [
     "@cardforge/card-schema",
+    "@cardforge/economy",
     "@cardforge/rules-kernel",
     "@cardforge/rules-tempofront",
   ],

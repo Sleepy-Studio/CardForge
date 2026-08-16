@@ -38,6 +38,9 @@ importers:
       '@cardforge/competitive':
         specifier: workspace:*
         version: link:../../packages/competitive
+      '@cardforge/economy':
+        specifier: workspace:*
+        version: link:../../packages/economy
       '@cardforge/persistence':
         specifier: workspace:*
         version: link:../../packages/persistence
@@ -93,6 +96,9 @@ importers:
       '@cardforge/content-tools':
         specifier: workspace:*
         version: link:../../packages/content-tools
+      '@cardforge/economy':
+        specifier: workspace:*
+        version: link:../../packages/economy
       '@cardforge/rules-kernel':
         specifier: workspace:*
         version: link:../../packages/rules-kernel

@@ -1700,6 +1700,325 @@ button:focus-visible {
   }
 }
 
+/* Launch collection and cosmetics */
+.collection-shell {
+  min-height: 100vh;
+  padding: 26px;
+  background:
+    linear-gradient(rgba(69, 217, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(69, 217, 255, 0.025) 1px, transparent 1px),
+    radial-gradient(
+      circle at 74% 5%,
+      rgba(184, 92, 255, 0.14),
+      transparent 30rem
+    );
+  background-size:
+    42px 42px,
+    42px 42px,
+    auto;
+}
+
+.collection-header,
+.collection-header nav,
+.collection-ledger,
+.collection-tools,
+.collection-card__number,
+.collection-card dl,
+.collection-card footer {
+  display: flex;
+  align-items: center;
+}
+
+.collection-header {
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1540px;
+  margin: 0 auto 16px;
+}
+
+.collection-header h1 {
+  margin: 2px 0;
+  font-size: clamp(32px, 5vw, 66px);
+  letter-spacing: -0.055em;
+}
+
+.collection-header p {
+  margin: 4px 0;
+  color: var(--muted);
+}
+
+.collection-header nav {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.collection-ledger {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 0.5fr)) minmax(260px, 1.5fr);
+  gap: 1px;
+  max-width: 1540px;
+  margin: 0 auto 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--line);
+}
+
+.collection-ledger article,
+.collection-ledger label {
+  min-height: 92px;
+  padding: 15px;
+  background: rgba(5, 15, 26, 0.95);
+}
+
+.collection-ledger span,
+.collection-tools strong,
+.collection-card__number,
+.collection-card p,
+.collection-card dt,
+.collection-card footer,
+.cosmetic-market article span,
+.cosmetic-market article small {
+  color: var(--muted);
+  font:
+    750 9px/1.25 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.collection-ledger strong {
+  display: block;
+  margin: 5px 0;
+  color: var(--text);
+  font-size: 24px;
+}
+
+.collection-ledger small {
+  color: var(--muted);
+}
+
+.collection-ledger input,
+.collection-tools input,
+.collection-tools select {
+  width: 100%;
+  border: 1px solid var(--line-hot);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.collection-tools {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 190px 170px auto;
+  gap: 8px;
+  max-width: 1540px;
+  margin: 0 auto 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--panel);
+}
+
+.collection-tools strong {
+  padding: 11px 8px;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
+.collection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  max-width: 1540px;
+  margin: 0 auto;
+}
+
+.collection-card {
+  position: relative;
+  min-height: 250px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px 18px 7px 18px;
+  padding: 14px;
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      color-mix(in srgb, var(--card-aspect) 22%, transparent),
+      transparent 50%
+    ),
+    linear-gradient(150deg, rgba(12, 31, 49, 0.98), rgba(4, 10, 18, 0.98));
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.25);
+}
+
+.collection-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: var(--card-aspect, var(--cyan));
+}
+
+.collection-card.aspect-force {
+  --card-aspect: #ff6f5e;
+}
+.collection-card.aspect-bastion {
+  --card-aspect: #f3c96b;
+}
+.collection-card.aspect-motion {
+  --card-aspect: #55d9ff;
+}
+.collection-card.aspect-growth {
+  --card-aspect: #6dffba;
+}
+.collection-card.aspect-cunning {
+  --card-aspect: #b98cff;
+}
+.collection-card.aspect-entropy {
+  --card-aspect: #dc6eaa;
+}
+.collection-card.aspect-neutral {
+  --card-aspect: #9aacb9;
+}
+
+.collection-card__number {
+  justify-content: space-between;
+}
+
+.collection-card__cost {
+  position: absolute;
+  top: 42px;
+  right: 14px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--card-aspect);
+  border-radius: 50%;
+  color: var(--text);
+  font-weight: 900;
+}
+
+.collection-card h2 {
+  max-width: calc(100% - 38px);
+  min-height: 52px;
+  margin: 24px 0 5px;
+  font-size: 20px;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.collection-card dl {
+  gap: 6px;
+  min-height: 72px;
+  margin: 16px 0;
+}
+
+.collection-card dl > div {
+  min-width: 50px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.collection-card dt,
+.collection-card dd {
+  margin: 0;
+}
+
+.collection-card dd {
+  margin-top: 4px;
+  font-weight: 900;
+}
+
+.collection-card footer {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.collection-card button,
+.cosmetic-market button {
+  border: 1px solid var(--line-hot);
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: var(--text);
+  cursor: pointer;
+  background: rgba(69, 217, 255, 0.12);
+  font:
+    800 9px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+
+.collection-card button:disabled,
+.cosmetic-market button:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.cosmetic-market {
+  max-width: 1540px;
+  margin: 18px auto 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(5, 15, 26, 0.94);
+}
+
+.cosmetic-market > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cosmetic-market article {
+  display: grid;
+  gap: 7px;
+  min-height: 146px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--panel-2);
+}
+
+.cosmetic-market article strong {
+  font-size: 17px;
+}
+
+@media (max-width: 860px) {
+  .collection-ledger,
+  .collection-tools {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .collection-shell {
+    padding: 14px;
+  }
+  .collection-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .collection-ledger,
+  .collection-tools {
+    grid-template-columns: 1fr;
+  }
+}
+
 .online-lobby__actions a,
 .online-link {
   text-decoration: none;

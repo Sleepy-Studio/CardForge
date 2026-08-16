@@ -16,6 +16,7 @@ import {
 } from "@cardforge/competitive";
 import { TempoFrontRankedRoom, TempoFrontRoom } from "./room.js";
 import { cardForgeStore } from "./store.js";
+import { cosmeticCatalog } from "@cardforge/economy";
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_-]{3,80}$/);
 const accountBody = z
@@ -31,6 +32,34 @@ const deckBody = z
     cardIds: z.array(z.string().min(1).max(120)).max(60),
   })
   .strict();
+const transactionId = z.string().regex(/^[a-zA-Z0-9:_-]{8,120}$/);
+const craftBody = z
+  .object({
+    transactionId,
+    cardId: z.string().min(3).max(120),
+    quantity: z.number().int().min(1).max(3),
+  })
+  .strict();
+const cosmeticUnlockBody = z
+  .object({
+    transactionId,
+    cosmeticId: z.string().min(3).max(120),
+  })
+  .strict();
+
+function sendEconomyError(response: Response, error: unknown): void {
+  const message =
+    error instanceof Error ? error.message : "Economy operation failed";
+  if (message.startsWith("Unknown account")) {
+    response.status(404).json({ error: "ACCOUNT_NOT_FOUND" });
+    return;
+  }
+  if (message.includes("conflicts") || message.includes("already unlocked")) {
+    response.status(409).json({ error: "ECONOMY_CONFLICT", message });
+    return;
+  }
+  response.status(422).json({ error: "ECONOMY_REJECTED", message });
+}
 
 function ownsAccount(request: Request, response: Response): boolean {
   const accountId = String(request.params.accountId);
@@ -118,6 +147,103 @@ export const server = new Server({
         response.json({
           decks: await cardForgeStore.listDecks(
             String(request.params.accountId),
+          ),
+        });
+      },
+    );
+    app.get(
+      "/api/accounts/:accountId/economy",
+      async (request: Request, response: Response) => {
+        if (!ownsAccount(request, response)) return;
+        const accountId = identifier.safeParse(request.params.accountId);
+        if (!accountId.success) {
+          response.status(400).json({ error: "INVALID_ACCOUNT" });
+          return;
+        }
+        try {
+          response.json({
+            snapshot: await cardForgeStore.getEconomySnapshot(accountId.data),
+          });
+        } catch (error) {
+          sendEconomyError(response, error);
+        }
+      },
+    );
+    app.post(
+      "/api/accounts/:accountId/economy/craft",
+      async (request: Request, response: Response) => {
+        if (!ownsAccount(request, response)) return;
+        const accountId = identifier.safeParse(request.params.accountId);
+        const body = craftBody.safeParse(request.body);
+        if (!accountId.success || !body.success) {
+          response.status(400).json({ error: "INVALID_CRAFT_REQUEST" });
+          return;
+        }
+        const card = proofCardMap.get(body.data.cardId);
+        if (!card) {
+          response.status(404).json({ error: "CARD_NOT_FOUND" });
+          return;
+        }
+        try {
+          response.json({
+            snapshot: await cardForgeStore.craftCard(
+              body.data.transactionId,
+              accountId.data,
+              card,
+              body.data.quantity,
+            ),
+          });
+        } catch (error) {
+          sendEconomyError(response, error);
+        }
+      },
+    );
+    app.get("/api/cosmetics", (_request: Request, response: Response) => {
+      response.json({ cosmetics: cosmeticCatalog });
+    });
+    app.post(
+      "/api/accounts/:accountId/economy/cosmetics",
+      async (request: Request, response: Response) => {
+        if (!ownsAccount(request, response)) return;
+        const accountId = identifier.safeParse(request.params.accountId);
+        const body = cosmeticUnlockBody.safeParse(request.body);
+        if (!accountId.success || !body.success) {
+          response.status(400).json({ error: "INVALID_COSMETIC_REQUEST" });
+          return;
+        }
+        const cosmetic = cosmeticCatalog.find(
+          (item) => item.cosmeticId === body.data.cosmeticId,
+        );
+        if (!cosmetic) {
+          response.status(404).json({ error: "COSMETIC_NOT_FOUND" });
+          return;
+        }
+        try {
+          response.json({
+            snapshot: await cardForgeStore.unlockCosmetic(
+              body.data.transactionId,
+              accountId.data,
+              cosmetic,
+            ),
+          });
+        } catch (error) {
+          sendEconomyError(response, error);
+        }
+      },
+    );
+    app.get(
+      "/api/accounts/:accountId/economy/transactions",
+      async (request: Request, response: Response) => {
+        if (!ownsAccount(request, response)) return;
+        const accountId = identifier.safeParse(request.params.accountId);
+        if (!accountId.success) {
+          response.status(400).json({ error: "INVALID_ACCOUNT" });
+          return;
+        }
+        response.json({
+          transactions: await cardForgeStore.listEconomyTransactions(
+            accountId.data,
+            100,
           ),
         });
       },

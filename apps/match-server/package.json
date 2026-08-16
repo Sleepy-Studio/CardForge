@@ -19,6 +19,7 @@
   "dependencies": {
     "@cardforge/card-schema": "workspace:*",
     "@cardforge/competitive": "workspace:*",
+    "@cardforge/economy": "workspace:*",
     "@cardforge/persistence": "workspace:*",
     "@cardforge/rules-kernel": "workspace:*",
     "@cardforge/rules-tempofront": "workspace:*",

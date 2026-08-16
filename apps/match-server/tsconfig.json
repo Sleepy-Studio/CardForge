@@ -6,6 +6,7 @@
     { "path": "../../packages/persistence" },
     { "path": "../../packages/card-schema" },
     { "path": "../../packages/competitive" },
+    { "path": "../../packages/economy" },
     { "path": "../../packages/rules-kernel" },
     { "path": "../../packages/rules-tempofront" },
     { "path": "../../packages/theme-default" }
