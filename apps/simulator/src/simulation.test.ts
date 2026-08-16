@@ -181,7 +181,7 @@ void describe("TempoFront deterministic proof", () => {
     assert.match(validateDeck(noEntities).join("; "), /at least 12 Entities/);
   });
 
-  void it("validates all four prototype Leader decks against their identities", () => {
+  void it("validates all twelve competitive Leader decks against their identities", () => {
     for (const leader of prototypeLeaderOptions) {
       const deck = prototypeDecks[leader.cardId];
       assert.equal(deck.length, 40);
@@ -203,8 +203,8 @@ void describe("TempoFront deterministic proof", () => {
     }
   });
 
-  void it("publishes an exact sixty-card production-facing prototype pool", () => {
-    assert.equal(prototypeCards.length, 60);
+  void it("publishes an exact 120-card competitive-beta pool", () => {
+    assert.equal(prototypeCards.length, 120);
     assert.equal(
       new Set(prototypeCards.map((card) => card.cardId)).size,
       prototypeCards.length,
@@ -229,13 +229,13 @@ void describe("TempoFront deterministic proof", () => {
       ]),
     );
     assert.deepEqual(counts, {
-      leader: 4,
-      entity: 29,
-      tactic: 15,
-      reaction: 5,
-      attachment: 3,
-      relic: 2,
-      site: 2,
+      leader: 12,
+      entity: 61,
+      tactic: 21,
+      reaction: 11,
+      attachment: 6,
+      relic: 6,
+      site: 3,
     });
   });
 

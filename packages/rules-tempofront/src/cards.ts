@@ -1,5 +1,6 @@
 import type { CardDefinition, PlayerId } from "@cardforge/card-schema";
 import { stateHash } from "@cardforge/rules-kernel";
+import { competitiveExpansionCards } from "./competitive-cards.js";
 
 const rawProofCards = [
   {
@@ -1087,13 +1088,14 @@ const rawProofCards = [
   },
 ] as const satisfies readonly CardDefinition[];
 
-export const proofCards: readonly CardDefinition[] = rawProofCards.map(
-  (card) => ({
-    ...card,
-    setId: "core-prototype",
-    release: { state: "published", availableFrom: "2026-08-16" },
-  }),
-);
+export const proofCards: readonly CardDefinition[] = [
+  ...rawProofCards,
+  ...competitiveExpansionCards,
+].map((card) => ({
+  ...card,
+  setId: "core-prototype",
+  release: { state: "published", availableFrom: "2026-08-16" },
+}));
 
 export const prototypeCards: readonly CardDefinition[] = proofCards.filter(
   (card) =>
@@ -1111,6 +1113,36 @@ export const proofLeaders = {
 } as const;
 
 export const prototypeLeaderOptions = [
+  {
+    cardId: "leader.ember",
+    archetype: "Breakthrough",
+    summary: "Mono-Force attackers that convert open Fronts into Core damage.",
+  },
+  {
+    cardId: "leader.citadel",
+    archetype: "Citadel",
+    summary: "Mono-Bastion armor, barriers, Structures, and Presence.",
+  },
+  {
+    cardId: "leader.vector",
+    archetype: "Relay",
+    summary: "Mono-Motion shifting, ranged pressure, and timeline efficiency.",
+  },
+  {
+    cardId: "leader.verdant",
+    archetype: "Brood",
+    summary: "Mono-Growth tokens, healing, and durable Front development.",
+  },
+  {
+    cardId: "leader.cipher",
+    archetype: "Protocol",
+    summary: "Mono-Cunning preparation, selection, and bounded denial.",
+  },
+  {
+    cardId: "leader.hollow",
+    archetype: "Afterlife",
+    summary: "Mono-Entropy attrition and recurring defeated Entities.",
+  },
   {
     cardId: "leader.vanguard",
     archetype: "Siege",
@@ -1131,6 +1163,16 @@ export const prototypeLeaderOptions = [
     archetype: "Raid",
     summary: "Force/Motion attacks backed by card selection.",
   },
+  {
+    cardId: "leader.sanctuary",
+    archetype: "Sanctuary",
+    summary: "Bastion/Growth healing backed by overwhelming Presence.",
+  },
+  {
+    cardId: "leader.null",
+    archetype: "Null Control",
+    summary: "Cunning/Entropy disruption, exposure, and recursion.",
+  },
 ] as const;
 
 export type PrototypeLeaderId =
@@ -1147,6 +1189,102 @@ function buildStarterDeck(cardIds: readonly string[]): readonly string[] {
 export const prototypeDecks: Readonly<
   Record<PrototypeLeaderId, readonly string[]>
 > = {
+  "leader.ember": buildStarterDeck([
+    "entity.linebreaker",
+    "entity.emberlance",
+    "entity.coalheart",
+    "entity.torchline",
+    "entity.redline_duelist",
+    "entity.ashwing_raider",
+    "entity.banner_breaker",
+    "entity.flare_captain",
+    "tactic.impact",
+    "tactic.scorch_lane",
+    "reaction.counterstrike",
+    "reaction.answer_with_force",
+    "attachment.breach_charge",
+    "relic.field_compass",
+  ]),
+  "leader.citadel": buildStarterDeck([
+    "entity.bulwark",
+    "entity.ironhide",
+    "entity.aegis",
+    "entity.gatehouse",
+    "entity.oathshield",
+    "entity.citadel_archer",
+    "entity.granite_warden",
+    "entity.wallwright",
+    "reaction.deflect",
+    "tactic.hold_the_center",
+    "reaction.brace_for_impact",
+    "attachment.command_standard",
+    "relic.citadel_bell",
+    "site.crossroads",
+  ]),
+  "leader.vector": buildStarterDeck([
+    "entity.skywatcher",
+    "entity.flashrunner",
+    "entity.windknife",
+    "entity.slipstream",
+    "entity.vector_scout",
+    "entity.gale_marksman",
+    "entity.relay_rider",
+    "entity.crosswind_ace",
+    "tactic.reposition",
+    "tactic.slip_the_net",
+    "reaction.moving_guard",
+    "attachment.vector_rig",
+    "relic.field_compass",
+    "site.overlook",
+  ]),
+  "leader.verdant": buildStarterDeck([
+    "entity.broodcaller",
+    "entity.mossback",
+    "entity.seedwarden",
+    "entity.thornroot",
+    "entity.sprout_tender",
+    "entity.grove_healer",
+    "entity.pollen_guard",
+    "entity.nest_shepherd",
+    "tactic.mend",
+    "tactic.abundant_return",
+    "reaction.second_wind",
+    "reaction.sheltering_bloom",
+    "relic.seed_vault",
+    "site.crossroads",
+  ]),
+  "leader.cipher": buildStarterDeck([
+    "entity.codebreaker",
+    "entity.veil_analyst",
+    "entity.quiet_saboteur",
+    "entity.whisper_agent",
+    "entity.glasswire_sniper",
+    "entity.signal_thief",
+    "entity.null_magistrate",
+    "entity.reserve_handler",
+    "tactic.displace",
+    "tactic.read_the_field",
+    "reaction.denial",
+    "reaction.sealed_verdict",
+    "attachment.whisper_key",
+    "relic.memory_lattice",
+  ]),
+  "leader.hollow": buildStarterDeck([
+    "entity.lastlight",
+    "entity.ashcollector",
+    "entity.gravetender",
+    "entity.carrion_broker",
+    "entity.dusk_scavenger",
+    "entity.rot_marshal",
+    "entity.memory_eater",
+    "entity.endless_husk",
+    "tactic.recover",
+    "tactic.wither",
+    "reaction.deny_the_end",
+    "relic.ossuary_engine",
+    "entity.common_guard",
+    "site.convergence",
+  ]),
   "leader.vanguard": buildStarterDeck([
     "entity.linebreaker",
     "entity.ironhide",
@@ -1210,6 +1348,38 @@ export const prototypeDecks: Readonly<
     "tactic.quickstep",
     "relic.beacon",
     "site.convergence",
+  ]),
+  "leader.sanctuary": buildStarterDeck([
+    "entity.ironhide",
+    "entity.gatehouse",
+    "entity.oathshield",
+    "entity.wallwright",
+    "entity.broodcaller",
+    "entity.mossback",
+    "entity.grove_healer",
+    "entity.pollen_guard",
+    "tactic.hold_the_center",
+    "reaction.brace_for_impact",
+    "tactic.mend",
+    "reaction.sheltering_bloom",
+    "relic.seed_vault",
+    "site.crossroads",
+  ]),
+  "leader.null": buildStarterDeck([
+    "entity.codebreaker",
+    "entity.veil_analyst",
+    "entity.glasswire_sniper",
+    "entity.reserve_handler",
+    "entity.lastlight",
+    "entity.ashcollector",
+    "entity.rot_marshal",
+    "entity.grave_choir",
+    "tactic.displace",
+    "reaction.sealed_verdict",
+    "tactic.wither",
+    "reaction.deny_the_end",
+    "relic.memory_lattice",
+    "relic.ossuary_engine",
   ]),
 };
 

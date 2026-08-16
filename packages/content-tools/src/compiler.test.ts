@@ -17,7 +17,7 @@ void describe("content factory", () => {
     const pack = compileContentPack(coreSetSource);
     const fantasy = compilePresentation(pack, defaultTheme);
     const scienceFiction = compilePresentation(pack, orbitalTheme);
-    assert.equal(pack.cards.length, 61);
+    assert.equal(pack.cards.length, 121);
     assert.equal(fantasy.gameplayHash, scienceFiction.gameplayHash);
     assert.notEqual(fantasy.presentationHash, scienceFiction.presentationHash);
     const salvage = scienceFiction.cards.find(

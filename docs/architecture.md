@@ -264,3 +264,13 @@ online room, Field Guide, generated text, DOM tokens, and Pixi cue palette.
 workflow, compiler feedback, theme-aware SVG card preview, checks, and revision
 diff. Browser smoke changes the entire live vocabulary from Aetherfront to
 Orbital Conflict without importing a Theme Pack into the rules kernel.
+
+## Competitive content boundary
+
+The competitive-beta pack contains 120 deck-facing cards: twelve Leaders,
+sixty-one Entities, twenty-one Tactics, eleven Reactions, six Attachments, six
+Relics, and three Sites. Its generated Token remains outside deck legality. Six
+mono-Aspect Leaders and six dual-Aspect Leaders map to the twelve launch
+archetypes; each ships with a legal forty-card starter deck. The same immutable
+definitions feed deck validation, simulation, browser play, match rooms, Card
+Studio compilation, and both Theme Packs.

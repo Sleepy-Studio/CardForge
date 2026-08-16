@@ -161,7 +161,7 @@ The content-factory foundation is now executable:
 
 - Zod runtime schemas validate cards, recursive typed effects, abilities, content manifests, and themes;
 - every prototype definition carries a Set ID and immutable publication metadata;
-- the core pack compiles sixty collectible/Leader cards plus its generated Token;
+- the core pack compiles 120 collectible/Leader cards plus its generated Token;
 - compilation rejects duplicate IDs, undeclared Sets, illegal effect graphs, missing generated Tokens, missing dependencies, and dependency cycles;
 - spreadsheet CSV rows import through the same authoritative card schema;
 - generated rules text and accessible SVG card previews consume theme terminology and palette tokens;
@@ -178,3 +178,16 @@ The browser now completes the rebrand proof:
 
 Milestone 5 is next: six mono-Aspect Leaders, a 120-card competitive pool,
 ranked seasons, analytics, balance telemetry, patches, and starter progression.
+
+## Milestone 5 progress
+
+The competitive content target is now executable:
+
+- the production-facing pool contains exactly 120 cards plus its generated Token;
+- twelve Leaders cover all six mono-Aspect archetypes and the six planned dual-Aspect archetypes;
+- every Leader has a legal forty-card starter deck pinned to its Aspect identity;
+- all twelve starter matchups complete through the deterministic simulator and replay through the production engine;
+- the browser exposes all twelve Leaders and Card Studio compiles 121 definitions under both complete Theme Packs.
+
+Ranked seasons, match analytics, the balance dashboard, versioned patches, and
+starter progression are the next competitive-beta slice.

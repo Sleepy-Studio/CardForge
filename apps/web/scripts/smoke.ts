@@ -149,12 +149,12 @@ const initialLeaders = await evaluate<LeaderSetup>(`({
   p2Leader: document.querySelector('select[data-player="p2"]')?.value ?? ''
 })`);
 if (
-  !initialLeaders.poolLabel.includes("60 CARD POOL") ||
+  !initialLeaders.poolLabel.includes("120 CARD POOL") ||
   !initialLeaders.poolLabel.includes("LAB BUILD 08") ||
   !initialLeaders.fxLabel.includes("FX REDUCED") ||
   initialLeaders.selectors !== 2 ||
-  initialLeaders.p1Options !== 4 ||
-  initialLeaders.p2Options !== 4
+  initialLeaders.p1Options !== 12 ||
+  initialLeaders.p2Options !== 12
 )
   throw new Error(
     `Leader setup smoke failed: ${JSON.stringify(initialLeaders)}`,
