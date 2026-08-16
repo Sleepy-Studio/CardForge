@@ -15,8 +15,10 @@ import {
   seasonOne,
 } from "@cardforge/competitive";
 import { TempoFrontRankedRoom, TempoFrontRoom } from "./room.js";
+import { TempoFrontTrainingRoom } from "./training-room.js";
 import { cardForgeStore } from "./store.js";
 import { cosmeticCatalog } from "@cardforge/economy";
+import { trainingScenarios } from "@cardforge/training";
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_-]{3,80}$/);
 const accountBody = z
@@ -201,6 +203,25 @@ export const server = new Server({
     app.get("/api/cosmetics", (_request: Request, response: Response) => {
       response.json({ cosmetics: cosmeticCatalog });
     });
+    app.get("/api/training", (_request: Request, response: Response) => {
+      response.json({ scenarios: trainingScenarios });
+    });
+    app.get(
+      "/api/accounts/:accountId/training-completions",
+      async (request: Request, response: Response) => {
+        if (!ownsAccount(request, response)) return;
+        const accountId = identifier.safeParse(request.params.accountId);
+        if (!accountId.success) {
+          response.status(400).json({ error: "INVALID_ACCOUNT" });
+          return;
+        }
+        response.json({
+          scenarioIds: await cardForgeStore.listTrainingCompletions(
+            accountId.data,
+          ),
+        });
+      },
+    );
     app.post(
       "/api/accounts/:accountId/economy/cosmetics",
       async (request: Request, response: Response) => {
@@ -335,3 +356,4 @@ export const server = new Server({
 
 server.define("tempofront", TempoFrontRoom);
 server.define("tempofront-ranked", TempoFrontRankedRoom);
+server.define("tempofront-training", TempoFrontTrainingRoom);

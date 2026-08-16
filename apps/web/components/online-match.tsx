@@ -32,13 +32,24 @@ interface OnlineSnapshot {
   };
   readonly receivedAtMs: number;
   readonly competitive: {
-    readonly queue: "casual" | "ranked";
+    readonly queue: "casual" | "ranked" | "pve";
     readonly season?: { readonly name: string };
     readonly settlement?: {
       readonly ratingDelta: Readonly<Record<PlayerId, number>>;
       readonly xpGained: Readonly<Record<PlayerId, number>>;
     } | null;
   };
+  readonly scenario?: {
+    readonly scenarioId: string;
+    readonly title: string;
+    readonly summary: string;
+    readonly steps: readonly {
+      readonly title: string;
+      readonly instruction: string;
+    }[];
+  };
+  readonly completion?: { readonly firstCompletion: boolean } | null;
+  readonly finished?: boolean;
 }
 
 interface SavedDeck {
@@ -107,6 +118,9 @@ export function OnlineMatch() {
   const [selectedDeckId, setSelectedDeckId] = useState<string>("");
   const [queue, setQueue] = useState<"casual" | "ranked">("casual");
   const [storageReady, setStorageReady] = useState(false);
+  const [trainingScenarioId, setTrainingScenarioId] = useState<string | null>(
+    null,
+  );
   const roomRef = useRef<Room | null>(null);
   const endpoint =
     process.env.NEXT_PUBLIC_MATCH_SERVER_URL ?? "http://localhost:2567";
@@ -118,6 +132,9 @@ export function OnlineMatch() {
   }, [snapshot]);
 
   useEffect(() => {
+    setTrainingScenarioId(
+      new URLSearchParams(window.location.search).get("training"),
+    );
     let active = true;
     const provision = async () => {
       const storedAccount = window.localStorage.getItem(
@@ -181,26 +198,31 @@ export function OnlineMatch() {
   }, [endpoint]);
 
   const connect = async () => {
-    if (!accountId || !selectedDeckId) return;
+    if (!accountId || (!trainingScenarioId && !selectedDeckId)) return;
     setConnection("matching");
     setError(null);
     try {
       const client = new Client(endpoint);
-      const requestedRoom = new URLSearchParams(window.location.search).get(
-        "room",
-      );
-      const room = requestedRoom
-        ? await client.joinById(requestedRoom, {
+      const parameters = new URLSearchParams(window.location.search);
+      const requestedRoom = parameters.get("room");
+      const requestedTraining = parameters.get("training");
+      const room = requestedTraining
+        ? await client.joinOrCreate("tempofront-training", {
             accountId,
-            deckId: selectedDeckId,
+            scenarioId: requestedTraining,
           })
-        : await client.joinOrCreate(
-            queue === "ranked" ? "tempofront-ranked" : "tempofront",
-            {
+        : requestedRoom
+          ? await client.joinById(requestedRoom, {
               accountId,
               deckId: selectedDeckId,
-            },
-          );
+            })
+          : await client.joinOrCreate(
+              queue === "ranked" ? "tempofront-ranked" : "tempofront",
+              {
+                accountId,
+                deckId: selectedDeckId,
+              },
+            );
       roomRef.current = room;
       setRoomId(room.roomId);
       room.onMessage("snapshot", (message) => {
@@ -258,7 +280,9 @@ export function OnlineMatch() {
     return (
       <main className="online-shell online-shell--lobby">
         <section className="online-lobby">
-          <p className="eyebrow">CARDFORGE // ONLINE ALPHA</p>
+          <p className="eyebrow">
+            CARDFORGE // {trainingScenarioId ? "ACADEMY" : "ONLINE ALPHA"}
+          </p>
           <h1>
             Authoritative{" "}
             {theme.themeId === "aetherfront"
@@ -266,49 +290,58 @@ export function OnlineMatch() {
               : "Orbital Conflict"}
           </h1>
           <p>
-            Matchmaking assigns a seat. The server owns the seed, full state,
-            legal actions, hidden information, and replay log.
+            {trainingScenarioId
+              ? "A server-run Field Automaton is waiting. The scenario setup and every command remain pinned into the replay."
+              : "Matchmaking assigns a seat. The server owns the seed, full state, legal actions, hidden information, and replay log."}
           </p>
           <div className="online-lobby__actions">
-            <label className="online-deck-select">
-              <span>Queue</span>
-              <select
-                disabled={connection === "matching"}
-                onChange={(event) =>
-                  setQueue(event.target.value as "casual" | "ranked")
-                }
-                value={queue}
-              >
-                <option value="casual">Casual Constructed</option>
-                <option value="ranked">Ranked // The First Frontier</option>
-              </select>
-            </label>
-            <label className="online-deck-select">
-              <span>Saved deck</span>
-              <select
-                disabled={!storageReady || connection === "matching"}
-                onChange={(event) => setSelectedDeckId(event.target.value)}
-                value={selectedDeckId}
-              >
-                {decks.map((deck) => (
-                  <option key={deck.deckId} value={deck.deckId}>
-                    {deck.name} // {deck.leaderId.replace("leader.", "")}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!trainingScenarioId ? (
+              <label className="online-deck-select">
+                <span>Queue</span>
+                <select
+                  disabled={connection === "matching"}
+                  onChange={(event) =>
+                    setQueue(event.target.value as "casual" | "ranked")
+                  }
+                  value={queue}
+                >
+                  <option value="casual">Casual Constructed</option>
+                  <option value="ranked">Ranked // The First Frontier</option>
+                </select>
+              </label>
+            ) : null}
+            {!trainingScenarioId ? (
+              <label className="online-deck-select">
+                <span>Saved deck</span>
+                <select
+                  disabled={!storageReady || connection === "matching"}
+                  onChange={(event) => setSelectedDeckId(event.target.value)}
+                  value={selectedDeckId}
+                >
+                  {decks.map((deck) => (
+                    <option key={deck.deckId} value={deck.deckId}>
+                      {deck.name} // {deck.leaderId.replace("leader.", "")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <button
               className="button button--primary online-connect"
               disabled={
                 connection === "matching" ||
                 !storageReady ||
                 !accountId ||
-                !selectedDeckId
+                (!trainingScenarioId && !selectedDeckId)
               }
               onClick={() => void connect()}
               type="button"
             >
-              {connection === "matching" ? "Finding room…" : "Join matchmaking"}
+              {connection === "matching"
+                ? "Preparing scenario…"
+                : trainingScenarioId
+                  ? "Begin scenario"
+                  : "Join matchmaking"}
             </button>
             <a className="button button--quiet" href="/">
               Local lab
@@ -318,6 +351,9 @@ export function OnlineMatch() {
             </a>
             <a className="button button--quiet" href="/competitive">
               Competitive
+            </a>
+            <a className="button button--quiet" href="/academy">
+              Academy
             </a>
           </div>
           {error ? <p className="online-error">{error}</p> : null}
@@ -344,9 +380,10 @@ export function OnlineMatch() {
             {snapshot.competitive.queue.toUpperCase()} // ROOM {roomId}
           </p>
           <h1>
-            {theme.themeId === "aetherfront"
-              ? "Aetherfront"
-              : "Orbital Conflict"}
+            {snapshot.scenario?.title ??
+              (theme.themeId === "aetherfront"
+                ? "Aetherfront"
+                : "Orbital Conflict")}
           </h1>
         </div>
         <div className="online-connection">
@@ -380,6 +417,27 @@ export function OnlineMatch() {
           {clockLabel(snapshot, seat, clientNowMs)}
         </span>
       </section>
+
+      {snapshot.scenario ? (
+        <section className="scenario-brief">
+          <div>
+            <span>SCENARIO DIRECTIVE</span>
+            <strong>{snapshot.scenario.summary}</strong>
+          </div>
+          {snapshot.scenario.steps.map((step) => (
+            <p key={step.title}>
+              <b>{step.title}</b> — {step.instruction}
+            </p>
+          ))}
+          {snapshot.finished ? (
+            <strong className="scenario-complete">
+              {snapshot.completion?.firstCompletion
+                ? "COMPLETE // REWARD COMMITTED"
+                : "SCENARIO ENDED"}
+            </strong>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="online-grid">
         <section className="arena-panel">

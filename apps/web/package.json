@@ -11,6 +11,7 @@
     "smoke:studio": "node scripts/studio-smoke.ts",
     "smoke:competitive": "node scripts/competitive-smoke.ts",
     "smoke:collection": "node scripts/collection-smoke.ts",
+    "smoke:academy": "node scripts/academy-smoke.ts",
     "start": "next start"
   },
   "dependencies": {

@@ -2019,6 +2019,203 @@ button:focus-visible {
   }
 }
 
+/* Academy and deterministic PvE */
+.academy-shell {
+  min-height: 100vh;
+  padding: 28px;
+  background:
+    radial-gradient(
+      circle at 78% 8%,
+      rgba(109, 255, 186, 0.11),
+      transparent 28rem
+    ),
+    radial-gradient(
+      circle at 12% 24%,
+      rgba(69, 217, 255, 0.11),
+      transparent 30rem
+    );
+}
+
+.academy-header,
+.academy-header nav,
+.academy-account,
+.academy-card__meta,
+.academy-grid article footer {
+  display: flex;
+  align-items: center;
+}
+
+.academy-header {
+  max-width: 1420px;
+  margin: 0 auto 16px;
+  justify-content: space-between;
+  gap: 22px;
+}
+
+.academy-header h1 {
+  margin: 2px 0;
+  font-size: clamp(34px, 5vw, 68px);
+  letter-spacing: -0.06em;
+}
+
+.academy-header p,
+.academy-account p {
+  color: var(--muted);
+}
+
+.academy-header nav {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.academy-account {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) 1.3fr;
+  gap: 20px;
+  max-width: 1420px;
+  margin: 0 auto 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--panel);
+}
+
+.academy-account span,
+.academy-card__meta,
+.academy-grid footer > span,
+.scenario-brief span {
+  color: var(--muted);
+  font:
+    800 9px/1.2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.1em;
+}
+
+.academy-account input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  border: 1px solid var(--line-hot);
+  border-radius: 7px;
+  padding: 9px 11px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.academy-track {
+  max-width: 1420px;
+  margin: 18px auto;
+}
+
+.academy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.academy-grid article {
+  min-height: 340px;
+  border: 1px solid var(--line);
+  border-radius: 9px 20px 9px 20px;
+  padding: 16px;
+  background: linear-gradient(
+    145deg,
+    rgba(10, 29, 46, 0.96),
+    rgba(4, 12, 21, 0.96)
+  );
+}
+
+.academy-grid article.is-complete {
+  border-color: rgba(109, 255, 186, 0.5);
+  box-shadow: inset 0 0 34px rgba(109, 255, 186, 0.05);
+}
+
+.academy-card__meta,
+.academy-grid article footer {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.academy-grid h2 {
+  margin: 28px 0 6px;
+  font-size: 25px;
+  letter-spacing: -0.035em;
+}
+
+.academy-grid article > p,
+.academy-grid li span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.academy-grid ol {
+  min-height: 115px;
+  margin: 18px 0;
+  padding-left: 20px;
+}
+
+.academy-grid li {
+  margin: 9px 0;
+  padding-left: 4px;
+}
+
+.academy-grid li strong,
+.academy-grid li span {
+  display: block;
+}
+
+.scenario-brief {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(
+      auto-fit,
+      minmax(180px, 1fr)
+    );
+  gap: 8px;
+  margin: 8px 0;
+  border: 1px solid var(--line-hot);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--panel);
+}
+
+.scenario-brief > div,
+.scenario-brief p,
+.scenario-complete {
+  margin: 0;
+  border-left: 2px solid var(--cyan);
+  padding: 7px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.scenario-brief > div strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.scenario-complete {
+  color: var(--mint);
+}
+
+@media (max-width: 700px) {
+  .academy-shell {
+    padding: 14px;
+  }
+  .academy-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .academy-account,
+  .scenario-brief {
+    grid-template-columns: 1fr;
+  }
+}
+
 .online-lobby__actions a,
 .online-link {
   text-decoration: none;
