@@ -5,6 +5,7 @@
     { "path": "packages/rules-kernel" },
     { "path": "packages/rules-tempofront" },
     { "path": "packages/competitive" },
+    { "path": "packages/economy" },
     { "path": "packages/persistence" },
     { "path": "packages/theme-default" },
     { "path": "packages/theme-test-scifi" },

@@ -22,7 +22,7 @@
     "smoke:online": "pnpm --filter @cardforge/web smoke:online",
     "smoke:studio": "pnpm --filter @cardforge/web smoke:studio",
     "smoke:competitive": "pnpm --filter @cardforge/web smoke:competitive",
-    "test": "pnpm build && node --test apps/simulator/dist/*.test.js apps/match-server/dist/*.test.js packages/persistence/dist/*.test.js packages/content-tools/dist/*.test.js packages/competitive/dist/*.test.js",
+    "test": "pnpm build && node --test apps/simulator/dist/*.test.js apps/match-server/dist/*.test.js packages/persistence/dist/*.test.js packages/content-tools/dist/*.test.js packages/competitive/dist/*.test.js packages/economy/dist/*.test.js",
     "smoke:persistence": "pnpm --filter @cardforge/persistence smoke"
   },
   "devDependencies": {
