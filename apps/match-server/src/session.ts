@@ -4,6 +4,7 @@ import {
   type Command,
   type GameEvent,
   type GameState,
+  type MatchSetup,
   type ProjectedGameView,
   type ReplayRecord,
 } from "@cardforge/rules-kernel";
@@ -49,6 +50,7 @@ export interface MatchSessionOptions {
   readonly seed: number;
   readonly leaders?: Readonly<Record<PlayerId, PrototypeLeaderId>>;
   readonly decks?: Readonly<Record<PlayerId, readonly string[]>>;
+  readonly setup?: MatchSetup;
 }
 
 function projectEvents(
@@ -69,6 +71,7 @@ export class AuthoritativeMatchSession {
   readonly leaders: Readonly<Record<PlayerId, PrototypeLeaderId>>;
   readonly decks: Readonly<Record<PlayerId, readonly string[]>>;
   readonly acceptedCommands: Command[] = [];
+  readonly setup: MatchSetup | undefined;
   #state: GameState;
   readonly #seats = new Map<string, PlayerId>();
 
@@ -80,11 +83,13 @@ export class AuthoritativeMatchSession {
       p1: prototypeDecks[this.leaders.p1],
       p2: prototypeDecks[this.leaders.p2],
     };
+    this.setup = options.setup;
     this.#state = this.engine.createGame({
       matchId: this.matchId,
       seed: this.seed,
       decks: this.decks,
       leaders: this.leaders,
+      ...(this.setup === undefined ? {} : { setup: this.setup }),
     });
   }
 
@@ -100,6 +105,7 @@ export class AuthoritativeMatchSession {
       seed: replay.seed,
       leaders: leaders as Readonly<Record<PlayerId, PrototypeLeaderId>>,
       decks: replay.decks,
+      ...(replay.setup === undefined ? {} : { setup: replay.setup }),
     });
     if (
       replay.rulesetRevision !== session.#state.rulesetRevision ||
@@ -229,6 +235,7 @@ export class AuthoritativeMatchSession {
       contentHash: this.#state.contentHash,
       decks: this.decks,
       leaders: this.leaders,
+      ...(this.setup === undefined ? {} : { setup: this.setup }),
       acceptedCommands: [...this.acceptedCommands],
       finalStateHash: stateHash(this.#state),
     };

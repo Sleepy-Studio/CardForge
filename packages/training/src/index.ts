@@ -1,5 +1,4 @@
-import type { PlayerId } from "@cardforge/card-schema";
-import type { GameState } from "@cardforge/rules-kernel";
+import type { GameState, MatchSetup } from "@cardforge/rules-kernel";
 import {
   prototypeDecks,
   proofCardMap,
@@ -271,26 +270,36 @@ export function createTrainingGame(
       p1: scenario.playerLeaderId,
       p2: scenario.opponentLeaderId,
     },
+    setup: trainingMatchSetup(scenario),
   });
-  applyPlayerModifiers(state, "p1", scenario, "player");
-  applyPlayerModifiers(state, "p2", scenario, "opponent");
   return state;
 }
 
-function applyPlayerModifiers(
-  state: GameState,
-  playerId: PlayerId,
-  scenario: TrainingScenario,
-  side: "player" | "opponent",
-): void {
-  const player = state.players[playerId];
-  const integrity = scenario.modifiers[`${side}Integrity`];
-  const dominion = scenario.modifiers[`${side}Dominion`];
-  const focus = scenario.modifiers[`${side}Focus`];
-  if (integrity !== undefined) player.integrity = integrity;
-  if (dominion !== undefined) player.dominion = dominion;
-  if (focus !== undefined) {
-    player.maxFocus = Math.max(player.maxFocus, focus);
-    player.focus = focus;
-  }
+export function trainingMatchSetup(scenario: TrainingScenario): MatchSetup {
+  return {
+    players: {
+      p1: {
+        ...(scenario.modifiers.playerIntegrity === undefined
+          ? {}
+          : { integrity: scenario.modifiers.playerIntegrity }),
+        ...(scenario.modifiers.playerDominion === undefined
+          ? {}
+          : { dominion: scenario.modifiers.playerDominion }),
+        ...(scenario.modifiers.playerFocus === undefined
+          ? {}
+          : { focus: scenario.modifiers.playerFocus }),
+      },
+      p2: {
+        ...(scenario.modifiers.opponentIntegrity === undefined
+          ? {}
+          : { integrity: scenario.modifiers.opponentIntegrity }),
+        ...(scenario.modifiers.opponentDominion === undefined
+          ? {}
+          : { dominion: scenario.modifiers.opponentDominion }),
+        ...(scenario.modifiers.opponentFocus === undefined
+          ? {}
+          : { focus: scenario.modifiers.opponentFocus }),
+      },
+    },
+  };
 }

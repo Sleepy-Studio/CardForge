@@ -14,6 +14,7 @@ import type {
   CommandResult,
   GameEvent,
   GameState,
+  MatchSetup,
   PendingAction,
   PendingReaction,
   ProjectedGameView,
@@ -1459,6 +1460,7 @@ export class TempoFrontEngine implements RulesEngine {
     seed: number;
     decks: Readonly<Record<PlayerId, readonly string[]>>;
     leaders?: Readonly<Record<PlayerId, string>>;
+    setup?: MatchSetup;
   }): GameState {
     assertInteger(input.seed, "Seed");
     const leaderIds = input.leaders ?? {
@@ -1551,6 +1553,35 @@ export class TempoFrontEngine implements RulesEngine {
         drawCard(state, playerId, []);
     }
     state.initiative = state.rng.seed % 2 === 0 ? "p1" : "p2";
+    for (const playerId of playerIds) {
+      const setup = input.setup?.players?.[playerId];
+      if (!setup) continue;
+      if (setup.integrity !== undefined) {
+        assertInteger(setup.integrity, "Setup Integrity");
+        if (setup.integrity < 1 || setup.integrity > 99)
+          throw new Error("Setup Integrity must be between 1 and 99");
+        state.players[playerId].integrity = setup.integrity;
+      }
+      if (setup.dominion !== undefined) {
+        assertInteger(setup.dominion, "Setup Dominion");
+        if (
+          setup.dominion < 0 ||
+          setup.dominion >= tempoFrontRules.dominionToWin
+        )
+          throw new Error("Setup Dominion must be below the victory threshold");
+        state.players[playerId].dominion = setup.dominion;
+      }
+      if (setup.focus !== undefined) {
+        assertInteger(setup.focus, "Setup Focus");
+        if (setup.focus < 0 || setup.focus > tempoFrontRules.maximumFocus)
+          throw new Error("Setup Focus is outside the ruleset range");
+        state.players[playerId].maxFocus = Math.max(
+          state.players[playerId].maxFocus,
+          setup.focus,
+        );
+        state.players[playerId].focus = setup.focus;
+      }
+    }
     return state;
   }
 
@@ -2122,6 +2153,7 @@ export function replayGame(
     seed: replay.seed,
     decks: replay.decks,
     ...(replay.leaders === undefined ? {} : { leaders: replay.leaders }),
+    ...(replay.setup === undefined ? {} : { setup: replay.setup }),
   });
   if (
     replay.rulesetRevision !== state.rulesetRevision ||

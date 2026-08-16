@@ -325,8 +325,24 @@ export interface ReplayRecord {
   readonly contentHash: string;
   readonly decks: Readonly<Record<PlayerId, readonly string[]>>;
   readonly leaders?: Readonly<Record<PlayerId, string>>;
+  readonly setup?: MatchSetup;
   readonly acceptedCommands: readonly Command[];
   readonly finalStateHash: string;
+}
+
+export interface MatchSetup {
+  readonly players?: Readonly<
+    Partial<
+      Record<
+        PlayerId,
+        {
+          readonly integrity?: number;
+          readonly dominion?: number;
+          readonly focus?: number;
+        }
+      >
+    >
+  >;
 }
 
 export interface ProjectedPlayerView {
@@ -376,6 +392,7 @@ export interface RulesEngine {
     seed: number;
     decks: Readonly<Record<PlayerId, readonly string[]>>;
     leaders?: Readonly<Record<PlayerId, string>>;
+    setup?: MatchSetup;
   }): GameState;
   getLegalCommands(state: GameState, playerId: PlayerId): readonly Command[];
   applyCommand(state: GameState, command: Command): CommandResult;

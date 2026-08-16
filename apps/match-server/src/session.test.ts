@@ -7,6 +7,25 @@ function createSession(): AuthoritativeMatchSession {
 }
 
 void describe("authoritative match session", () => {
+  void it("pins scenario setup modifiers into deterministic replays", () => {
+    const session = new AuthoritativeMatchSession({
+      matchId: "scenario-session",
+      seed: 42,
+      setup: {
+        players: {
+          p1: { integrity: 9, dominion: 3, focus: 7 },
+          p2: { integrity: 26, dominion: 4, focus: 6 },
+        },
+      },
+    });
+    assert.equal(session.state.players.p1.integrity, 9);
+    assert.equal(session.state.players.p2.dominion, 4);
+    assert.equal(session.verifyReplay(), true);
+    assert.deepEqual(
+      AuthoritativeMatchSession.restore(session.replay()).state,
+      session.state,
+    );
+  });
   void it("assigns two stable seats and rejects a third connection", () => {
     const session = createSession();
     assert.equal(session.join("alpha"), "p1");
