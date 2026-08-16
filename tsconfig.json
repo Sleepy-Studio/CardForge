@@ -6,6 +6,7 @@
     { "path": "packages/rules-tempofront" },
     { "path": "packages/competitive" },
     { "path": "packages/economy" },
+    { "path": "packages/training" },
     { "path": "packages/persistence" },
     { "path": "packages/theme-default" },
     { "path": "packages/theme-test-scifi" },

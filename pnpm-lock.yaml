@@ -233,6 +233,18 @@ importers:
         specifier: workspace:*
         version: link:../card-schema
 
+  packages/training:
+    dependencies:
+      '@cardforge/card-schema':
+        specifier: workspace:*
+        version: link:../card-schema
+      '@cardforge/rules-kernel':
+        specifier: workspace:*
+        version: link:../rules-kernel
+      '@cardforge/rules-tempofront':
+        specifier: workspace:*
+        version: link:../rules-tempofront
+
 packages:
 
   '@better-auth/utils@0.3.1':
