@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Client, type Room } from "@colyseus/sdk";
 import type { PlayerId } from "@cardforge/card-schema";
 import type {
@@ -24,10 +24,32 @@ interface OnlineSnapshot {
   readonly view: ProjectedGameView;
   readonly events: readonly GameEvent[];
   readonly legalIntents: readonly ClientIntent[];
+  readonly clock: {
+    readonly serverNowMs: number;
+    readonly actionDurationMs: number;
+    readonly deadlines: Readonly<Record<PlayerId, number | null>>;
+  };
+  readonly receivedAtMs: number;
 }
 
 type ConnectionState =
   "offline" | "matching" | "connected" | "reconnecting" | "closed";
+
+function clockLabel(
+  snapshot: OnlineSnapshot,
+  playerId: PlayerId,
+  clientNowMs: number,
+): string {
+  const deadline = snapshot.clock.deadlines[playerId];
+  if (deadline === null) return "--";
+  const remaining = Math.max(
+    0,
+    deadline -
+      snapshot.clock.serverNowMs -
+      (clientNowMs - snapshot.receivedAtMs),
+  );
+  return `${Math.ceil(remaining / 1_000)}s`;
+}
 
 function intentLabel(intent: ClientIntent): string {
   switch (intent.type) {
@@ -60,9 +82,16 @@ export function OnlineMatch() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [clientNowMs, setClientNowMs] = useState(() => Date.now());
   const roomRef = useRef<Room | null>(null);
   const endpoint =
     process.env.NEXT_PUBLIC_MATCH_SERVER_URL ?? "http://localhost:2567";
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const timer = window.setInterval(() => setClientNowMs(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [snapshot]);
 
   const connect = async () => {
     setConnection("matching");
@@ -78,7 +107,11 @@ export function OnlineMatch() {
       roomRef.current = room;
       setRoomId(room.roomId);
       room.onMessage("snapshot", (message) => {
-        setSnapshot(message as OnlineSnapshot);
+        setSnapshot({
+          ...(message as Omit<OnlineSnapshot, "receivedAtMs">),
+          receivedAtMs: Date.now(),
+        });
+        setClientNowMs(Date.now());
         setConnection("connected");
       });
       room.onMessage(
@@ -163,6 +196,7 @@ export function OnlineMatch() {
       data-connection={connection}
       data-room={roomId}
       data-seat={seat}
+      data-seat-clock={clockLabel(snapshot, seat, clientNowMs)}
     >
       <header className="online-header">
         <div>
@@ -188,12 +222,14 @@ export function OnlineMatch() {
       <section className="online-scorebar">
         <span>
           RIVAL {rival.integrity} INT // {rival.handCount} HAND //{" "}
-          {rival.dominion}/6 DOM
+          {rival.dominion}/6 DOM // CLOCK{" "}
+          {clockLabel(snapshot, opponent, clientNowMs)}
         </span>
         <code>{snapshot.hash.slice(0, 12)}</code>
         <span>
           YOU {player.integrity} INT // {player.focus}/{player.maxFocus} FOCUS
-          // {player.dominion}/6 DOM
+          // {player.dominion}/6 DOM // CLOCK{" "}
+          {clockLabel(snapshot, seat, clientNowMs)}
         </span>
       </section>
 

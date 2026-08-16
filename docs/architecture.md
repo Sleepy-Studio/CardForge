@@ -194,12 +194,11 @@ promotional greeting disabled; its optional native MessagePack accelerator is
 explicitly denied an install script, preserving the workspace supply-chain
 policy and JavaScript fallback.
 
-Four focused session tests cover seat ownership, forged identity, illegal
+Focused session tests cover seat ownership, forged identity, illegal
 no-mutation behavior, private projections, and exact replay. A real SDK smoke
 connects two clients to the live room, completes the ready handshake, proves a
 forged seat fails, submits a mulligan, and verifies matching hashes with separate
-private hands. Browser online-mode integration, action clocks, durable records,
-and matchmaking remain in subsequent Milestone 3 slices.
+private hands.
 
 The browser now consumes this boundary at `/online`. It joins or creates a room,
 performs the explicit ready handshake, and renders the existing Pixi board from
@@ -213,5 +212,12 @@ A two-browser Chromium smoke launches independent profiles, joins one room as
 opposite seats, verifies both projected private hands and the shared hash, then
 submits the server-projected empty mulligan. Both clients advance from command
 zero to one with a new identical hash. The server CORS policy permits only
-configured browser origins. Action clocks, durable match records, deck storage,
+configured browser origins. Durable match records, deck storage,
 and production authentication remain.
+
+Action deadlines live beside the match rather than inside `GameState`. The room
+publishes server timestamps and per-seat deadlines, while the browser derives a
+local countdown without trusting its own clock for enforcement. Expiry selects
+an already legal deterministic fallback command and records it in the ordinary
+command log. Wall time can therefore cause a command, but it cannot alter state
+math, hashes, RNG, or replay semantics.

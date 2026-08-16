@@ -63,4 +63,15 @@ void describe("authoritative match session", () => {
     assert.equal(session.acceptedCommands.length, 1);
     assert.equal(session.verifyReplay(), true);
   });
+
+  void it("turns a timeout into a deterministic legal fallback command", () => {
+    const session = createSession();
+    session.join("alpha");
+    session.join("bravo");
+    assert.deepEqual(session.activePlayers(), ["p1", "p2"]);
+    session.submitTimeout("p1");
+    assert.equal(session.acceptedCommands[0]?.type, "mulligan");
+    assert.deepEqual(session.activePlayers(), ["p2"]);
+    assert.equal(session.verifyReplay(), true);
+  });
 });

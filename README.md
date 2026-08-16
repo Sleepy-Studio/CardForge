@@ -127,11 +127,14 @@ followed by any clarity fixes that observation exposes.
 - each connection receives its own projected state with the opponent hand omitted;
 - private choice results are redacted from the opposing event stream;
 - Colyseus 0.17 rooms expose an explicit ready handshake, snapshot stream, command errors, and a thirty-second reconnect window;
-- real two-client network smoke verifies shared hashes and separate private hands.
+- real two-client network smoke verifies shared hashes and separate private hands;
 - `/online` joins live matchmaking, renders only the seat projection, displays server-approved intents, and reports connection/reconnect state;
-- a two-browser Chromium smoke proves opposite seats, private five-card hands, synchronized command numbers, and matching authoritative hashes.
+- a two-browser Chromium smoke proves opposite seats, private five-card hands, synchronized command numbers, and matching authoritative hashes;
+- server-owned thirty-second action clocks expose synchronized deadlines without entering deterministic game state;
+- timed-out seats submit a deterministic legal fallback—empty mulligan, passed Response, passed Cycle, or the first bounded choice—and that command remains replayable.
 
 Run `pnpm dev:server` for the room service on port 2567 and `pnpm smoke:server`
 to exercise it. With the web server running, `pnpm smoke:online` drives two
-independent browser clients. Action clocks, durable match records, and saved
-deck selection are the next Milestone 3 slice.
+independent browser clients. Configure the action deadline with
+`CARDFORGE_ACTION_CLOCK_MS`. Durable match records and saved deck selection are
+the next Milestone 3 slice.

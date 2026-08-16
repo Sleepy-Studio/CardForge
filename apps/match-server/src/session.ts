@@ -134,8 +134,18 @@ export class AuthoritativeMatchSession {
     };
   }
 
+  activePlayers(): readonly PlayerId[] {
+    return (["p1", "p2"] as const).filter(
+      (playerId) => this.engine.getLegalCommands(this.#state, playerId).length,
+    );
+  }
+
   submit(connectionId: string, payload: unknown): readonly GameEvent[] {
     const seat = this.seatFor(connectionId);
+    return this.submitForPlayer(seat, payload);
+  }
+
+  submitForPlayer(playerId: PlayerId, payload: unknown): readonly GameEvent[] {
     let intent;
     try {
       intent = clientIntentSchema.parse(payload);
@@ -147,7 +157,7 @@ export class AuthoritativeMatchSession {
         );
       throw error;
     }
-    const command = commandFromIntent(seat, intent);
+    const command = commandFromIntent(playerId, intent);
     try {
       const result = this.engine.applyCommand(this.#state, command);
       this.#state = result.state;
@@ -161,6 +171,20 @@ export class AuthoritativeMatchSession {
         );
       throw error;
     }
+  }
+
+  submitTimeout(playerId: PlayerId): readonly GameEvent[] {
+    const legal = this.engine.getLegalCommands(this.#state, playerId);
+    const fallback =
+      legal.find((command) => command.type === "mulligan") ??
+      legal.find((command) => command.type === "pass_response") ??
+      legal.find((command) => command.type === "pass") ??
+      legal[0];
+    if (!fallback) return [];
+    const result = this.engine.applyCommand(this.#state, fallback);
+    this.#state = result.state;
+    this.acceptedCommands.push(fallback);
+    return result.events;
   }
 
   replay(): ReplayRecord {
