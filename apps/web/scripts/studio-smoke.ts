@@ -1,63 +1,16 @@
-interface Target {
-  readonly type: string;
-  readonly url: string;
-  readonly webSocketDebuggerUrl: string;
-}
-interface Envelope<T = unknown> {
-  readonly id?: number;
-  readonly error?: { readonly message: string };
-  readonly result?: T;
-}
-interface Evaluation<T> {
-  readonly exceptionDetails?: { readonly text?: string };
-  readonly result: { readonly value: T };
-}
+import { Browser } from "./cdp.ts";
 
-const endpoint = process.env.CARDFORGE_STUDIO_CDP ?? "http://127.0.0.1:9224";
-const targets = (await (await fetch(`${endpoint}/json`)).json()) as Target[];
-const page = targets.find(
-  (target) => target.type === "page" && target.url.includes("/studio"),
+const web = (process.env.CARDFORGE_WEB_URL ?? "http://localhost:3000").replace(
+  /\/$/,
+  "",
 );
-if (!page) throw new Error("Card Studio page is not open");
-const socket = new WebSocket(page.webSocketDebuggerUrl);
-await new Promise<void>((resolve, reject) => {
-  socket.addEventListener("open", () => resolve(), { once: true });
-  socket.addEventListener("error", () => reject(new Error("CDP failed")), {
-    once: true,
-  });
-});
-let nextId = 1;
-const pending = new Map<
-  number,
-  { resolve: (value: unknown) => void; reject: (reason: Error) => void }
->();
-socket.addEventListener("message", (message) => {
-  const payload = JSON.parse(String(message.data)) as Envelope;
-  if (!payload.id) return;
-  const callback = pending.get(payload.id);
-  if (!callback) return;
-  pending.delete(payload.id);
-  if (payload.error) callback.reject(new Error(payload.error.message));
-  else callback.resolve(payload.result);
-});
-const send = <T>(method: string, params: object = {}): Promise<T> => {
-  const id = nextId++;
-  socket.send(JSON.stringify({ id, method, params }));
-  return new Promise<T>((resolve, reject) =>
-    pending.set(id, { resolve: (value) => resolve(value as T), reject }),
-  );
-};
+const browser = await Browser.launch();
+const studioPage = await browser.newPage(`${web}/studio`);
+const send = <T>(method: string, params: object = {}): Promise<T> =>
+  studioPage.send<T>(method, params);
+const evaluate = <T>(expression: string): Promise<T> =>
+  studioPage.evaluate<T>(expression);
 await send("Runtime.enable");
-const evaluate = async <T>(expression: string): Promise<T> => {
-  const response = await send<Evaluation<T>>("Runtime.evaluate", {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-  });
-  if (response.exceptionDetails)
-    throw new Error(response.exceptionDetails.text ?? "Evaluation failed");
-  return response.result.value;
-};
 await new Promise((resolve) => setTimeout(resolve, 400));
 const before = await evaluate<{
   cards: number;
@@ -122,6 +75,6 @@ if (
 )
   throw new Error(`Studio rebrand failed: ${JSON.stringify(after)}`);
 
-socket.close();
 console.log(JSON.stringify({ before, after }, null, 2));
-export {};
+
+await browser.close();

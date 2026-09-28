@@ -32,15 +32,25 @@ export function markReady(): void {
   delete readiness.reason;
 }
 
-// Colyseus answers matchmaking requests itself; mirror the API origin policy.
+// Colyseus writes CORS headers for every HTTP request (and answers every
+// preflight) before Express runs, so the origin policy lives here. Only
+// allow-listed origins get CORS headers; any other origin — including the
+// literal "null" sent by sandboxed frames — gets none, so a hostile page can
+// never read a credentialed response.
+(
+  matchMaker.controller as { DEFAULT_CORS_HEADERS: Record<string, string> }
+).DEFAULT_CORS_HEADERS = {};
 matchMaker.controller.getCorsHeaders = (headers) => {
   const origin = headers.get("origin");
-  const allowed = origin !== null && config.allowedOrigins.has(origin);
+  if (origin === null || !config.allowedOrigins.has(origin))
+    return { Vary: "Origin" };
   return {
-    "Access-Control-Allow-Origin": allowed ? origin : "null",
+    "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Headers":
-      "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+      "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Request-Id",
+    "Access-Control-Allow-Methods": "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+    "Access-Control-Max-Age": "600",
     Vary: "Origin",
   };
 };

@@ -89,7 +89,11 @@ export function registerAuthRoutes(
     secure: config.cookieSecure,
     domain: config.cookieDomain,
   };
-  const authLimiter = rateLimit(new RateLimiter(30, 10 * 60_000));
+  // Per-IP limits must tolerate a playtest venue where many players share
+  // one address; the per-email limit is what stops password guessing.
+  const authLimiter = rateLimit(
+    new RateLimiter(config.authRateLimit, 10 * 60_000),
+  );
   const emailLimiter = new RateLimiter(10, 10 * 60_000);
 
   const startSession = async (response: Response, accountId: string) => {
