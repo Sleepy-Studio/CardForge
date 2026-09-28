@@ -31,6 +31,8 @@ export interface ServerConfig {
   readonly actionClockMs: number;
   /** Auth requests per IP per 10 minutes. */
   readonly authRateLimit: number;
+  /** Room messages per connection per 5 seconds. */
+  readonly roomMessageLimit: number;
   readonly trustProxy: number;
 }
 
@@ -138,6 +140,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
         : null,
     actionClockMs: integer(env.CARDFORGE_ACTION_CLOCK_MS, 30_000),
     authRateLimit: integer(env.CARDFORGE_AUTH_RATE_LIMIT, 200),
+    roomMessageLimit: integer(env.CARDFORGE_ROOM_MESSAGE_LIMIT, 40),
     trustProxy:
       env.CARDFORGE_TRUST_PROXY === "0"
         ? 0

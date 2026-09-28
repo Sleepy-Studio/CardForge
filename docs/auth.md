@@ -96,6 +96,17 @@ curl -X POST https://api.example.com/api/admin/accounts/<accountId>/claim-code \
 The player registers with that `claimCode`; the credential attaches to the
 existing account instead of creating a new one. Codes are stored hashed.
 
+## Support-assisted password reset
+
+There is no email infrastructure in the alpha, so resets go through support.
+An operator looks the player up in _Operations → Account support_ (by email
+or account ID, `GET /api/admin/accounts?q=`) and issues the same one-time,
+seven-day code. On the sign-in page the player opens _Forgot your password?_,
+enters the code and a new password (`POST /api/auth/reset-password`). The
+password is replaced, every existing session for the account is revoked, and
+the player is signed in. Codes are single use and stored hashed; issuance is
+audited.
+
 ## Configuration
 
 See `.env.example`. Production refuses to start without

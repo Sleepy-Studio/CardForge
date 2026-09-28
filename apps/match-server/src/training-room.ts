@@ -16,7 +16,9 @@ import { deckLegalityErrors, isKnownLeader } from "./game-service.js";
 import { intentFromCommand } from "./intents.js";
 import { logger, type Logger } from "./logger.js";
 import { emptyActivity, participantStats } from "./match-stats.js";
+import { config } from "./config.js";
 import { metrics } from "./metrics.js";
+import { RateLimiter } from "./rate-limit.js";
 import {
   authenticateRoomJoin,
   identityOf,
@@ -95,6 +97,7 @@ export class TempoFrontTrainingRoom extends Room {
   #finished = false;
   #outcomeRecorded = false;
   #log: Logger = logger;
+  readonly #messageBudget = new RateLimiter(config.roomMessageLimit, 5_000);
 
   static override onAuth(token: string): Promise<RoomIdentity> {
     return authenticateRoomJoin(token);
@@ -106,6 +109,13 @@ export class TempoFrontTrainingRoom extends Room {
       client.send("snapshot", this.#snapshot());
     },
     command: async (client: Client, payload: unknown) => {
+      if (!this.#messageBudget.take(client.sessionId)) {
+        client.send("command_error", {
+          code: "RATE_LIMITED",
+          message: "Slow down — too many actions at once.",
+        });
+        return;
+      }
       try {
         if (this.#finished) {
           client.send("command_error", {

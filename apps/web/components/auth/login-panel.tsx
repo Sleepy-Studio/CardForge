@@ -178,7 +178,11 @@ export function LoginPanel() {
         {mode === "register" && providers?.signupMode === "invite" ? (
           <label>
             <span>Invite code</span>
-            <input autoComplete="off" {...field("signupCode")} />
+            <input
+              autoComplete="off"
+              name="signupCode"
+              {...field("signupCode")}
+            />
           </label>
         ) : null}
         {mode === "register" ? (
@@ -210,6 +214,7 @@ export function LoginPanel() {
               : "Create account"}
         </button>
       </form>
+      {mode === "signin" ? <ResetPassword onDone={setAccount} /> : null}
       {providers?.discord ? (
         <>
           <div className="divider">
@@ -221,5 +226,69 @@ export function LoginPanel() {
         </>
       ) : null}
     </section>
+  );
+}
+
+/** Support-assisted reset: an operator issues a one-time code. */
+function ResetPassword({
+  onDone,
+}: {
+  readonly onDone: (account: Account) => void;
+}) {
+  const api = useApi();
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api<{ account: Account }>(
+        "/api/auth/reset-password",
+        { body: { code, password } },
+      );
+      onDone(result.account);
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <details className="quiet-details reset-details">
+      <summary>Forgot your password?</summary>
+      <p className="muted small">
+        Report it from any signed-in device or ask the team in the alpha
+        channel; support will give you a one-time reset code.
+      </p>
+      <form className="form-stack" onSubmit={(event) => void submit(event)}>
+        <label>
+          <span>Reset code</span>
+          <input
+            autoComplete="one-time-code"
+            onChange={(event) => setCode(event.target.value)}
+            required
+            value={code}
+          />
+        </label>
+        <label>
+          <span>New password</span>
+          <input
+            autoComplete="new-password"
+            minLength={10}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            type="password"
+            value={password}
+          />
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+        <button className="button" disabled={busy} type="submit">
+          Set new password
+        </button>
+      </form>
+    </details>
   );
 }

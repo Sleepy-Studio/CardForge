@@ -68,6 +68,9 @@ await send("Runtime.enable");
 await send("Emulation.setEmulatedMedia", {
   features: [{ name: "prefers-reduced-motion", value: "reduce" }],
 });
+// The lab reads the motion preference when it mounts, so reload under it.
+await labPage.goto(`${web}/lab`);
+await labPage.waitForSelector('select[data-player="p1"]');
 await delay(300);
 const initialLeaders = await evaluate<LeaderSetup>(`({
   poolLabel: document.querySelector('.brand-lockup p')?.textContent ?? '',

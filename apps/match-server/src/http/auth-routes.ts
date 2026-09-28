@@ -236,6 +236,39 @@ export function registerAuthRoutes(
     },
   );
 
+  /** Operator-issued reset code (see docs/auth.md) → new password. */
+  app.post(
+    "/api/auth/reset-password",
+    authLimiter,
+    async (request: AuthenticatedRequest, response) => {
+      const body = parseBody(
+        z
+          .object({
+            code: z.string().trim().min(8).max(80),
+            password: z.string().min(10).max(200),
+          })
+          .strict(),
+        request,
+        response,
+        "INVALID_RESET",
+      );
+      if (!body) return;
+      const accountId = await store.resetPasswordWithClaim({
+        codeHash: digest(body.code),
+        passwordHash: await hashPassword(body.password),
+      });
+      if (!accountId) {
+        metrics.authEvents.inc({ kind: "reset", result: "rejected" });
+        response.status(400).json({ error: "CLAIM_INVALID" });
+        return;
+      }
+      metrics.authEvents.inc({ kind: "reset", result: "ok" });
+      await startSession(response, accountId);
+      const account = await store.getAccount(accountId);
+      response.json({ account: account ? accountView(account) : null });
+    },
+  );
+
   app.post(
     "/api/auth/logout",
     async (request: AuthenticatedRequest, response) => {

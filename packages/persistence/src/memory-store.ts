@@ -246,6 +246,27 @@ export class MemoryCardForgeStore implements CardForgeStore {
     return Promise.resolve();
   }
 
+  resetPasswordWithClaim(input: {
+    readonly codeHash: string;
+    readonly passwordHash: string;
+  }): Promise<string | null> {
+    const claim = this.#claims.get(input.codeHash);
+    if (!claim || claim.consumed || Date.parse(claim.expiresAt) <= Date.now())
+      return Promise.resolve(null);
+    const entry = [...this.#passwords.entries()].find(
+      ([, credential]) => credential.accountId === claim.accountId,
+    );
+    if (!entry) return Promise.resolve(null);
+    claim.consumed = true;
+    this.#passwords.set(entry[0], {
+      accountId: claim.accountId,
+      passwordHash: input.passwordHash,
+    });
+    for (const [hash, session] of this.#sessions)
+      if (session.accountId === claim.accountId) this.#sessions.delete(hash);
+    return Promise.resolve(claim.accountId);
+  }
+
   createAccountClaim(input: {
     readonly codeHash: string;
     readonly accountId: string;

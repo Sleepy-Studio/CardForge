@@ -81,23 +81,30 @@ recorded beside the replay, not new game commands.
 
 ## 3. Plan and status
 
-| #   | Slice                                                                                | Status  |
-| --- | ------------------------------------------------------------------------------------ | ------- |
-| 1   | Repository audit (this document)                                                     | Done    |
-| 2   | M7/Auth — sessions, password, Discord, WS tickets, admin roles, claims               | Planned |
-| 3   | M7/Deployment — Dockerfile, production compose, readiness, migrations, Coolify guide | Planned |
-| 4   | M7/Player Shell — home, navigation, dev tools separated                              | Planned |
-| 5   | M7/Deckbuilder                                                                       | Planned |
-| 6   | M7/Collection — crafting flow with confirm                                           | Planned |
-| 7   | Casual/ranked Play UX, rank tiers, concede, abandon                                  | Planned |
-| 8   | M7/Friend Matches — invite codes, `/join/CODE`                                       | Planned |
-| 9   | Match history                                                                        | Planned |
-| 10  | M7/Replays — verified server reconstruction, viewer                                  | Planned |
-| 11  | Onboarding + product analytics                                                       | Planned |
-| 12  | M7/Observability — structured logs, request IDs, metrics, readiness                  | Planned |
-| 13  | M7/CI — PR gate, main pipeline, nightly matrix                                       | Planned |
-| 14  | M7/Security — rate limits, cookie policy, CSRF, payload validation                   | Planned |
-| 15  | Closed-alpha hardening — end-to-end journey smoke                                    | Planned |
+| #   | Slice                                                                                | Status |
+| --- | ------------------------------------------------------------------------------------ | ------ |
+| 1   | Repository audit (this document)                                                     | Done   |
+| 2   | M7/Auth — sessions, password, Discord, WS tickets, admin roles, claims               | Done   |
+| 3   | M7/Deployment — Dockerfile, production compose, readiness, migrations, Coolify guide | Done   |
+| 4   | M7/Player Shell — home, navigation, dev tools separated                              | Done   |
+| 5   | M7/Deckbuilder                                                                       | Done   |
+| 6   | M7/Collection — crafting flow with confirm                                           | Done   |
+| 7   | Casual/ranked Play UX, rank tiers, concede, abandon                                  | Done   |
+| 8   | M7/Friend Matches — invite codes, `/join/CODE`                                       | Done   |
+| 9   | Match history                                                                        | Done   |
+| 10  | M7/Replays — verified server reconstruction, viewer                                  | Done   |
+| 11  | Onboarding + product analytics                                                       | Done   |
+| 12  | M7/Observability — structured logs, request IDs, metrics, readiness                  | Done   |
+| 13  | M7/CI — PR gate, main pipeline, nightly matrix                                       | Done   |
+| 14  | M7/Security — rate limits, cookie policy, CSRF, payload validation                   | Done   |
+| 15  | Closed-alpha hardening — end-to-end journey smoke                                    | Done   |
 
-The table is updated as slices land; see the README status section for the
-verification evidence.
+All slices landed. Verification: 106 unit/contract/property tests (the
+persistence contract also runs against Postgres), the journey, rooms,
+training, operations, and Discord server smokes, and the browser player, lab,
+and studio smokes, all run by `scripts/ci/run-smokes.sh` in CI. The security
+audit is recorded in [security-review.md](security-review.md).
+
+Deliberately not done in M7 (see the README): real-player observation of the
+first session, skill-banded balance evidence, multi-replica scaling, email
+verification and self-service password reset, production art, and rematch.

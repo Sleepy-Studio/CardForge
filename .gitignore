@@ -7,3 +7,4 @@ replays/*.json
 .env
 .env.production
 .env.staging
+smoke-logs/

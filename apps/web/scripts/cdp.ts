@@ -242,7 +242,11 @@ export class Page {
   }
 
   async click(selector: string): Promise<void> {
-    await this.waitForSelector(selector);
+    await this.waitFor(
+      `(() => { const el = document.querySelector(${JSON.stringify(selector)}); return el && !el.disabled; })()`,
+      20_000,
+      selector,
+    );
     await this.evaluate(
       `document.querySelector(${JSON.stringify(selector)}).click()`,
     );
@@ -250,7 +254,9 @@ export class Page {
 
   /** Clicks the first element matching selector whose text includes text. */
   async clickText(selector: string, text: string): Promise<void> {
-    const expression = `[...document.querySelectorAll(${JSON.stringify(selector)})].find((el) => el.textContent.includes(${JSON.stringify(text)}))`;
+    // Only enabled elements count, so a click never lands on a button that
+    // is still waiting for data.
+    const expression = `[...document.querySelectorAll(${JSON.stringify(selector)})].find((el) => !el.disabled && el.textContent.includes(${JSON.stringify(text)}))`;
     await this.waitFor(expression, 20_000, `${selector} containing "${text}"`);
     await this.evaluate(`${expression}.click()`);
   }

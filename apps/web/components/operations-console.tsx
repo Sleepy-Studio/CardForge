@@ -305,7 +305,94 @@ export function OperationsConsole() {
           </section>
         </div>
       ) : null}
+      {payload ? <AccountSupport /> : null}
       {payload ? <TelemetryDashboard /> : null}
     </main>
+  );
+}
+
+/** Look up an account and issue a one-time claim or password-reset code. */
+function AccountSupport() {
+  const api = useApi();
+  const [query, setQuery] = useState("");
+  const [account, setAccount] = useState<{
+    accountId: string;
+    displayName: string;
+    createdAt: string;
+  } | null>(null);
+  const [code, setCode] = useState<{
+    claimCode: string;
+    expiresAt: string;
+  } | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const lookup = async () => {
+    setCode(null);
+    setStatus(null);
+    try {
+      const result = await api<{
+        account: { accountId: string; displayName: string; createdAt: string };
+      }>(`/api/admin/accounts?q=${encodeURIComponent(query.trim())}`);
+      setAccount(result.account);
+    } catch (error) {
+      setAccount(null);
+      setStatus(messageFor(error));
+    }
+  };
+  const issue = async () => {
+    if (!account) return;
+    try {
+      setCode(
+        await api<{ claimCode: string; expiresAt: string }>(
+          `/api/admin/accounts/${encodeURIComponent(account.accountId)}/claim-code`,
+          { body: {} },
+        ),
+      );
+    } catch (error) {
+      setStatus(messageFor(error));
+    }
+  };
+  return (
+    <section className="operations-panel account-support">
+      <div className="panel-heading">
+        <span>ACCOUNT SUPPORT</span>
+        <small>audited</small>
+      </div>
+      <form
+        className="inline-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void lookup();
+        }}
+      >
+        <input
+          aria-label="Email or account ID"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Email or account ID"
+          value={query}
+        />
+        <button className="button button--quiet" type="submit">
+          Look up
+        </button>
+      </form>
+      {status ? <p className="form-error">{status}</p> : null}
+      {account ? (
+        <div className="account-support__result">
+          <p>
+            <strong>{account.displayName}</strong> · {account.accountId} · since{" "}
+            {new Date(account.createdAt).toLocaleDateString()}
+          </p>
+          <button className="button" onClick={() => void issue()} type="button">
+            Issue reset / claim code
+          </button>
+          {code ? (
+            <p className="success">
+              Give the player this one-time code (shown once, expires{" "}
+              {new Date(code.expiresAt).toLocaleDateString()}):{" "}
+              <code>{code.claimCode}</code>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   );
 }

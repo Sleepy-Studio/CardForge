@@ -116,6 +116,9 @@ const duplicate = await new SmokeAccount("Alice").api("/api/auth/register", {
     email: alice.email,
     password: "another-password-1",
     displayName: "Copycat",
+    ...(process.env.CARDFORGE_SMOKE_SIGNUP_CODE
+      ? { signupCode: process.env.CARDFORGE_SMOKE_SIGNUP_CODE }
+      : {}),
   },
 });
 assert(duplicate.status === 409, "duplicate email is rejected");

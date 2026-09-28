@@ -248,11 +248,21 @@ export async function playToCompletion(
       continue;
     }
     const before = actor.latest!.commandNumber;
+    const errorsBefore = actor.errors.length;
     actor.room.send("command", pickIntent(actor.latest!.legalIntents, step));
-    await actor.until(
-      (snapshot) =>
-        snapshot.commandNumber > before || snapshot.outcome !== null,
-    );
+    // A rejected command produces no snapshot: back off and try again.
+    const deadline = Date.now() + 15_000;
+    while (
+      actor.latest!.commandNumber <= before &&
+      actor.latest!.outcome === null &&
+      actor.errors.length === errorsBefore
+    ) {
+      if (Date.now() > deadline)
+        throw new Error(`No response to command after ${before}`);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    if (actor.errors.length > errorsBefore)
+      await new Promise((resolve) => setTimeout(resolve, 500));
     await options.onStep?.(step);
   }
   throw new Error("Match did not finish within the command budget");

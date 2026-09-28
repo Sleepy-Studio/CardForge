@@ -259,7 +259,42 @@ export function registerAdminRoutes(
     },
   );
 
-  /** Issues a one-time code letting a legacy alpha account set credentials. */
+  /** Support lookup: find an account by sign-in email or account ID. */
+  app.get(
+    "/api/admin/accounts",
+    async (request: AuthenticatedRequest, response) => {
+      if (!admin(request, response)) return;
+      const query =
+        typeof request.query.q === "string" ? request.query.q.trim() : "";
+      if (!query || query.length > 254) {
+        response.status(400).json({ error: "INVALID_QUERY" });
+        return;
+      }
+      const credential = query.includes("@")
+        ? await store.getPasswordCredential(query.toLowerCase())
+        : null;
+      const account = await store.getAccount(credential?.accountId ?? query);
+      if (!account) {
+        response.status(404).json({ error: "ACCOUNT_NOT_FOUND" });
+        return;
+      }
+      response.json({
+        account: {
+          accountId: account.accountId,
+          displayName: account.displayName,
+          role: account.role,
+          status: account.status,
+          createdAt: account.createdAt,
+        },
+      });
+    },
+  );
+
+  /**
+   * Issues a one-time, 7-day code. For an account without a password it lets
+   * the player attach one (legacy alpha claim); for an account with a
+   * password it lets the player set a new one (support-assisted reset).
+   */
   app.post(
     "/api/admin/accounts/:accountId/claim-code",
     async (request: AuthenticatedRequest, response) => {

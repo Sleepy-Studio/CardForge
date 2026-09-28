@@ -18,6 +18,14 @@ const browser = await Browser.launch();
 const log = (step: string, detail: Record<string, unknown> = {}) =>
   console.log(JSON.stringify({ smoke: "player-browser", step, ...detail }));
 
+/** Invite-only deployments need a signup code on the register form. */
+async function fillSignupCode(page: Page): Promise<void> {
+  const code = process.env.CARDFORGE_SMOKE_SIGNUP_CODE;
+  if (!code) return;
+  await page.waitForSelector('input[name="signupCode"]');
+  await page.fill('input[name="signupCode"]', code);
+}
+
 async function register(
   name: string,
   email: string,
@@ -27,6 +35,7 @@ async function register(
   await page.fill('input[autocomplete="nickname"]', name);
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', "browser-smoke-password");
+  await fillSignupCode(page);
   await page.click('button[type="submit"]');
   await page.waitFor("location.pathname === '/onboarding'");
   await page.click(`[data-leader="${leader}"]`);
@@ -161,6 +170,7 @@ try {
   await ops.fill('input[autocomplete="nickname"]', "Smoke Ops");
   await ops.fill('input[type="email"]', "smoke-ops@smoke.test");
   await ops.fill('input[type="password"]', "browser-smoke-password");
+  await fillSignupCode(ops);
   await ops.click('button[type="submit"]');
   await delay(800);
   if ((await ops.url()).includes("/login")) {

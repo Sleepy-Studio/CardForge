@@ -36,7 +36,7 @@ services:
       target: match-server
       args:
         CARDFORGE_VERSION: ${CARDFORGE_VERSION:-dev}
-        CARDFORGE_COMMIT: ${CARDFORGE_COMMIT:-unknown}
+        CARDFORGE_COMMIT: ${CARDFORGE_COMMIT:-${SOURCE_COMMIT:-unknown}}
     depends_on:
       postgres:
         condition: service_healthy

@@ -86,6 +86,8 @@ export function MatchClient() {
   const [searchStarted] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   const roomRef = useRef<Room | null>(null);
+  // One command in flight at a time: a double tap must not send twice.
+  const inFlight = useRef<number | null>(null);
   const snapshotRef = useRef<MatchSnapshot | null>(null);
   const started = useRef(false);
   const onboarding = params.get("onboarding") === "1";
@@ -106,6 +108,7 @@ export function MatchClient() {
       "snapshot",
       (message: Omit<MatchSnapshot, "receivedAtMs"> | null) => {
         if (!message) return;
+        inFlight.current = null;
         const next = { ...message, receivedAtMs: Date.now() };
         setPrevious(snapshotRef.current);
         snapshotRef.current = next;
@@ -122,9 +125,10 @@ export function MatchClient() {
         setOpponentPresence(message.status);
       },
     );
-    room.onMessage("command_error", (message: { message?: string }) =>
-      setError(message.message ?? "The server rejected that action."),
-    );
+    room.onMessage("command_error", (message: { message?: string }) => {
+      inFlight.current = null;
+      setError(message.message ?? "The server rejected that action.");
+    });
     room.onDrop(() => setConnection("reconnecting"));
     room.onReconnect(() => {
       setConnection("connected");
@@ -182,6 +186,10 @@ export function MatchClient() {
   };
 
   const send = (intent: Intent) => {
+    // Ignore repeats until the server answers (or 3 s pass, if a reply is lost).
+    if (inFlight.current !== null && Date.now() - inFlight.current < 3_000)
+      return;
+    inFlight.current = Date.now();
     setError(null);
     roomRef.current?.send("command", intent);
   };

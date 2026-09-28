@@ -119,6 +119,33 @@ assert(
   claimed.status === 400,
   "an account that already has credentials cannot be claimed",
 );
+const lookup = await adminFetch<{ account: { accountId: string } }>(
+  `/api/admin/accounts?q=${encodeURIComponent(legacy.email)}`,
+);
+assert(
+  lookup.body.account.accountId === legacy.accountId,
+  "operators can find an account by email",
+);
+const reset = await new SmokeAccount("Reset").api("/api/auth/reset-password", {
+  body: { code: claim.body.claimCode, password: "fresh-password-456" },
+});
+assert(reset.status === 200, "a support code resets the password");
+const oldLogin = await new SmokeAccount("Old").api("/api/auth/login", {
+  body: { email: legacy.email, password: "smoke-password-123" },
+});
+assert(oldLogin.status === 401, "the old password stops working");
+const newLogin = await new SmokeAccount("New").api("/api/auth/login", {
+  body: { email: legacy.email, password: "fresh-password-456" },
+});
+assert(newLogin.status === 200, "the new password works");
+assert(
+  (await legacy.api("/api/me")).status === 401,
+  "existing sessions were revoked",
+);
+const reuse = await new SmokeAccount("Reuse").api("/api/auth/reset-password", {
+  body: { code: claim.body.claimCode, password: "another-password-789" },
+});
+assert(reuse.status === 400, "reset codes are single use");
 
 const playtest = await adminFetch<{
   overview: {

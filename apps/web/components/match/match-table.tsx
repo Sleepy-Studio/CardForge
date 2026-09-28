@@ -40,7 +40,8 @@ import {
   type BoardIntent,
 } from "../board-canvas";
 import { useGameTheme } from "../theme-provider";
-import { CardFace } from "../ui/card-face";
+import { CardFace, useThemeAssets } from "../ui/card-face";
+import { resolveAsset } from "@/lib/assets";
 import { TermTip } from "../ui/term-tip";
 
 const handDragThreshold = 8;
@@ -168,6 +169,8 @@ export function MatchTable({
 }: MatchTableProps) {
   const { theme, term } = useGameTheme();
   const reducedMotion = useReducedMotion();
+  const assets = useThemeAssets();
+  const boardArt = resolveAsset(theme, assets, "board", "default");
   const seat = snapshot.seat;
   const rival = opponentOf(seat);
   const view = snapshot.view;
@@ -491,6 +494,7 @@ export function MatchTable({
         <section className="match-board" aria-label="Battlefield">
           <BoardCanvas
             aimAtLeader={highlights.leaderTargeted}
+            backgroundUrl={boardArt}
             aimFrom={selectedId}
             legalFronts={highlights.fronts}
             legalSlots={highlights.slots}

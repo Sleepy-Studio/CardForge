@@ -137,6 +137,10 @@ columns only and preserve every existing account ID.
   commands, auth events, integrity failures, and error log lines.
 - **Request IDs**: every response carries `x-request-id`; 500 responses
   include it in the body for support.
+- **Error monitoring**: `observeErrors()` in `apps/match-server/src/logger.ts`
+  receives every `error` and `critical` log line. To forward them to Sentry
+  (or any monitor), register an observer there that calls the SDK; nothing
+  else needs to change. Until then, alert on `"alert": true` log lines.
 
 ## CI/CD
 

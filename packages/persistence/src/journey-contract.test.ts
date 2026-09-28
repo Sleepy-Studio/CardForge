@@ -127,6 +127,55 @@ for (const [name, create] of adapters)
       );
     });
 
+    void it("resets a password once with an operator code and revokes sessions", async () => {
+      const accountId = id("acct-a");
+      await store.createSession({
+        tokenHash: id("reset-session"),
+        accountId,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      await store.createAccountClaim({
+        codeHash: id("reset"),
+        accountId,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      assert.equal(
+        await store.resetPasswordWithClaim({
+          codeHash: id("reset"),
+          passwordHash: "scrypt$new",
+        }),
+        accountId,
+      );
+      assert.equal(
+        (await store.getPasswordCredential(`${id("player")}@example.test`))
+          ?.passwordHash,
+        "scrypt$new",
+      );
+      assert.equal(await store.getSession(id("reset-session")), null);
+      assert.equal(
+        await store.resetPasswordWithClaim({
+          codeHash: id("reset"),
+          passwordHash: "scrypt$again",
+        }),
+        null,
+        "codes are single use",
+      );
+      await store.upsertAccount(id("no-password"), "Discord Only");
+      await store.createAccountClaim({
+        codeHash: id("reset-2"),
+        accountId: id("no-password"),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      assert.equal(
+        await store.resetPasswordWithClaim({
+          codeHash: id("reset-2"),
+          passwordHash: "x",
+        }),
+        null,
+        "accounts without a password cannot be reset",
+      );
+    });
+
     void it("resolves OAuth identities to one account", async () => {
       const first = await store.resolveOAuthAccount({
         provider: "discord",

@@ -40,6 +40,8 @@ interface BoardCanvasProps {
   readonly aimFrom?: string | null;
   /** Draw an aiming line to the enemy Leader as well. */
   readonly aimAtLeader?: boolean;
+  /** Optional Theme Pack board art shown beneath the lanes. */
+  readonly backgroundUrl?: string | null;
 }
 
 const fronts = ["left", "center", "right"] as const;
@@ -77,6 +79,7 @@ export function BoardCanvas({
   onHitTest,
   aimFrom = null,
   aimAtLeader = false,
+  backgroundUrl = null,
 }: BoardCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -175,7 +178,7 @@ export function BoardCanvas({
 
     const field = new Graphics()
       .roundRect(2, 2, width - 4, height - 4, 24)
-      .fill({ color: 0x07101d, alpha: 0.94 })
+      .fill({ color: 0x07101d, alpha: backgroundUrl ? 0.55 : 0.94 })
       .stroke({ color: 0x1a3853, width: 2, alpha: 0.9 });
     app.stage.addChild(field);
 
@@ -504,6 +507,7 @@ export function BoardCanvas({
     themePalette,
     aimFrom,
     aimAtLeader,
+    backgroundUrl,
   ]);
 
   return (
@@ -512,6 +516,15 @@ export function BoardCanvas({
       data-cue-count={presentation?.cues.length ?? 0}
       data-event-sequence={presentation?.sequence ?? 0}
       ref={hostRef}
+      style={
+        backgroundUrl
+          ? {
+              backgroundImage: `url(${backgroundUrl})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }
+          : undefined
+      }
     />
   );
 }

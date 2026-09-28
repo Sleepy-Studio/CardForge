@@ -435,6 +435,39 @@ export class PostgresCardForgeStore implements CardForgeStore {
     `;
   }
 
+  resetPasswordWithClaim(input: {
+    readonly codeHash: string;
+    readonly passwordHash: string;
+  }): Promise<string | null> {
+    return this.#sql
+      .begin(async (sql) => {
+        const claims = await sql<{ account_id: string }[]>`
+        UPDATE cardforge_account_claims
+        SET consumed_at = now()
+        WHERE code_hash = ${input.codeHash}
+          AND consumed_at IS NULL
+          AND expires_at > now()
+        RETURNING account_id
+      `;
+        const accountId = claims[0]?.account_id;
+        if (!accountId) return null;
+        const updated = await sql`
+        UPDATE cardforge_password_credentials
+        SET password_hash = ${input.passwordHash}, updated_at = now()
+        WHERE account_id = ${accountId}
+        RETURNING account_id
+      `;
+        // Roll back the claim if there was no password to reset.
+        if (!updated.length) throw new AuthStoreError("CLAIM_INVALID");
+        await sql`DELETE FROM cardforge_sessions WHERE account_id = ${accountId}`;
+        return accountId;
+      })
+      .catch((error: unknown) => {
+        if (error instanceof AuthStoreError) return null;
+        throw error;
+      });
+  }
+
   async createAccountClaim(input: {
     readonly codeHash: string;
     readonly accountId: string;

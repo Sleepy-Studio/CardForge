@@ -299,6 +299,15 @@ export interface CardForgeStore {
   touchSession(tokenHash: string, expiresAt: string): Promise<void>;
   deleteSession(tokenHash: string): Promise<void>;
   deleteAccountSessions(accountId: string): Promise<void>;
+  /**
+   * Consumes an operator-issued code to replace an existing password and
+   * revoke every session. Returns the account ID, or null if the code is
+   * invalid, expired, used, or the account has no password credential.
+   */
+  resetPasswordWithClaim(input: {
+    readonly codeHash: string;
+    readonly passwordHash: string;
+  }): Promise<string | null>;
   createAccountClaim(input: {
     readonly codeHash: string;
     readonly accountId: string;

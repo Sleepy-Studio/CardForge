@@ -34,6 +34,7 @@ import {
   type SeatActivity,
 } from "./match-stats.js";
 import { gauge, metrics } from "./metrics.js";
+import { RateLimiter } from "./rate-limit.js";
 import {
   authenticateRoomJoin,
   identityOf,
@@ -121,6 +122,18 @@ export class TempoFrontRoom extends Room {
   #finishing: Promise<void> | null = null;
   #persistChain: Promise<void> = Promise.resolve();
   #log: Logger = logger;
+  /** Per-connection message budget; humans need far less than this. */
+  readonly #messageBudget = new RateLimiter(config.roomMessageLimit, 5_000);
+
+  #withinBudget(client: Client): boolean {
+    if (this.#messageBudget.take(client.sessionId)) return true;
+    metrics.commandsRejected.inc({ code: "RATE_LIMITED" });
+    client.send("command_error", {
+      code: "RATE_LIMITED",
+      message: "Slow down — too many actions at once.",
+    });
+    return false;
+  }
 
   static override onAuth(token: string): Promise<RoomIdentity> {
     return authenticateRoomJoin(token);
@@ -136,6 +149,7 @@ export class TempoFrontRoom extends Room {
       client.send("snapshot", this.#snapshot(client));
     },
     command: async (client: Client, payload: unknown) => {
+      if (!this.#withinBudget(client)) return;
       if (!this.#started || this.#result) {
         client.send("command_error", {
           code: this.#result ? "MATCH_OVER" : "MATCH_NOT_READY",
