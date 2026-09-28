@@ -21,9 +21,12 @@ export interface ServerConfig {
   readonly signupCodes: ReadonlySet<string>;
   readonly adminEmails: ReadonlySet<string>;
   readonly adminToken: string | null;
+  readonly adminDiscordIds: ReadonlySet<string>;
   readonly discord: {
     readonly clientId: string;
     readonly clientSecret: string;
+    readonly apiBase: string;
+    readonly authorizeUrl: string;
   } | null;
   readonly actionClockMs: number;
   readonly trustProxy: number;
@@ -103,9 +106,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     signupCodes: new Set(signupCodes),
     adminEmails: new Set(list(env.CARDFORGE_ADMIN_EMAILS).map((email) => email.toLowerCase())),
     adminToken,
+    adminDiscordIds: new Set(list(env.CARDFORGE_ADMIN_DISCORD_IDS)),
     discord:
       discordId && discordSecret
-        ? { clientId: discordId, clientSecret: discordSecret }
+        ? {
+            clientId: discordId,
+            clientSecret: discordSecret,
+            // Overridable only so integration tests can use a local stub.
+            apiBase: (env.CARDFORGE_DISCORD_API_BASE ?? "https://discord.com/api").replace(/\/$/, ""),
+            authorizeUrl:
+              env.CARDFORGE_DISCORD_AUTHORIZE_URL ?? "https://discord.com/oauth2/authorize",
+          }
         : null,
     actionClockMs: integer(env.CARDFORGE_ACTION_CLOCK_MS, 30_000),
     trustProxy:

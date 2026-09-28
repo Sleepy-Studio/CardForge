@@ -95,6 +95,8 @@ export interface ParticipantStats {
   readonly disconnects: number;
   readonly reconnects: number;
   readonly timeouts: number;
+  /** Milliseconds between joining the queue and the match starting. */
+  readonly queueWaitMs?: number;
 }
 
 export interface MatchOutcomeInput {

@@ -556,14 +556,11 @@ export class MemoryCardForgeStore implements CardForgeStore {
     return Promise.resolve(invite ? { ...invite } : null);
   }
 
-  admitToInvite(code: string, accountId: string): Promise<InviteRecord> {
-    try {
-      const next = admitInvite(this.#invites.get(code) ?? null, accountId, Date.now());
-      this.#invites.set(code, next);
-      return Promise.resolve({ ...next });
-    } catch (error) {
-      return Promise.reject(error as Error);
-    }
+  async admitToInvite(code: string, accountId: string): Promise<InviteRecord> {
+    await Promise.resolve();
+    const next = admitInvite(this.#invites.get(code) ?? null, accountId, Date.now());
+    this.#invites.set(code, next);
+    return { ...next };
   }
 
   markInviteStarted(code: string, matchId: string): Promise<void> {

@@ -935,7 +935,7 @@ export class PostgresCardForgeStore implements CardForgeStore {
       INSERT INTO cardforge_product_events (event_id, account_id, name, properties)
       VALUES (
         ${input.eventId}, ${input.accountId}, ${input.name},
-        ${this.#sql.json(input.properties as never)}
+        ${this.#sql.json(input.properties)}
       )
       ON CONFLICT (event_id) DO NOTHING
     `;

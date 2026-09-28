@@ -11,12 +11,12 @@
     "build": "tsc -b",
     "dev": "node --watch dist/index.js",
     "smoke": "node dist/smoke.js",
-    "smoke:storage": "node dist/storage-smoke.js",
-    "smoke:selected-decks": "node dist/selected-deck-smoke.js",
-    "smoke:ranked": "node dist/ranked-smoke.js",
     "smoke:training": "node dist/training-smoke.js",
     "smoke:operations": "node dist/operations-smoke.js",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "smoke:journey": "node dist/journey-smoke.js",
+    "migrate": "node dist/migrate-cli.js",
+    "smoke:discord": "node dist/discord-smoke.js"
   },
   "dependencies": {
     "@cardforge/card-schema": "workspace:*",

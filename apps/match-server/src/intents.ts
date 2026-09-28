@@ -22,7 +22,12 @@ export const clientIntentSchema = z.discriminatedUnion("type", [
     .strict(),
   z.object({ type: z.literal("pass_response") }).strict(),
   z
-    .object({ type: z.literal("play_reaction"), instanceId: identifier })
+    .object({
+      type: z.literal("play_reaction"),
+      instanceId: identifier,
+      targetId: identifier.optional(),
+      targetIds: z.array(identifier).max(8).optional(),
+    })
     .strict(),
   z
     .object({
@@ -84,7 +89,15 @@ export function commandFromIntent(
     case "pass_response":
       return { ...intent, playerId };
     case "play_reaction":
-      return { ...intent, playerId };
+      return {
+        type: intent.type,
+        playerId,
+        instanceId: intent.instanceId,
+        ...(intent.targetId === undefined ? {} : { targetId: intent.targetId }),
+        ...(intent.targetIds === undefined
+          ? {}
+          : { targetIds: intent.targetIds }),
+      };
     case "play_card":
       return {
         type: intent.type,

@@ -105,8 +105,8 @@ void describe("competitive domain", () => {
   });
 });
 
-describe("rank presentation", () => {
-  it("wraps the rating without altering it", () => {
+void describe("rank presentation", () => {
+  void it("wraps the rating without altering it", () => {
     assert.equal(rankForRating(1_000).label, "Silver II");
     assert.equal(rankForRating(950).label, "Silver III");
     assert.equal(rankForRating(0).label, "Bronze III");
@@ -122,7 +122,7 @@ describe("rank presentation", () => {
     }
   });
 
-  it("advances unranked progression without touching rating", () => {
+  void it("advances unranked progression without touching rating", () => {
     const profile = createCompetitiveProfile("account-one", seasonOne.seasonId);
     const result = progressUnrankedProfile(profile, participants.p1, true, 8);
     assert.equal(result.profile.rating, profile.rating);
