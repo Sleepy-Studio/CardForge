@@ -5,6 +5,8 @@ import {
   aggregateBalanceOverview,
   createCompetitiveProfile,
   createMatchTelemetry,
+  progressUnrankedProfile,
+  rankForRating,
   settleRankedMatch,
   unlockedLeadersForLevel,
 } from "./competitive.js";
@@ -100,5 +102,33 @@ void describe("competitive domain", () => {
     assert.equal(launchPatch.revision, 1);
     assert.deepEqual(launchPatch.cardRevisions, {});
     assert.equal(betaBalancePatch.cardRevisions["leader.vector"], 2);
+  });
+});
+
+describe("rank presentation", () => {
+  it("wraps the rating without altering it", () => {
+    assert.equal(rankForRating(1_000).label, "Silver II");
+    assert.equal(rankForRating(950).label, "Silver III");
+    assert.equal(rankForRating(0).label, "Bronze III");
+    assert.equal(rankForRating(949).tierId, "bronze");
+    assert.equal(rankForRating(1_099).label, "Silver I");
+    assert.equal(rankForRating(1_100).label, "Gold III");
+    assert.equal(rankForRating(1_600).label, "Master");
+    assert.equal(rankForRating(1_600).nextAt, null);
+    for (let rating = 0; rating < 1_700; rating += 7) {
+      const rank = rankForRating(rating);
+      assert.ok(rank.progress >= 0 && rank.progress <= 1);
+      if (rank.nextAt !== null) assert.ok(rating < rank.nextAt);
+    }
+  });
+
+  it("advances unranked progression without touching rating", () => {
+    const profile = createCompetitiveProfile("account-one", seasonOne.seasonId);
+    const result = progressUnrankedProfile(profile, participants.p1, true, 8);
+    assert.equal(result.profile.rating, profile.rating);
+    assert.equal(result.profile.wins, 0);
+    assert.equal(result.xp, 96);
+    assert.equal(result.profile.accountXp, 96);
+    assert.equal(result.profile.aspectMastery.force, 30);
   });
 });

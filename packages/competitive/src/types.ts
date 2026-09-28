@@ -48,13 +48,33 @@ export interface RankedSettlement {
   readonly xpGained: Readonly<Record<PlayerId, number>>;
 }
 
+/**
+ * Rules victories come from game state. Concession and abandonment are
+ * room-level outcomes recorded beside the replay; they never enter GameState.
+ */
+export type MatchOutcomeReason =
+  "integrity" | "dominion" | "concession" | "abandonment";
+
+export interface RankTier {
+  readonly tierId:
+    "bronze" | "silver" | "gold" | "platinum" | "diamond" | "master";
+  readonly name: string;
+  /** 1 (highest) to 3 within a tier; Master has no divisions. */
+  readonly division: 1 | 2 | 3 | null;
+  readonly label: string;
+  readonly floor: number;
+  readonly nextAt: number | null;
+  /** 0–1 progress toward the next division or tier. */
+  readonly progress: number;
+}
+
 export interface MatchTelemetry {
   readonly matchId: string;
-  readonly queue: "casual" | "ranked" | "practice" | "pve";
+  readonly queue: "casual" | "ranked" | "friend" | "practice" | "pve";
   readonly seasonId?: string;
   readonly participants: Readonly<Record<PlayerId, RankedParticipant>>;
   readonly winnerId: PlayerId;
-  readonly victoryReason: "integrity" | "dominion";
+  readonly victoryReason: MatchOutcomeReason;
   readonly startingInitiative: PlayerId;
   readonly cycles: number;
   readonly commandCount: number;
@@ -80,5 +100,7 @@ export interface BalanceOverview {
   readonly initiativeWinRate: number;
   readonly integrityWins: number;
   readonly dominionWins: number;
+  readonly concessions: number;
+  readonly abandonments: number;
   readonly leaders: readonly LeaderBalanceMetric[];
 }

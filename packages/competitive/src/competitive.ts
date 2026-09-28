@@ -1,6 +1,7 @@
 import type { Aspect, PlayerId } from "@cardforge/card-schema";
 import type { Command, ReplayRecord } from "@cardforge/rules-kernel";
 import type {
+  RankTier,
   BalanceOverview,
   CompetitiveProfile,
   MatchTelemetry,
@@ -111,6 +112,92 @@ function progressedProfile(
   };
 }
 
+/**
+ * Unranked progression: account XP, Aspect mastery, and Leader unlocks advance
+ * at a reduced rate. Rating, wins, and losses stay ranked-only.
+ */
+export function progressUnrankedProfile(
+  profile: CompetitiveProfile,
+  participant: RankedParticipant,
+  won: boolean,
+  cycles: number,
+): { profile: CompetitiveProfile; xp: number } {
+  const xp = (won ? 80 : 50) + Math.min(20, cycles * 2);
+  const accountXp = profile.accountXp + xp;
+  const accountLevel = levelForXp(accountXp);
+  return {
+    xp,
+    profile: {
+      ...profile,
+      accountXp,
+      accountLevel,
+      aspectMastery: addMastery(
+        profile.aspectMastery,
+        participant.aspects,
+        won ? 30 : 20,
+      ),
+      unlockedLeaderIds: unlockedLeadersForLevel(accountLevel),
+    },
+  };
+}
+
+const rankTiers: readonly {
+  readonly tierId: RankTier["tierId"];
+  readonly name: string;
+  readonly floor: number;
+}[] = [
+  { tierId: "bronze", name: "Bronze", floor: 0 },
+  { tierId: "silver", name: "Silver", floor: 950 },
+  { tierId: "gold", name: "Gold", floor: 1_100 },
+  { tierId: "platinum", name: "Platinum", floor: 1_250 },
+  { tierId: "diamond", name: "Diamond", floor: 1_400 },
+  { tierId: "master", name: "Master", floor: 1_550 },
+];
+
+/**
+ * Presentation layer over the authoritative Elo rating. Each tier below
+ * Master splits into three equal divisions; the rating math is untouched.
+ * New players start at 1,000 (Silver II), so an early loss stays in Silver.
+ */
+export function rankForRating(rating: number): RankTier {
+  const value = Math.max(0, Math.floor(rating));
+  let index = 0;
+  for (let candidate = 0; candidate < rankTiers.length; candidate += 1)
+    if (value >= rankTiers[candidate]!.floor) index = candidate;
+  const tier = rankTiers[index]!;
+  const next = rankTiers[index + 1];
+  if (!next)
+    return {
+      tierId: tier.tierId,
+      name: tier.name,
+      division: null,
+      label: tier.name,
+      floor: tier.floor,
+      nextAt: null,
+      progress: 1,
+    };
+  // Bronze is open-ended below; give it a 150-point band for divisions.
+  const bandStart = index === 0 ? next.floor - 150 : tier.floor;
+  const span = (next.floor - bandStart) / 3;
+  const step = Math.min(2, Math.max(0, Math.floor((value - bandStart) / span)));
+  const division = (3 - step) as 1 | 2 | 3;
+  const divisionFloor = Math.round(bandStart + step * span);
+  const nextAt = Math.round(bandStart + (step + 1) * span);
+  const progress = Math.min(
+    1,
+    Math.max(0, (value - divisionFloor) / Math.max(1, nextAt - divisionFloor)),
+  );
+  return {
+    tierId: tier.tierId,
+    name: tier.name,
+    division,
+    label: `${tier.name} ${["I", "II", "III"][division - 1]}`,
+    floor: divisionFloor,
+    nextAt,
+    progress: Math.round(progress * 100) / 100,
+  };
+}
+
 export function settleRankedMatch(
   matchId: string,
   seasonId: string,
@@ -216,6 +303,8 @@ export function aggregateBalanceOverview(
       initiativeWinRate: 0,
       integrityWins: 0,
       dominionWins: 0,
+      concessions: 0,
+      abandonments: 0,
       leaders: [],
     };
   const leaderRows = new Map<string, { matches: number; wins: number }>();
@@ -250,6 +339,12 @@ export function aggregateBalanceOverview(
     ).length,
     dominionWins: matches.filter((match) => match.victoryReason === "dominion")
       .length,
+    concessions: matches.filter(
+      (match) => match.victoryReason === "concession",
+    ).length,
+    abandonments: matches.filter(
+      (match) => match.victoryReason === "abandonment",
+    ).length,
     leaders: [...leaderRows.entries()]
       .map(([leaderId, row]) => ({
         leaderId,
