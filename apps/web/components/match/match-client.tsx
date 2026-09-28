@@ -30,7 +30,7 @@ const modeTitle: Readonly<Record<MatchMode, string>> = {
   ranked: "Ranked",
   friend: "Friend Match",
   practice: "Practice",
-  training: "Academy",
+  training: "Lesson",
 };
 
 const reasonText = (reason: string, terms: Readonly<Record<string, string>>) =>

@@ -50,7 +50,7 @@ export const betaBalancePatch: BalancePatch = {
 export const seasonOne: SeasonDefinition = {
   seasonId: "frontier-2026-01",
   revision: 1,
-  name: "The First Frontier",
+  name: "Season 1",
   startsAt: "2026-08-16T00:00:00.000Z",
   endsAt: "2026-11-16T00:00:00.000Z",
   formatId: "standard",

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DeckBuilder } from "@/components/decks/deck-builder";
 
-export const metadata: Metadata = { title: "Deckbuilder" };
+export const metadata: Metadata = { title: "Deck builder" };
 
 export default async function DeckBuilderPage({
   params,

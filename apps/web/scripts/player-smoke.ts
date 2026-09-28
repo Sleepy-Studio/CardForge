@@ -91,7 +91,7 @@ try {
     `host-${run}@smoke.test`,
     "leader.ember",
   );
-  await host.clickText("button", "Start the Field Guide");
+  await host.clickText("button", "Start the tutorial");
   for (let lesson = 0; lesson < 4; lesson += 1) {
     await host.click('.field-guide button[data-correct="true"]');
     await host.click(".field-guide__next");
@@ -102,10 +102,33 @@ try {
   await host.waitFor("location.pathname === '/play'");
   log("onboarding");
 
+  // --- Generated card art ---------------------------------------------------
+  for (const theme of ["aetherfront", "orbital-conflict"]) {
+    const art = await fetch(`${web}/art/${theme}/leader.ember.svg`);
+    check(
+      art.ok &&
+        art.headers.get("content-type")?.startsWith("image/svg+xml") &&
+        (await art.text()).startsWith("<svg"),
+      `generated art is served for ${theme}`,
+    );
+  }
+  check(
+    (await fetch(`${web}/art/aetherfront/not-a-card.svg`)).status === 404,
+    "unknown cards have no art",
+  );
+
   // --- Deckbuilder: save a copy of the starter ----------------------------
   await host.goto(`${web}/decks/starter-ember`);
   await host.waitForSelector(
     '.builder[data-deck-size="40"][data-legal="true"]',
+  );
+  check(
+    (
+      await host.evaluate<string>(
+        `getComputedStyle(document.querySelector('.card-face__art')).backgroundImage`,
+      )
+    ).includes("/art/"),
+    "card faces show illustrations",
   );
   await host.evaluate(
     `document.querySelector('[aria-label="Remove one Linebreaker"]').click()`,

@@ -233,7 +233,7 @@ export class TempoFrontTrainingRoom extends Room {
           {
             seat: "p2",
             accountId: null,
-            displayName: "Practice Automaton",
+            displayName: "AI opponent",
             deckId: null,
             deckName: null,
             leaderId: plan.opponentLeaderId,
@@ -379,8 +379,7 @@ export class TempoFrontTrainingRoom extends Room {
       ...(plan.kind === "scenario" ? { scenario: plan.scenario } : {}),
       opponent: {
         kind: "heuristic_bot",
-        label:
-          plan.kind === "practice" ? "Practice Automaton" : "Field Automaton",
+        label: "AI opponent",
       },
       players: {
         p1: {
@@ -388,8 +387,7 @@ export class TempoFrontTrainingRoom extends Room {
           leaderId: state.players.p1.leader.cardId,
         },
         p2: {
-          displayName:
-            plan.kind === "practice" ? "Practice Automaton" : "Field Automaton",
+          displayName: "AI opponent",
           leaderId: state.players.p2.leader.cardId,
         },
       },

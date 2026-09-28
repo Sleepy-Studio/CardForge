@@ -11,7 +11,7 @@ import { useApiData } from "@/lib/use-api-data";
 import { MatchRow } from "../history/match-row";
 import { useGameTheme } from "../theme-provider";
 import { EmptyState, Meter, RankBadge, Wallets, timeLeft } from "../ui/bits";
-import { CardFace } from "../ui/card-face";
+import { CardFace, useCardArt } from "../ui/card-face";
 import { cardMap } from "@/lib/cards";
 
 function rewardText(reward: QuestView["reward"]): string {
@@ -28,12 +28,11 @@ function Landing() {
   return (
     <section className="landing">
       <div className="landing__copy">
-        <p className="eyebrow">Closed alpha</p>
-        <h1>Every action costs time. Spend it well.</h1>
+        <p className="eyebrow">Online card game</p>
+        <h1>Build a deck. Outplay your opponent.</h1>
         <p className="lede">
-          CardForge is a tactical card game with no turns: both players share
-          one clock across three contested Fronts. Fast plays let you act again
-          sooner — heavy plays hand your rival the tempo.
+          Pick a starter deck, learn the basics in a few minutes, then play
+          casual, ranked, or against a friend.
         </p>
         <div className="action-row">
           <Link className="button button--primary" href="/login?mode=register">
@@ -44,9 +43,9 @@ function Landing() {
           </Link>
         </div>
         <ul className="landing__points">
-          <li>Choose a starter Leader and get a complete deck.</li>
-          <li>Learn the rules in a two-minute Field Guide.</li>
-          <li>Play casual, ranked, or challenge a friend with a code.</li>
+          <li>Start with a complete, ready-to-play deck.</li>
+          <li>Earn rewards to craft new cards.</li>
+          <li>Invite a friend with a short code.</li>
         </ul>
       </div>
       <div className="landing__art" aria-hidden="true">
@@ -77,6 +76,7 @@ export function Home() {
 function Dashboard() {
   const api = useApi();
   const { term } = useGameTheme();
+  const artUrl = useCardArt();
   const { data, error, reload } = useApiData<HomePayload>("/api/me/home");
   const [rejoin, setRejoin] = useState<RejoinRecord | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
@@ -84,7 +84,7 @@ function Dashboard() {
   useEffect(() => setRejoin(readRejoin()), []);
 
   if (error) return <p className="form-error">{error}</p>;
-  if (!data) return <p className="loading-line">Loading your front…</p>;
+  if (!data) return <p className="loading-line">Loading…</p>;
   const activeDeck =
     data.decks.find((deck) => deck.status.playable) ?? data.decks[0];
   const profile = data.competitive;
@@ -119,35 +119,42 @@ function Dashboard() {
         </div>
       ) : null}
       <section className="hero-panel">
-        <div>
+        {activeDeck ? (
+          <span
+            aria-hidden="true"
+            className="hero-panel__art"
+            style={{ backgroundImage: `url("${artUrl(activeDeck.leaderId)}")` }}
+          />
+        ) : null}
+        <div className="hero-panel__copy">
           <p className="eyebrow">{profile.season.name}</p>
           <h1>Welcome back, {data.account.displayName}</h1>
           <Wallets wallets={data.wallets} />
-        </div>
-        <div className="hero-panel__play">
-          {activeDeck?.status.playable ? (
-            <Link
-              className="button button--primary button--large"
-              href={`/match?mode=casual&deck=${encodeURIComponent(activeDeck.deckId)}`}
-            >
-              Quick play
+          <div className="hero-panel__play">
+            {activeDeck?.status.playable ? (
+              <Link
+                className="button button--primary button--large"
+                href={`/match?mode=casual&deck=${encodeURIComponent(activeDeck.deckId)}`}
+              >
+                Play now
+              </Link>
+            ) : (
+              <Link
+                className="button button--primary button--large"
+                href="/decks"
+              >
+                Build a playable deck
+              </Link>
+            )}
+            <Link className="button button--quiet" href="/play">
+              More ways to play
             </Link>
-          ) : (
-            <Link
-              className="button button--primary button--large"
-              href="/decks"
-            >
-              Build a playable deck
-            </Link>
-          )}
-          <small>
+          </div>
+          <small className="muted">
             {activeDeck
-              ? `${activeDeck.name} · ${leaderInfo(activeDeck.leaderId).name}`
+              ? `Deck: ${activeDeck.name} · ${leaderInfo(activeDeck.leaderId).name}`
               : "No deck yet"}
           </small>
-          <Link className="text-link" href="/play">
-            All modes
-          </Link>
         </div>
       </section>
 

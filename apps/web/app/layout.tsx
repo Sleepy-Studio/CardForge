@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: { default: "CardForge", template: "%s · CardForge" },
   description:
-    "A tactical card game of shared time, contested fronts, and decisive reactions.",
+    "An online card game: build decks, play casual or ranked, and challenge friends.",
 };
 
 export const viewport: Viewport = {

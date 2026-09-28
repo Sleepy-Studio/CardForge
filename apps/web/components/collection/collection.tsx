@@ -170,7 +170,7 @@ export function Collection() {
       >
         <p className="muted">
           {discovered}/{collectibleCards.length} cards discovered. Shards craft
-          cards; Style Tokens unlock cosmetics. Trading is disabled.
+          cards; Style Tokens unlock cosmetics.
         </p>
         <Meter
           label="Collection completion"
@@ -368,8 +368,8 @@ export function Collection() {
                 )}
                 {shards < selectedUnit && selectedHave < selectedCap ? (
                   <p className="muted small">
-                    Not enough Shards. Earn more from matches, quests, and the
-                    Academy.
+                    Not enough Shards. Earn more from matches, quests, and
+                    lessons.
                   </p>
                 ) : null}
               </>

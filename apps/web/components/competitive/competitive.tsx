@@ -7,12 +7,14 @@ import type { CompetitiveView, MatchHistoryEntry } from "@/lib/types";
 import { useApiData } from "@/lib/use-api-data";
 import { MatchRow } from "../history/match-row";
 import { EmptyState, Meter, PageHeader, RankBadge, timeLeft } from "../ui/bits";
+import { useCardArt } from "../ui/card-face";
 import type { Aspect } from "@cardforge/card-schema";
 
 const tiers = ["Bronze", "Silver", "Gold", "Platinum", "Diamond", "Master"];
 
 export function Competitive() {
   const account = useRequireAccount();
+  const artUrl = useCardArt();
   const profile = useApiData<{ profile: CompetitiveView }>(
     account ? "/api/me/competitive-profile" : null,
   );
@@ -36,11 +38,11 @@ export function Competitive() {
           </Link>
         }
         eyebrow={view.season.name}
-        title="Competitive"
+        title="Ranked"
       >
         <p className="muted">
-          Season ends in {timeLeft(view.season.endsAt)}. Ranks are a view of
-          your rating; the rating itself decides matchmaking.
+          Season ends in {timeLeft(view.season.endsAt)}. Win ranked matches to
+          raise your rating and climb the tiers.
         </p>
       </PageHeader>
       <div className="dashboard-grid">
@@ -87,6 +89,11 @@ export function Competitive() {
                   className={unlocked ? "is-unlocked" : "is-locked"}
                   key={card.cardId}
                 >
+                  <span
+                    aria-hidden="true"
+                    className="leader-unlocks__art"
+                    style={{ backgroundImage: `url("${artUrl(card.cardId)}")` }}
+                  />
                   <strong>{info.name}</strong>
                   <small>
                     {info.archetype} ·{" "}
@@ -95,7 +102,7 @@ export function Competitive() {
                       .join(" / ")}
                   </small>
                   <span>
-                    {unlocked ? "Unlocked" : "Unlocks with account level"}
+                    {unlocked ? "Unlocked" : "Unlocks as you level up"}
                   </span>
                 </li>
               );

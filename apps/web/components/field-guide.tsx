@@ -133,13 +133,13 @@ export function FieldGuide({
   /** Called when a lesson is passed, with its 1-based number. */
   readonly onStep?: (lesson: number, title: string) => void;
 }) {
-  const { theme, term } = useGameTheme();
+  const { term } = useGameTheme();
   const themedText = (text: string): string =>
     text
-      .replaceAll(
-        "TempoFront",
-        theme.themeId === "aetherfront" ? "Aetherfront" : "Orbital Conflict",
-      )
+      .replaceAll("TempoFront", "the game")
+      .replaceAll("the rival", "your opponent")
+      .replaceAll("The rival", "Your opponent")
+      .replaceAll("rival", "opponent")
       .replaceAll("Fronts", `${term("front")}s`)
       .replaceAll("Front", term("front"))
       .replaceAll("Dominion", term("dominion"))
@@ -194,35 +194,31 @@ export function FieldGuide({
         <div className="field-guide__header">
           <div>
             <p className="eyebrow">
-              {(theme.themeId === "aetherfront"
-                ? "AETHERFRONT"
-                : "ORBITAL CONFLICT") + " FIELD GUIDE"}
+              Tutorial ·{" "}
+              {complete ? "Done" : `${lessonIndex + 1} of ${lessons.length}`}
             </p>
             <h2 id="field-guide-title">
-              {complete
-                ? "Ready for the shared timeline"
-                : themedText(lesson.title)}
+              {complete ? "You're ready to play" : themedText(lesson.title)}
             </h2>
           </div>
           <button
-            aria-label="Close Field Guide"
+            aria-label="Close tutorial"
             className="field-guide__close"
             onClick={onClose}
             type="button"
           >
-            SKIP GUIDE
+            Skip
           </button>
         </div>
 
         {complete ? (
           <div className="field-guide__complete">
             <strong data-guide-score={`${score}/${lessons.length}`}>
-              {score}/{lessons.length} concepts cleared
+              {score}/{lessons.length} correct
             </strong>
             <p>
-              You made {attempts} answer attempt{attempts === 1 ? "" : "s"}. The
-              board will preview legal targets and projected Time before you
-              commit an action.
+              In a match, the board highlights what you can do and shows how
+              much Time an action costs before you commit.
             </p>
             <button
               autoFocus
