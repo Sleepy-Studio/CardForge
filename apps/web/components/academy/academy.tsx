@@ -10,10 +10,12 @@ import type { TrainingScenario } from "@/lib/types";
 import { useApiData } from "@/lib/use-api-data";
 import { FieldGuide } from "../field-guide";
 import { PageHeader } from "../ui/bits";
+import { useCardArt } from "../ui/card-face";
 
 export function Academy() {
   const account = useRequireAccount();
   const api = useApi();
+  const artUrl = useCardArt();
   const scenarios = useApiData<{ scenarios: TrainingScenario[] }>(
     "/api/training",
   );
@@ -40,15 +42,15 @@ export function Academy() {
             }}
             type="button"
           >
-            Replay the Field Guide
+            Replay the tutorial
           </button>
         }
-        eyebrow="Academy"
+        eyebrow="Learn"
         title="Learn by playing"
       >
         <p className="muted">
-          Lessons teach one idea against the Automaton. Challenges start from a
-          tricky position. First clears pay a reward.
+          Lessons teach one idea at a time against the AI. Challenges start from
+          a tricky position. Your first win in each pays a reward.
         </p>
       </PageHeader>
       {(["tutorial", "pve"] as const).map((kind) => (
@@ -63,6 +65,13 @@ export function Academy() {
                   data-scenario={scenario.scenarioId}
                   key={scenario.scenarioId}
                 >
+                  <span
+                    aria-hidden="true"
+                    className="scenario-card__art"
+                    style={{
+                      backgroundImage: `url("${artUrl(scenario.playerLeaderId)}")`,
+                    }}
+                  />
                   <div className="scenario-card__meta">
                     <span aria-label={`Difficulty ${scenario.difficulty} of 5`}>
                       {"◆".repeat(scenario.difficulty)}

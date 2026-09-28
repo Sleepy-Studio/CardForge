@@ -19,6 +19,14 @@ const defaultTerms: RulesTextTerms = {
   discard: "discard",
 };
 
+/** "token.ember_wisp" → "Ember Wisp". */
+function tokenName(cardId: string): string {
+  return (cardId.split(".").pop() ?? cardId)
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 function targetText(target: TargetRef, terms: RulesTextTerms): string {
   switch (target.kind) {
     case "chosen_entity":
@@ -61,7 +69,7 @@ function effectText(effect: EffectNode, terms: RulesTextTerms): string {
     case "shift":
       return sentence(`shift ${targetText(effect.target, terms)}`);
     case "spawn":
-      return `Spawn ${effect.tokenCardId}.`;
+      return `Spawn a ${tokenName(effect.tokenCardId)} token.`;
     case "salvage":
       return `Return ${effect.cardType ? `an ${effect.cardType}` : "a card"} from your ${terms.discard} to your hand.`;
     case "scout":

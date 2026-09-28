@@ -33,8 +33,8 @@ const playstyle: Readonly<Record<string, string>> = {
 
 /**
  * First session, designed for under ten minutes to a real match:
- * choose a starter Leader (≈1 min) → four-question Field Guide (≈2 min) →
- * optional guided practice vs the Automaton (≈5 min) → Play unlocked.
+ * choose a starter Leader (≈1 min) → four-question tutorial (≈2 min) →
+ * optional practice match against the AI (≈5 min) → Play unlocked.
  * Every step can be skipped; progress lives on the server.
  */
 export function Onboarding() {
@@ -140,8 +140,7 @@ export function Onboarding() {
               <p className="eyebrow">Welcome, {account.displayName}</p>
               <h1>Choose your starter {term("leader")}</h1>
               <p className="muted">
-                You will receive a complete 40-card deck built around them. You
-                can craft and unlock more later.
+                Each one comes with a complete, ready-to-play deck.
               </p>
             </div>
           </header>
@@ -162,7 +161,7 @@ export function Onboarding() {
                   role="radio"
                   type="button"
                 >
-                  {card ? <CardFace card={card} size="sm" /> : null}
+                  {card ? <CardFace card={card} plain size="md" /> : null}
                   <span className="starter-option__copy">
                     <strong>{starter.archetype}</strong>
                     <small>
@@ -197,28 +196,26 @@ export function Onboarding() {
           <header className="page-header">
             <div>
               <p className="eyebrow">Your deck is ready</p>
-              <h1>Learn TempoFront in two minutes</h1>
+              <h1>Learn the basics</h1>
               <p className="muted">
-                Four quick questions cover the ideas that matter: the shared
-                Timeline, {term("front")} control, Responses, and the two ways
-                to win.
+                Four quick questions cover everything you need to start.
               </p>
             </div>
           </header>
           <div className="onboarding-cards">
             <article className="info-card">
-              <h2>No turns — one shared clock</h2>
+              <h2>No turns, one shared clock</h2>
               <p>
-                Every action costs Time. Whoever has spent less Time acts next,
-                so fast plays let you act again sooner.
+                Every action costs Time. Whoever has spent less acts next, so
+                quick plays let you act again sooner.
               </p>
             </article>
             <article className="info-card">
-              <h2>Hold two of three {term("front")}s</h2>
+              <h2>Two ways to win</h2>
               <p>
-                At the end of each Cycle, control two {term("front")}s to earn{" "}
-                {term("dominion")}. Reach 6 to win — or break through and drop
-                the enemy {term("leader")} to 0 {term("integrity")}.
+                Hold two of three {term("front")}s to earn {term("dominion")}{" "}
+                and reach 6, or bring the other {term("leader")} to 0{" "}
+                {term("integrity")}.
               </p>
             </article>
           </div>
@@ -228,13 +225,13 @@ export function Onboarding() {
               onClick={openGuide}
               type="button"
             >
-              Start the Field Guide
+              Start the tutorial
             </button>
             <Link
               className="button button--quiet"
               href="/onboarding?step=practice"
             >
-              I know card games — skip ahead
+              Skip ahead
             </Link>
           </div>
           {guideOpen ? (
@@ -271,9 +268,8 @@ export function Onboarding() {
               <p className="eyebrow">Last step</p>
               <h1>Play a practice match</h1>
               <p className="muted">
-                Face the Practice Automaton with your new deck. Nothing is at
-                stake — tap any card to see what it does, and hover or tap
-                keywords for a reminder.
+                Try your new deck against the AI. Nothing is at stake. Tap any
+                card to see what it does.
               </p>
             </div>
           </header>

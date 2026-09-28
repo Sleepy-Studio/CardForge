@@ -11,35 +11,47 @@ import { useRequireAccount } from "@/lib/session";
 import type { CompetitiveView, SavedDeck } from "@/lib/types";
 import { useApiData } from "@/lib/use-api-data";
 import { PageHeader, RankBadge } from "../ui/bits";
+import { useCardArt } from "../ui/card-face";
 import { DeckPicker, deckProblem } from "./deck-picker";
 
 type Mode = "casual" | "ranked" | "friend" | "practice" | "academy";
 
-const modes: readonly { id: Mode; title: string; blurb: string }[] = [
+const modes: readonly {
+  id: Mode;
+  title: string;
+  blurb: string;
+  /** Card whose illustration decorates the mode tile. */
+  art: string;
+}[] = [
   {
     id: "casual",
     title: "Casual",
-    blurb: "Unranked matchmaking. Earn Shards and XP.",
+    blurb: "Play anyone. Earn Shards and XP.",
+    art: "entity.linebreaker",
   },
   {
     id: "ranked",
     title: "Ranked",
-    blurb: "Climb the season ladder. Rating changes each match.",
+    blurb: "Climb the season ladder.",
+    art: "leader.vanguard",
   },
   {
     id: "friend",
-    title: "Vs Friend",
-    blurb: "Private match with an invite code. No rewards.",
+    title: "Friend",
+    blurb: "Private match with a code.",
+    art: "reaction.deflect",
   },
   {
     id: "practice",
     title: "Practice",
-    blurb: "Play the Automaton with any legal deck.",
+    blurb: "Play against the AI.",
+    art: "entity.bulwark",
   },
   {
     id: "academy",
-    title: "Academy",
-    blurb: "Guided lessons and PvE challenges.",
+    title: "Learn",
+    blurb: "Lessons and challenges.",
+    art: "relic.beacon",
   },
 ];
 
@@ -56,6 +68,7 @@ export function PlayMenu() {
   const flags = useApiData<{ featureFlags: Record<string, boolean> }>(
     "/api/live-ops/current",
   );
+  const artUrl = useCardArt();
   const [mode, setMode] = useState<Mode>("casual");
   const [deckId, setDeckId] = useState("");
   const [opponent, setOpponent] = useState("");
@@ -94,7 +107,7 @@ export function PlayMenu() {
       );
     }
     if (problem) {
-      setError(`${problem}. Pick another deck or fix it in the Deckbuilder.`);
+      setError(`${problem}. Pick another deck or edit it in Decks.`);
       return;
     }
     if (mode === "friend" && invite)
@@ -160,6 +173,11 @@ export function PlayMenu() {
             role="tab"
             type="button"
           >
+            <span
+              aria-hidden="true"
+              className="mode-card__art"
+              style={{ backgroundImage: `url("${artUrl(item.art)}")` }}
+            />
             <strong>{item.title}</strong>
             <small>
               {item.id === "ranked" && !rankedOpen
@@ -181,8 +199,7 @@ export function PlayMenu() {
               <strong>{profile.data.profile.season.name}</strong>
               <p className="muted">
                 {profile.data.profile.wins}W – {profile.data.profile.losses}L.
-                Requirements: a legal deck you fully own, with an unlocked
-                Leader.
+                Needs a legal deck made only of cards you own.
               </p>
             </div>
           </div>
@@ -190,8 +207,7 @@ export function PlayMenu() {
 
         {mode === "academy" ? (
           <p className="muted">
-            Lessons teach one idea at a time; challenges test you against
-            modified starts.
+            Short lessons teach one idea each. Challenges put it to the test.
           </p>
         ) : (
           <>
@@ -305,7 +321,7 @@ export function PlayMenu() {
                     : "Create a code first"
                   : mode === "practice"
                     ? "Start practice"
-                    : "Open Academy"}
+                    : "Go to lessons"}
           </button>
         </div>
       </section>

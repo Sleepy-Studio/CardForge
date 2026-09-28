@@ -9,14 +9,9 @@ import {
   type ReactNode,
 } from "react";
 import type { ThemeManifest } from "@cardforge/card-schema";
-import { defaultTheme } from "@cardforge/theme-default";
-import { orbitalTheme } from "@cardforge/theme-test-scifi";
+import { isThemeId, themeNames, themes, type ThemeId } from "@/lib/themes";
 
-const themes = {
-  aetherfront: defaultTheme,
-  "orbital-conflict": orbitalTheme,
-} as const;
-export type ThemeId = keyof typeof themes;
+export type { ThemeId };
 
 interface ThemeContextValue {
   readonly theme: ThemeManifest;
@@ -33,8 +28,7 @@ export function ThemeProvider({ children }: { readonly children: ReactNode }) {
 
   useEffect(() => {
     const stored = window.localStorage.getItem("cardforge.theme");
-    if (stored === "aetherfront" || stored === "orbital-conflict")
-      setThemeId(stored);
+    if (isThemeId(stored)) setThemeId(stored);
   }, []);
 
   useEffect(() => {
@@ -83,8 +77,11 @@ export function ThemeSwitcher({
         onChange={(event) => setThemeId(event.target.value as ThemeId)}
         value={themeId}
       >
-        <option value="aetherfront">Aetherfront</option>
-        <option value="orbital-conflict">Orbital Conflict</option>
+        {Object.entries(themeNames).map(([id, name]) => (
+          <option key={id} value={id}>
+            {name}
+          </option>
+        ))}
       </select>
     </label>
   );

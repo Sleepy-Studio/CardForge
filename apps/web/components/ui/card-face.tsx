@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CardDefinition } from "@cardforge/card-schema";
 import { glossaryById } from "@cardforge/rules-tempofront";
 import {
   cardArtKey,
-  fallbackArt,
   loadAssetManifest,
   resolveAsset,
   type AssetManifest,
 } from "@/lib/assets";
+import { generatedArtUrl } from "@/lib/themes";
 import {
   aspectLabel,
+  cardMap,
   keywordChips,
   rulesTextFor,
   typeLabel,
@@ -36,6 +37,40 @@ export function useThemeAssets(): AssetManifest {
   return manifest;
 }
 
+/**
+ * Illustration URL for a card: the Theme Pack's own art when it ships some,
+ * otherwise the generated illustration for this theme.
+ */
+export function useCardArt(): (cardId: string) => string {
+  const { theme } = useGameTheme();
+  const assets = useThemeAssets();
+  return useCallback(
+    (cardId: string) => {
+      const card = cardMap.get(cardId);
+      const own = card
+        ? resolveAsset(
+            theme,
+            assets,
+            card.type === "leader" ? "leaderPortrait" : "cardArt",
+            cardArtKey(theme, card),
+          )
+        : null;
+      return own ?? generatedArtUrl(theme.themeId, cardId);
+    },
+    [theme, assets],
+  );
+}
+
+/** Board backdrop: Theme Pack art or the generated scene. */
+export function useBoardArt(): string {
+  const { theme } = useGameTheme();
+  const assets = useThemeAssets();
+  return (
+    resolveAsset(theme, assets, "board", "default") ??
+    generatedArtUrl(theme.themeId, "board")
+  );
+}
+
 export interface CardFaceProps {
   readonly card: CardDefinition;
   readonly size?: "sm" | "md" | "lg";
@@ -45,7 +80,16 @@ export interface CardFaceProps {
   readonly missing?: boolean;
   readonly selected?: boolean;
   readonly damage?: number;
+  /** No tooltip buttons: set when the card sits inside a button. */
+  readonly plain?: boolean;
 }
+
+const rarityLabel: Readonly<Record<string, string>> = {
+  common: "Common",
+  uncommon: "Uncommon",
+  rare: "Rare",
+  unique: "Unique",
+};
 
 /** DOM card rendering: text stays above art in priority (see spec.md). */
 export function CardFace({
@@ -56,19 +100,18 @@ export function CardFace({
   missing,
   selected,
   damage = 0,
+  plain = false,
 }: CardFaceProps) {
   const { theme, term } = useGameTheme();
-  const assets = useThemeAssets();
-  const art = resolveAsset(
-    theme,
-    assets,
-    card.type === "leader" ? "leaderPortrait" : "cardArt",
-    cardArtKey(theme, card),
-  );
+  const art = useCardArt()(card.cardId);
   const name = theme.cardOverrides?.[card.cardId]?.name ?? card.name;
   const text = rulesTextFor(card, theme.terms);
   const chips = keywordChips(card);
-  const isUnit = card.type === "entity" || card.type === "leader";
+  const typeName =
+    term(card.type) === card.type ? typeLabel[card.type] : term(card.type);
+  const subtype = card.subtypes?.length ? card.subtypes.join(" · ") : null;
+  // Small cards always sit inside buttons, so their terms stay plain.
+  const plainTerms = plain || size === "sm";
   return (
     <article
       aria-label={name}
@@ -76,6 +119,7 @@ export function CardFace({
         "card-face",
         `card-face--${size}`,
         `card-face--${card.aspects[0] ?? "neutral"}`,
+        `card-face--type-${card.type}`,
         card.rarity ? `rarity--${card.rarity}` : "",
         dimmed ? "is-dimmed" : "",
         missing ? "is-missing" : "",
@@ -83,36 +127,38 @@ export function CardFace({
       ].join(" ")}
       data-card-id={card.cardId}
     >
-      <header className="card-face__head">
+      <div
+        className="card-face__art"
+        style={{ backgroundImage: `url("${art}")` }}
+      >
         {card.type !== "leader" ? (
           <span
             className="card-face__cost"
-            title={`${card.focusCost} ${term("focus")}`}
+            title={`Costs ${card.focusCost} ${term("focus")}`}
           >
             {card.focusCost}
           </span>
         ) : null}
-        <strong className="card-face__name">{name}</strong>
         {card.type !== "leader" && card.playTime !== undefined ? (
           <span
             className="card-face__time"
-            title={`${card.playTime} Time to play`}
+            title={`Takes ${card.playTime} Time to play`}
           >
-            {card.playTime}⧗
+            {card.playTime}
+            <small>⧗</small>
           </span>
         ) : null}
+        {badge ? <span className="card-face__badge">{badge}</span> : null}
+        {missing ? <span className="card-face__missing">Not owned</span> : null}
+      </div>
+      <header className="card-face__head">
+        <strong className="card-face__name">{name}</strong>
       </header>
-      <div
-        className="card-face__art"
-        style={
-          art
-            ? { backgroundImage: `url(${art})` }
-            : { background: fallbackArt(card) }
-        }
-      />
       <p className="card-face__type">
-        {typeLabel[card.type]}
-        {card.subtypes?.length ? ` — ${card.subtypes.join(", ")}` : ""}
+        <span>
+          {typeName}
+          {subtype && size !== "sm" ? ` · ${subtype}` : ""}
+        </span>
         <span className="card-face__aspects">
           {card.aspects.map((aspect) => (
             <i
@@ -121,41 +167,64 @@ export function CardFace({
               title={aspectLabel[aspect]}
             />
           ))}
+          {card.rarity ? (
+            <i
+              className={`rarity-gem rarity-gem--${card.rarity}`}
+              title={rarityLabel[card.rarity] ?? card.rarity}
+            />
+          ) : null}
         </span>
       </p>
       {size !== "sm" ? (
         <div className="card-face__body">
           {chips.length ? (
             <p className="card-face__keywords">
-              {chips.map((chip) => (
-                <TermTip entry={chip.entry} key={chip.label}>
-                  {chip.label}
-                </TermTip>
-              ))}
+              {chips.map((chip) =>
+                plainTerms ? (
+                  <span className="term-chip" key={chip.label}>
+                    {chip.label}
+                  </span>
+                ) : (
+                  <TermTip entry={chip.entry} key={chip.label}>
+                    {chip.label}
+                  </TermTip>
+                ),
+              )}
             </p>
           ) : null}
           {text ? <p className="card-face__text">{text}</p> : null}
         </div>
-      ) : null}
-      {isUnit ? (
+      ) : (
+        <span className="card-face__spacer" />
+      )}
+      {card.type === "entity" ? (
         <footer className="card-face__stats">
-          {card.type === "entity" ? (
-            <>
-              <span title="Power">⚔ {card.power ?? 0}</span>
-              <span title="Vitality">♥ {(card.vitality ?? 0) - damage}</span>
-              <TermTip entry={glossaryById.get("victory.presence")}>
-                ◆ {card.presence ?? 0}
-              </TermTip>
-            </>
-          ) : (
-            <span>
-              {card.aspects.map((aspect) => aspectLabel[aspect]).join(" / ")}
+          <span className="stat stat--power" title="Power">
+            {card.power ?? 0}
+          </span>
+          {plainTerms ? (
+            <span className="stat stat--presence" title="Presence">
+              ◆{card.presence ?? 0}
             </span>
+          ) : (
+            <TermTip entry={glossaryById.get("victory.presence")}>
+              <span className="stat stat--presence">◆{card.presence ?? 0}</span>
+            </TermTip>
           )}
+          <span
+            className={`stat stat--vitality${damage ? " is-damaged" : ""}`}
+            title="Vitality"
+          >
+            {(card.vitality ?? 0) - damage}
+          </span>
+        </footer>
+      ) : card.type === "leader" ? (
+        <footer className="card-face__stats card-face__stats--leader">
+          <span>
+            {card.aspects.map((aspect) => aspectLabel[aspect]).join(" / ")}
+          </span>
         </footer>
       ) : null}
-      {badge ? <span className="card-face__badge">{badge}</span> : null}
-      {missing ? <span className="card-face__missing">Not owned</span> : null}
     </article>
   );
 }

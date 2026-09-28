@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { FrontId, PlayerId, SlotId } from "@cardforge/card-schema";
 import type { GameState } from "@cardforge/rules-kernel";
-import { Application, Graphics, Text, TextStyle } from "pixi.js";
+import {
+  Application,
+  Graphics,
+  Sprite,
+  Text,
+  TextStyle,
+  Texture,
+} from "pixi.js";
 import {
   browserEngine,
   type BoardAnchor,
@@ -42,6 +49,27 @@ interface BoardCanvasProps {
   readonly aimAtLeader?: boolean;
   /** Optional Theme Pack board art shown beneath the lanes. */
   readonly backgroundUrl?: string | null;
+  /** Illustration URL for a card, drawn as a thumbnail in its slot. */
+  readonly artUrl?: (cardId: string) => string;
+}
+
+/** Card art textures shared across renders; loaded once per URL. */
+const textures = new Map<string, Texture | "loading">();
+
+function artTexture(url: string, onReady: () => void): Texture | null {
+  const cached = textures.get(url);
+  if (cached instanceof Texture) return cached;
+  if (!cached) {
+    textures.set(url, "loading");
+    const image = new Image();
+    image.onload = () => {
+      textures.set(url, Texture.from(image));
+      onReady();
+    };
+    image.onerror = () => textures.delete(url);
+    image.src = url;
+  }
+  return null;
 }
 
 const fronts = ["left", "center", "right"] as const;
@@ -80,6 +108,7 @@ export function BoardCanvas({
   aimFrom = null,
   aimAtLeader = false,
   backgroundUrl = null,
+  artUrl,
 }: BoardCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
@@ -207,7 +236,7 @@ export function BoardCanvas({
       fontWeight: "600",
       fill: 0xf4fbff,
       wordWrap: true,
-      wordWrapWidth: laneWidth - 36,
+      wordWrapWidth: laneWidth - 36 - (artUrl ? 70 : 0),
     });
     const metaStyle = new TextStyle({
       fontFamily: "ui-monospace, SFMono-Regular, monospace",
@@ -339,6 +368,30 @@ export function BoardCanvas({
 
           if (instance) {
             const definition = browserEngine.cards.get(instance.cardId);
+            const texture = artUrl
+              ? artTexture(artUrl(instance.cardId), () =>
+                  setCanvasRevision((revision) => revision + 1),
+                )
+              : null;
+            if (texture) {
+              const thumbW = 72;
+              const thumbH = slotHeight - 12;
+              const thumbX = x + laneWidth - 24 - thumbW;
+              const sprite = new Sprite(texture);
+              const cover = Math.max(
+                thumbW / texture.width,
+                thumbH / texture.height,
+              );
+              sprite.scale.set(cover);
+              sprite.x = thumbX + (thumbW - texture.width * cover) / 2;
+              sprite.y = y + 6 + (thumbH - texture.height * cover) / 2;
+              const mask = new Graphics()
+                .roundRect(thumbX, y + 6, thumbW, thumbH, 8)
+                .fill(0xffffff);
+              sprite.mask = mask;
+              if (!instance.ready) sprite.alpha = 0.55;
+              app.stage.addChild(mask, sprite);
+            }
             const label = new Text({
               text: definition?.name ?? instance.cardId,
               style: cardStyle,
@@ -365,7 +418,7 @@ export function BoardCanvas({
             app.stage.addChild(stats);
           } else {
             const empty = new Text({
-              text: `${playerId === viewerId ? "YOUR" : "RIVAL"} ${slot.toUpperCase()}`,
+              text: `${playerId === viewerId ? "YOUR" : "THEIR"} ${slot.toUpperCase()}`,
               style: metaStyle,
             });
             empty.x = x + 24;
@@ -508,6 +561,7 @@ export function BoardCanvas({
     aimFrom,
     aimAtLeader,
     backgroundUrl,
+    artUrl,
   ]);
 
   return (

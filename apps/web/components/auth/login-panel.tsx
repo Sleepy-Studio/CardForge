@@ -7,10 +7,12 @@ import { useRuntimeConfig } from "@/lib/runtime-config";
 import { useSession } from "@/lib/session";
 import { useHydrated } from "@/lib/use-hydrated";
 import type { Account } from "@/lib/types";
+import { cardMap } from "@/lib/cards";
+import { CardFace } from "../ui/card-face";
 
 const oauthErrors: Record<string, string> = {
   signup_code_required:
-    "CardForge is in closed alpha. Register with your invite code first, or ask for one.",
+    "Registration needs an invite code. Register with your code first, or ask for one.",
   oauth_state_mismatch: "That sign-in attempt expired. Please try again.",
   oauth_exchange_failed:
     "Discord did not confirm the sign-in. Please try again.",
@@ -112,124 +114,140 @@ export function LoginPanel() {
   }`;
 
   return (
-    <section className="auth-card" aria-labelledby="auth-title">
-      <p className="eyebrow">Closed alpha</p>
-      <h1 id="auth-title">
-        {mode === "signin" ? "Welcome back" : "Create your account"}
-      </h1>
-      <p className="muted">
-        A tactical card game of shared time, contested fronts, and decisive
-        reactions.
-      </p>
-      <div
-        className="segmented"
-        role="tablist"
-        aria-label="Sign in or register"
-      >
-        <button
-          aria-selected={mode === "signin"}
-          onClick={() => setMode("signin")}
-          role="tab"
-          type="button"
-        >
-          Sign in
-        </button>
-        <button
-          aria-selected={mode === "register"}
-          onClick={() => setMode("register")}
-          role="tab"
-          type="button"
-        >
-          Register
-        </button>
+    <div className="auth-layout">
+      <div className="auth-art" aria-hidden="true">
+        {["leader.ember", "entity.linebreaker", "leader.cipher"].map((id) => {
+          const card = cardMap.get(id);
+          return card ? (
+            <CardFace card={card} key={id} plain size="md" />
+          ) : null;
+        })}
       </div>
-      <form className="form-stack" onSubmit={(event) => void submit(event)}>
-        {mode === "register" ? (
-          <label>
-            <span>Display name</span>
-            <input
-              autoComplete="nickname"
-              maxLength={32}
-              minLength={2}
-              required
-              {...field("displayName")}
-            />
-          </label>
-        ) : null}
-        <label>
-          <span>Email</span>
-          <input
-            autoComplete="email"
-            inputMode="email"
-            required
-            type="email"
-            {...field("email")}
-          />
-        </label>
-        <label>
-          <span>Password</span>
-          <input
-            autoComplete={
-              mode === "signin" ? "current-password" : "new-password"
-            }
-            minLength={mode === "register" ? 10 : 1}
-            required
-            type="password"
-            {...field("password")}
-          />
-          {mode === "register" ? <small>At least 10 characters.</small> : null}
-        </label>
-        {mode === "register" && providers?.signupMode === "invite" ? (
-          <label>
-            <span>Invite code</span>
-            <input
-              autoComplete="off"
-              name="signupCode"
-              {...field("signupCode")}
-            />
-          </label>
-        ) : null}
-        {mode === "register" ? (
-          <details className="quiet-details">
-            <summary>I have an account claim code</summary>
-            <label>
-              <span>Claim code</span>
-              <input autoComplete="off" {...field("claimCode")} />
-              <small>
-                From support, to attach a sign-in to an existing alpha account.
-              </small>
-            </label>
-          </details>
-        ) : null}
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <button
-          className="button button--primary button--wide"
-          disabled={busy || !hydrated}
-          type="submit"
+      <section className="auth-card" aria-labelledby="auth-title">
+        <h1 id="auth-title">
+          {mode === "signin" ? "Welcome back" : "Create your account"}
+        </h1>
+        <p className="muted">
+          {mode === "signin"
+            ? "Sign in to build decks and play."
+            : "Get a free starter deck and start playing."}
+        </p>
+        <div
+          className="segmented"
+          role="tablist"
+          aria-label="Sign in or register"
         >
-          {busy
-            ? "Please wait…"
-            : mode === "signin"
-              ? "Sign in"
-              : "Create account"}
-        </button>
-      </form>
-      {mode === "signin" ? <ResetPassword onDone={setAccount} /> : null}
-      {providers?.discord ? (
-        <>
-          <div className="divider">
-            <span>or</span>
-          </div>
-          <a className="button button--discord button--wide" href={discordHref}>
-            Continue with Discord
-          </a>
-        </>
-      ) : null}
-    </section>
+          <button
+            aria-selected={mode === "signin"}
+            onClick={() => setMode("signin")}
+            role="tab"
+            type="button"
+          >
+            Sign in
+          </button>
+          <button
+            aria-selected={mode === "register"}
+            onClick={() => setMode("register")}
+            role="tab"
+            type="button"
+          >
+            Register
+          </button>
+        </div>
+        <form className="form-stack" onSubmit={(event) => void submit(event)}>
+          {mode === "register" ? (
+            <label>
+              <span>Display name</span>
+              <input
+                autoComplete="nickname"
+                maxLength={32}
+                minLength={2}
+                required
+                {...field("displayName")}
+              />
+            </label>
+          ) : null}
+          <label>
+            <span>Email</span>
+            <input
+              autoComplete="email"
+              inputMode="email"
+              required
+              type="email"
+              {...field("email")}
+            />
+          </label>
+          <label>
+            <span>Password</span>
+            <input
+              autoComplete={
+                mode === "signin" ? "current-password" : "new-password"
+              }
+              minLength={mode === "register" ? 10 : 1}
+              required
+              type="password"
+              {...field("password")}
+            />
+            {mode === "register" ? (
+              <small>At least 10 characters.</small>
+            ) : null}
+          </label>
+          {mode === "register" && providers?.signupMode === "invite" ? (
+            <label>
+              <span>Invite code</span>
+              <input
+                autoComplete="off"
+                name="signupCode"
+                {...field("signupCode")}
+              />
+            </label>
+          ) : null}
+          {mode === "register" ? (
+            <details className="quiet-details">
+              <summary>I have an account claim code</summary>
+              <label>
+                <span>Claim code</span>
+                <input autoComplete="off" {...field("claimCode")} />
+                <small>
+                  From support, to attach a sign-in to an existing alpha
+                  account.
+                </small>
+              </label>
+            </details>
+          ) : null}
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <button
+            className="button button--primary button--wide"
+            disabled={busy || !hydrated}
+            type="submit"
+          >
+            {busy
+              ? "Please wait…"
+              : mode === "signin"
+                ? "Sign in"
+                : "Create account"}
+          </button>
+        </form>
+        {mode === "signin" ? <ResetPassword onDone={setAccount} /> : null}
+        {providers?.discord ? (
+          <>
+            <div className="divider">
+              <span>or</span>
+            </div>
+            <a
+              className="button button--discord button--wide"
+              href={discordHref}
+            >
+              Continue with Discord
+            </a>
+          </>
+        ) : null}
+      </section>
+    </div>
   );
 }
 

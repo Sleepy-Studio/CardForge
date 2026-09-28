@@ -7,14 +7,13 @@ import { useRuntimeConfig } from "@/lib/runtime-config";
 import { useSession } from "@/lib/session";
 
 const navigation = [
-  { href: "/", label: "Home", icon: "⌂" },
-  { href: "/play", label: "Play", icon: "▶" },
-  { href: "/decks", label: "Decks", icon: "▤" },
-  { href: "/collection", label: "Collection", icon: "◈" },
-  { href: "/academy", label: "Academy", icon: "✦" },
-  { href: "/competitive", label: "Competitive", icon: "♛" },
-  { href: "/history", label: "History", icon: "↺" },
-  { href: "/profile", label: "Profile", icon: "◉" },
+  { href: "/", label: "Home" },
+  { href: "/play", label: "Play" },
+  { href: "/decks", label: "Decks" },
+  { href: "/collection", label: "Collection" },
+  { href: "/academy", label: "Learn" },
+  { href: "/competitive", label: "Ranked" },
+  { href: "/history", label: "History" },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -69,13 +68,22 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
                   href={item.href}
                   key={item.href}
                 >
-                  <span aria-hidden="true">{item.icon}</span>
                   {item.label}
                 </Link>
               ))}
             </nav>
-            <Link className="player-identity" href="/profile">
-              {account?.displayName}
+            <Link
+              aria-current={isActive(pathname, "/profile") ? "page" : undefined}
+              className="player-identity"
+              href="/profile"
+              title="Profile and settings"
+            >
+              <span className="avatar" aria-hidden="true">
+                {account?.displayName.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="player-identity__name">
+                {account?.displayName}
+              </span>
             </Link>
           </>
         ) : account === null ? (
@@ -91,8 +99,8 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
         {children}
       </main>
       <footer className="player-footer">
-        <span>CardForge closed alpha</span>
-        <Link href="/rules">Rules reference</Link>
+        <span>Powered by CardForge</span>
+        <Link href="/rules">How to play</Link>
         {account?.role === "admin" ? (
           <>
             <Link href="/operations">Operations</Link>

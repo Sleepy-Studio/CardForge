@@ -13,7 +13,7 @@ import { useRequireAccount } from "@/lib/session";
 import { BoardCanvas } from "../board-canvas";
 import { reasonLabel, queueLabel } from "../history/match-row";
 import { useGameTheme } from "../theme-provider";
-import { CardFace } from "../ui/card-face";
+import { CardFace, useBoardArt, useCardArt } from "../ui/card-face";
 import { formatDate } from "../ui/bits";
 
 type Perspective = PlayerId | "public";
@@ -68,6 +68,8 @@ export function ReplayViewer({ matchId }: { readonly matchId: string }) {
   const account = useRequireAccount();
   const api = useApi();
   const { theme, term } = useGameTheme();
+  const artUrl = useCardArt();
+  const boardArt = useBoardArt();
   const [perspective, setPerspective] = useState<Perspective | null>(null);
   const [page, setPage] = useState<ReplayPage | null>(null);
   const [frames, setFrames] = useState<readonly Frame[]>([]);
@@ -277,6 +279,8 @@ export function ReplayViewer({ matchId }: { readonly matchId: string }) {
             ))}
           </div>
           <BoardCanvas
+            artUrl={artUrl}
+            backgroundUrl={boardArt}
             legalFronts={new Set()}
             legalSlots={new Set()}
             legalTargets={new Set()}

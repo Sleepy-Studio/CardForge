@@ -10,6 +10,7 @@ import type { SavedDeck } from "@/lib/types";
 import { useApiData } from "@/lib/use-api-data";
 import { deckProblem } from "../play/deck-picker";
 import { EmptyState, PageHeader } from "../ui/bits";
+import { useCardArt } from "../ui/card-face";
 
 export function newDeckId(): string {
   return `deck-${Math.random().toString(36).slice(2, 10)}`;
@@ -18,6 +19,7 @@ export function newDeckId(): string {
 export function DeckList() {
   const account = useRequireAccount();
   const api = useApi();
+  const artUrl = useCardArt();
   const router = useRouter();
   const { data, error, reload } = useApiData<{ decks: SavedDeck[] }>(
     account ? "/api/me/decks" : null,
@@ -85,6 +87,11 @@ export function DeckList() {
                 data-deck={deck.deckId}
                 key={deck.deckId}
               >
+                <span
+                  aria-hidden="true"
+                  className="deck-tile__art"
+                  style={{ backgroundImage: `url("${artUrl(deck.leaderId)}")` }}
+                />
                 {renaming?.deckId === deck.deckId ? (
                   <form
                     className="rename-form"
@@ -190,8 +197,8 @@ export function DeckList() {
       <section className="panel-card">
         <h2>Import a starter list</h2>
         <p className="muted">
-          Every Leader has a ready-made 40-card list. Cards you do not own yet
-          are marked, and you can craft them in your Collection.
+          Start from any ready-made list. Cards you don&apos;t own are marked,
+          and you can craft them in Collection.
         </p>
         <div className="inline-form">
           <select

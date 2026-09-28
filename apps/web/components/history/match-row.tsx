@@ -10,7 +10,7 @@ export const queueLabel: Readonly<Record<string, string>> = {
   ranked: "Ranked",
   friend: "Friend",
   practice: "Practice",
-  pve: "Academy",
+  pve: "Challenge",
 };
 
 export const reasonLabel: Readonly<Record<string, string>> = {

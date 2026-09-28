@@ -7,6 +7,7 @@ import { generateRulesText } from "@cardforge/rules-tempofront";
 import { BoardCanvas, type BoardIntent } from "./board-canvas";
 import { FieldGuide, type FieldGuideResult } from "./field-guide";
 import { useGameTheme } from "./theme-provider";
+import { useBoardArt, useCardArt } from "./ui/card-face";
 import {
   activePlayer,
   browserCardPoolSize,
@@ -98,6 +99,8 @@ function StatPill({
 
 export function MatchLab() {
   const { theme, term } = useGameTheme();
+  const artUrl = useCardArt();
+  const boardArt = useBoardArt();
   const rulesTextTerms = {
     focus: term("focus"),
     entity: term("entity"),
@@ -542,6 +545,8 @@ export function MatchLab() {
             reducedMotion={prefersReducedMotion}
             themePalette={theme.palette}
             onIntent={onBoardIntent}
+            artUrl={artUrl}
+            backgroundUrl={boardArt}
           />
           {primaryCue ? (
             <div

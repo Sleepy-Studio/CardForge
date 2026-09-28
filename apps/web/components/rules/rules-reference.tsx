@@ -24,7 +24,7 @@ export function RulesReference() {
     text.toLowerCase().includes(query.trim().toLowerCase());
   return (
     <div className="rules-page">
-      <PageHeader eyebrow="Rules reference" title="How TempoFront works">
+      <PageHeader eyebrow="Rules" title="How to play">
         <p className="muted">
           No turns: both players share one Timeline. Control two of three Fronts
           at the end of a Cycle to gain Dominion — six wins — or reduce the

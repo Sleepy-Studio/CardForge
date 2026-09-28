@@ -40,8 +40,7 @@ import {
   type BoardIntent,
 } from "../board-canvas";
 import { useGameTheme } from "../theme-provider";
-import { CardFace, useThemeAssets } from "../ui/card-face";
-import { resolveAsset } from "@/lib/assets";
+import { CardFace, useBoardArt, useCardArt } from "../ui/card-face";
 import { TermTip } from "../ui/term-tip";
 
 const handDragThreshold = 8;
@@ -169,8 +168,8 @@ export function MatchTable({
 }: MatchTableProps) {
   const { theme, term } = useGameTheme();
   const reducedMotion = useReducedMotion();
-  const assets = useThemeAssets();
-  const boardArt = resolveAsset(theme, assets, "board", "default");
+  const boardArt = useBoardArt();
+  const artUrl = useCardArt();
   const seat = snapshot.seat;
   const rival = opponentOf(seat);
   const view = snapshot.view;
@@ -494,6 +493,7 @@ export function MatchTable({
         <section className="match-board" aria-label="Battlefield">
           <BoardCanvas
             aimAtLeader={highlights.leaderTargeted}
+            artUrl={artUrl}
             backgroundUrl={boardArt}
             aimFrom={selectedId}
             legalFronts={highlights.fronts}
@@ -751,7 +751,7 @@ export function MatchTable({
                     type="button"
                   >
                     {definition ? (
-                      <CardFace card={definition} size="md" />
+                      <CardFace card={definition} plain size="md" />
                     ) : (
                       <span>
                         {option === "pay"
