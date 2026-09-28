@@ -13,19 +13,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-          cache: pnpm
+      - name: Install pnpm
+        run: npm install -g "$(node -p "require('./package.json').packageManager")"
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec tsc -b
       - name: 1,000-game batch with replay verification
         run: node apps/simulator/dist/cli.js --games 1000 --seed $(date +%j) | tee batch.json
       - name: Seat-swapped archetype matrix, 4 games per seat
         run: node apps/simulator/dist/cli.js --matrix --games-per-seat 4 --seed $(date +%j) | tee matrix.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nightly-simulation
           path: "*.json"
