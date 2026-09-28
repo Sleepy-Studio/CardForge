@@ -42,6 +42,11 @@ export interface LiveOpsDefinition {
   readonly featureFlags: Readonly<Record<string, boolean>>;
 }
 
+/**
+ * Revision 1 is the historical launch definition. It is kept byte-for-byte
+ * because published revisions are immutable; its events ended in September
+ * 2026 and are now served only as history.
+ */
 export const launchLiveOps: LiveOpsDefinition = {
   configId: "liveops.launch-2026",
   revision: 1,
@@ -152,4 +157,140 @@ export function stageLiveOps(
   if (nextRevision <= definition.revision)
     throw new Error("A staged live-ops revision must increase");
   return { ...definition, revision: nextRevision, state: "staged" };
+}
+
+/**
+ * Revision 2: the first additive revision after launch. It keeps the launch
+ * quests and flags, retires the expired launch events, and schedules the
+ * autumn events. Later schedules arrive as further additive revisions,
+ * either here or staged and published through the operations API.
+ */
+export const autumnLiveOps: LiveOpsDefinition = {
+  ...launchLiveOps,
+  revision: 2,
+  state: "published",
+  events: [
+    {
+      eventId: "event.autumn-front",
+      title: "Autumn Front",
+      startsAt: "2026-09-28T00:00:00.000Z",
+      endsAt: "2026-10-19T00:00:00.000Z",
+      featureFlag: "event.autumn-front",
+      reward: { styleTokens: 100 },
+    },
+    {
+      eventId: "event.clockwork-gauntlet-2",
+      title: "Clockwork Gauntlet",
+      startsAt: "2026-10-12T00:00:00.000Z",
+      endsAt: "2026-11-02T00:00:00.000Z",
+      featureFlag: "event.clockwork-gauntlet-2",
+      scenarioIds: [
+        "pve.broken-citadel",
+        "pve.last-signal",
+        "pve.clockwork-hunt",
+      ],
+      reward: { cosmeticId: "vfx.clean-strike" },
+    },
+  ],
+  featureFlags: {
+    ...launchLiveOps.featureFlags,
+    "event.launch-front": false,
+    "event.autumn-front": true,
+    "event.clockwork-gauntlet-2": true,
+  },
+};
+
+/** Every revision shipped with the code, oldest first. Seeded additively. */
+export const liveOpsCatalog: readonly LiveOpsDefinition[] = [
+  launchLiveOps,
+  autumnLiveOps,
+];
+
+export type EventWindow = "upcoming" | "active" | "ended";
+
+export function eventWindow(
+  event: LiveEventDefinition,
+  nowMs: number,
+): EventWindow {
+  if (nowMs < Date.parse(event.startsAt)) return "upcoming";
+  if (nowMs >= Date.parse(event.endsAt)) return "ended";
+  return "active";
+}
+
+/**
+ * Events a player should see: enabled by their flag and not yet ended.
+ * Ended events stay in the stored revision for history but are never shown
+ * as live, so a stale definition can no longer advertise an expired event.
+ */
+export function visibleEvents(
+  definition: LiveOpsDefinition,
+  nowMs: number,
+): readonly (LiveEventDefinition & { readonly window: EventWindow })[] {
+  return definition.events
+    .filter((event) => definition.featureFlags[event.featureFlag] === true)
+    .map((event) => ({ ...event, window: eventWindow(event, nowMs) }))
+    .filter((event) => event.window !== "ended")
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+}
+
+/** Publish-time warnings that do not make a revision invalid. */
+export function liveOpsWarnings(
+  definition: LiveOpsDefinition,
+  nowMs: number,
+): readonly string[] {
+  const warnings: string[] = [];
+  for (const event of definition.events)
+    if (eventWindow(event, nowMs) === "ended")
+      warnings.push(`${event.eventId} has already ended`);
+  if (!visibleEvents(definition, nowMs).length)
+    warnings.push("No enabled event is active or upcoming");
+  return warnings;
+}
+
+export interface QuestPeriod {
+  readonly periodKey: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
+}
+
+/**
+ * Deterministic UTC reset windows: daily at 00:00 UTC, weekly on Monday
+ * 00:00 UTC, seasonal for the season's own window.
+ */
+export function questPeriod(
+  cadence: QuestDefinition["cadence"],
+  nowMs: number,
+  season: {
+    readonly seasonId: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+  },
+): QuestPeriod {
+  if (cadence === "seasonal")
+    return {
+      periodKey: season.seasonId,
+      startsAt: season.startsAt,
+      endsAt: season.endsAt,
+    };
+  const now = new Date(nowMs);
+  const dayStart = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  if (cadence === "daily") {
+    const start = new Date(dayStart);
+    return {
+      periodKey: `d:${start.toISOString().slice(0, 10)}`,
+      startsAt: start.toISOString(),
+      endsAt: new Date(dayStart + 86_400_000).toISOString(),
+    };
+  }
+  const weekday = (now.getUTCDay() + 6) % 7; // Monday = 0
+  const weekStart = dayStart - weekday * 86_400_000;
+  return {
+    periodKey: `w:${new Date(weekStart).toISOString().slice(0, 10)}`,
+    startsAt: new Date(weekStart).toISOString(),
+    endsAt: new Date(weekStart + 7 * 86_400_000).toISOString(),
+  };
 }

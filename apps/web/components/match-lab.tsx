@@ -418,14 +418,14 @@ export function MatchLab() {
               ? `GUIDE ${guideResult.score}/${guideResult.total}`
               : "FIELD GUIDE"}
           </button>
-          <a className="button button--quiet online-link" href="/online">
-            ONLINE ALPHA
+          <a className="button button--quiet online-link" href="/">
+            PLAYER APP
           </a>
           <a className="button button--quiet online-link" href="/studio">
             CARD STUDIO
           </a>
-          <a className="button button--quiet online-link" href="/competitive">
-            COMPETITIVE
+          <a className="button button--quiet online-link" href="/operations">
+            OPERATIONS
           </a>
           <button
             className={`button button--quiet fx-toggle ${effectsEnabled ? "is-active" : ""}`}

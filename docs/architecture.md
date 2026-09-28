@@ -1,8 +1,9 @@
-# Milestone 1 engine architecture
+# CardForge architecture
 
-Milestone 1 is complete at TempoFront revision `tempofront@0.6.0`. The scope is
-an authoritative, deterministic headless engine vertical slice—not a browser
-prototype or production content platform.
+This document grew milestone by milestone. The engine sections below describe
+the TempoFront kernel (revision `tempofront@0.6.0`); later sections cover the
+browser client, the authoritative service, content tooling, competitive and
+launch systems, and — last — the M7 production-alpha service boundaries.
 
 ## Kernel boundary
 
@@ -101,7 +102,7 @@ The product brief naturally pulls toward a complete monorepo and polished UI. Th
 
 ## Milestone 2 browser slice
 
-Milestone 2 is in progress. `apps/web` is a Next.js App Router client that runs
+`apps/web` began as a Next.js App Router client that runs
 the production TempoFront engine locally. PixiJS renders board geometry and
 pointer hit targets through WebGL; React/DOM owns the Timeline, resources, hand,
 generated rules text, card inspector, legal actions, event history, and screen-
@@ -213,7 +214,8 @@ opposite seats, verifies both projected private hands and the shared hash, then
 submits the server-projected empty mulligan. Both clients advance from command
 zero to one with a new identical hash. The server CORS policy permits only
 configured browser origins. Durable match records, deck storage,
-and saved-deck selection are implemented; production authentication remains.
+and saved-deck selection are implemented; production authentication arrived
+in M7.
 
 Action deadlines live beside the match rather than inside `GameState`. The room
 publishes server timestamps and per-seat deadlines, while the browser derives a
@@ -237,11 +239,10 @@ pinned seed, decks, Leaders, and commands, then rejecting the restore unless its
 canonical hash matches. The selected-deck network smoke performs this recovery
 through a separate database connection.
 
-The current REST surface provides basic alpha account registration and
-server-validated deck storage. `X-CardForge-Account-Id` prevents accidental
-cross-account operations but is explicitly not an authentication credential.
-Replacing it with verified identity is required before exposing the service to
-untrusted users.
+The alpha REST surface scoped requests with an `X-CardForge-Account-Id`
+header, which was never an authentication credential. M7 removed it in favour
+of verified sessions and room tickets (see the production-alpha section and
+[auth.md](auth.md)).
 
 ## Content factory and rebrand proof
 
@@ -313,3 +314,79 @@ has twenty-four collectibles. Collector number, rarity, budget score, and
 complexity score live in semantic definitions, so collection, crafting, studio
 review, and presentation consume one source rather than reconstructing launch
 metadata downstream.
+
+## Production alpha (M7) service boundaries
+
+```text
+browser ──HTTPS──▶ web (Next.js, standalone)        reads CARDFORGE_PUBLIC_API_URL per request
+   │
+   ├──HTTPS (cookie) ─▶ match-server /api           Express inside Colyseus
+   │                      ├─ sessionMiddleware       cookie → sha256 → cardforge_sessions → account
+   │                      ├─ /api/auth/*             password, Discord OAuth, reset, logout
+   │                      ├─ /api/me/*               player data; account from the session only
+   │                      ├─ /api/admin/*            admin role or operator bearer token
+   │                      └─ /health /ready /metrics
+   │
+   └──WSS (ticket) ────▶ Colyseus rooms              onAuth(ticket) → account; deck loaded by
+                          tempofront / -ranked /      (account, deckId) and must be legal, owned,
+                          -friend (filterBy code) /   and use an unlocked Leader
+                          -training (academy, practice)
+                                   │
+                                   ▼
+                           AuthoritativeMatchSession ─▶ TempoFront engine (unchanged)
+                                   │
+                                   ▼
+                              PostgreSQL (one transaction per settlement)
+```
+
+**Identity.** The client never supplies an account ID. REST requests resolve
+the account from a hashed session token; room joins resolve it from a
+five-minute HMAC ticket in Colyseus `onAuth`. Seat identity inside a match is
+still injected by the session, so commands never carry `playerId`. See
+[auth.md](auth.md).
+
+**Match lifecycle.** A room records its replay at creation and after every
+accepted command through a serialised write queue (a slower earlier write can
+never overwrite a later one). When both seats fill it records participants
+(with display-name snapshots) and the queue. An outcome is recorded exactly
+once from any of: a rules victory in `GameState`, a concession message, or a
+seat that fails to return within `CARDFORGE_RECONNECT_SECONDS` (abandonment).
+Concession and abandonment are room-level facts stored beside the replay;
+they never enter `GameState`, so replays remain pure command logs.
+
+**Settlement.** Settlement runs once per room behind a promise guard and is
+idempotent in the database as well: `recordMatchOutcome` only updates rows
+whose `completed_at` is null; ranked settlement keeps its per-match receipt;
+match rewards insert a `(match_id, account_id)` receipt in the same
+transaction as the wallet and XP change. Any duplicate is logged at
+`critical`. Friend matches grant nothing; concessions or abandonments before
+Cycle 3 grant no currency or unranked XP.
+
+**Derived data.** Per-seat statistics (cards played by ID, draws, mulligans,
+Reactions, Dominion, Integrity) are computed by re-running the accepted
+commands; timing, disconnect, reconnect, timeout, and queue-wait facts come
+from the room. Quest progress is a query over recorded matches in the quest's
+UTC window, and quest claims are receipts keyed by `(account, quest, period)`.
+
+**Replays.** The replay endpoint rebuilds the match with the production
+engine and returns projected frames for an authorised perspective (public or
+the requester's seat), paginated and cached per immutable replay. The seed and
+deck order never leave the server, so a replay cannot leak hidden cards. A
+final-hash mismatch is surfaced to the viewer and logged at `critical`.
+
+**Live ops.** Shipped revisions are seeded additively at start-up and never
+overwrite a stored revision. The current definition is the highest published
+revision; events outside their window are filtered at read time, so an old
+revision can never advertise an expired event as live. Operators stage and
+publish further revisions (including new events) through audited APIs.
+
+**Presentation.** The web client derives highlights, targets, Time and Focus
+previews, and prompts from the server's list of legal intents and the
+projected view; it never decides legality. Keyword and status text comes from
+the canonical glossary in `rules-tempofront`, aliased by Theme Pack terms.
+Asset hooks resolve optional per-theme files and fall back to procedural art.
+
+**Known limits.** One match-server replica: rooms, rate limits, and the
+replay cache are process-local. Scaling out needs a Colyseus presence/driver
+(Redis) and a shared rate-limit store; the schema and the migration advisory
+lock already tolerate multiple replicas.

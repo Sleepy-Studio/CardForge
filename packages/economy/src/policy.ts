@@ -1,5 +1,6 @@
 import type { CardDefinition } from "@cardforge/card-schema";
 import type {
+  OwnedCard,
   CosmeticDefinition,
   CraftQuote,
   EconomySnapshot,
@@ -116,3 +117,64 @@ export function collectionCompletion(
 }
 
 export const tradingProvider: { readonly enabled: false } = { enabled: false };
+
+/**
+ * Shards granted once per completed match and account. Friend matches grant
+ * nothing so two cooperating accounts cannot farm currency.
+ */
+export const matchShardRewards = {
+  casual: { win: 60, loss: 30 },
+  ranked: { win: 100, loss: 50 },
+  friend: { win: 0, loss: 0 },
+} as const;
+
+export function matchShardReward(
+  queue: keyof typeof matchShardRewards,
+  won: boolean,
+  outcome: "played" | "conceded_early",
+): number {
+  // A concession before the third Cycle earns nothing, discouraging
+  // queue-and-concede farming.
+  if (outcome === "conceded_early") return 0;
+  return matchShardRewards[queue][won ? "win" : "loss"];
+}
+
+/**
+ * Cards granted by a starter deck: every collectible in the list, with
+ * quantities capped at the ownership limit. Leaders are not collectibles.
+ */
+export function starterGrant(
+  deckCardIds: readonly string[],
+  cards: ReadonlyMap<string, CardDefinition>,
+): readonly OwnedCard[] {
+  const counts = new Map<string, number>();
+  for (const cardId of deckCardIds) {
+    const card = cards.get(cardId);
+    if (!card || card.type === "leader" || card.generatedOnly) continue;
+    counts.set(
+      cardId,
+      Math.min(maximumOwnedCopies(card), (counts.get(cardId) ?? 0) + 1),
+    );
+  }
+  return [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([cardId, quantity]) => ({ cardId, quantity }));
+}
+
+/** Cards in a deck list the owner does not hold enough copies of. */
+export function missingCards(
+  deckCardIds: readonly string[],
+  owned: readonly OwnedCard[],
+): readonly OwnedCard[] {
+  const have = new Map(owned.map((card) => [card.cardId, card.quantity]));
+  const need = new Map<string, number>();
+  for (const cardId of deckCardIds)
+    need.set(cardId, (need.get(cardId) ?? 0) + 1);
+  return [...need.entries()]
+    .map(([cardId, quantity]) => ({
+      cardId,
+      quantity: quantity - (have.get(cardId) ?? 0),
+    }))
+    .filter((card) => card.quantity > 0)
+    .sort((left, right) => left.cardId.localeCompare(right.cardId));
+}

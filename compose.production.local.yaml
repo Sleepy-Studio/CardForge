@@ -1,0 +1,11 @@
+# Local override for exercising the production stack without a platform
+# proxy: publishes web on :3000 and the match server on :2567.
+#   docker compose -f compose.production.yaml -f compose.production.local.yaml \
+#     --env-file .env.production up --build
+services:
+  match-server:
+    ports: ["127.0.0.1:2567:2567"]
+    environment:
+      CARDFORGE_COOKIE_SECURE: "false"
+  web:
+    ports: ["127.0.0.1:3000:3000"]

@@ -64,20 +64,29 @@ export function ThemeProvider({ children }: { readonly children: ReactNode }) {
   );
 
   return (
-    <ThemeContext.Provider value={value}>
-      {children}
-      <label className="global-theme-switcher">
-        <span>Theme pack</span>
-        <select
-          aria-label="Theme pack"
-          onChange={(event) => setThemeId(event.target.value as ThemeId)}
-          value={themeId}
-        >
-          <option value="aetherfront">Aetherfront</option>
-          <option value="orbital-conflict">Orbital Conflict</option>
-        </select>
-      </label>
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  );
+}
+
+/** Theme Pack picker. Players find it in Profile; dev tools float it. */
+export function ThemeSwitcher({
+  floating = false,
+}: {
+  readonly floating?: boolean;
+}) {
+  const { themeId, setThemeId } = useGameTheme();
+  return (
+    <label className={floating ? "global-theme-switcher" : "theme-switcher"}>
+      <span>Theme pack</span>
+      <select
+        aria-label="Theme pack"
+        onChange={(event) => setThemeId(event.target.value as ThemeId)}
+        value={themeId}
+      >
+        <option value="aetherfront">Aetherfront</option>
+        <option value="orbital-conflict">Orbital Conflict</option>
+      </select>
+    </label>
   );
 }
 

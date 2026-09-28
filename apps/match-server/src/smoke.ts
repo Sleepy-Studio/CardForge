@@ -1,109 +1,75 @@
-import { Client, type Room } from "@colyseus/sdk";
+/**
+ * Fast two-client room smoke: authenticated seats, forged identity refused,
+ * shared canonical hash, and private hands.
+ */
+import { SmokeAccount, SnapshotFeed, assert } from "./smoke-kit.js";
 
-interface SnapshotMessage {
-  readonly seat: "p1" | "p2";
-  readonly commandNumber: number;
-  readonly hash: string;
-  readonly view: {
-    readonly players: Record<
-      "p1" | "p2",
-      { readonly hand?: readonly unknown[]; readonly handCount: number }
-    >;
-  };
-  readonly legalIntents: readonly Record<string, unknown>[];
-}
+const one = await new SmokeAccount("Seat One").register();
+const two = await new SmokeAccount("Seat Two").register();
+const [deckOne, deckTwo] = await Promise.all([
+  one.onboard("leader.ember"),
+  two.onboard("leader.hollow"),
+]);
 
-interface CommandErrorMessage {
-  readonly code: string;
-  readonly message: string;
-}
-
-function nextMessage<T>(room: Room, type: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = setTimeout(
-      () => reject(new Error(`Timed out waiting for ${type}`)),
-      3_000,
-    );
-    room.onMessage(type, (message) => {
-      clearTimeout(timeout);
-      resolve(message as T);
-    });
-  });
-}
-
-const endpoint = process.env.CARDFORGE_SERVER_URL ?? "http://127.0.0.1:2567";
-const firstClient = new Client(endpoint);
-const firstRoom = await firstClient.joinOrCreate("tempofront");
-const secondClient = new Client(endpoint);
-const secondRoom = await secondClient.joinById(firstRoom.roomId);
-
-const firstSeat = nextMessage<{ readonly seat: string }>(firstRoom, "seat");
-const firstInitial = nextMessage<SnapshotMessage>(firstRoom, "snapshot");
-const secondSeat = nextMessage<{ readonly seat: string }>(secondRoom, "seat");
-const secondInitial = nextMessage<SnapshotMessage>(secondRoom, "snapshot");
+const firstRoom = await (
+  await one.client()
+).joinOrCreate("tempofront", { deckId: deckOne });
+const first = new SnapshotFeed(firstRoom);
 firstRoom.send("ready");
+const secondRoom = await (
+  await two.client()
+).joinById(firstRoom.roomId, { deckId: deckTwo });
+const second = new SnapshotFeed(secondRoom);
 secondRoom.send("ready");
-const [
-  firstSeatMessage,
-  firstInitialSnapshot,
-  secondSeatMessage,
-  secondInitialSnapshot,
-] = await Promise.all([firstSeat, firstInitial, secondSeat, secondInitial]);
-if (
-  firstSeatMessage.seat !== "p1" ||
-  secondSeatMessage.seat !== "p2" ||
-  firstInitialSnapshot.commandNumber !== 0 ||
-  secondInitialSnapshot.commandNumber !== 0
-)
-  throw new Error(
-    "Initial ready handshake returned an invalid seat or snapshot",
-  );
-
-const invalidError = nextMessage<CommandErrorMessage>(
-  firstRoom,
-  "command_error",
+const [a, b] = await Promise.all([
+  first.until(() => true),
+  second.until(() => true),
+]);
+assert(
+  a.seat !== b.seat && a.commandNumber === 0 && a.hash === b.hash,
+  "handshake seats both players",
 );
-firstRoom.send("command", { type: "pass", playerId: "p2" });
-const rejected = await invalidError;
-if (rejected.code !== "INVALID_INTENT")
-  throw new Error(
-    `Forged identity was not rejected: ${JSON.stringify(rejected)}`,
-  );
 
-const firstSnapshot = nextMessage<SnapshotMessage>(firstRoom, "snapshot");
-const secondSnapshot = nextMessage<SnapshotMessage>(secondRoom, "snapshot");
-const firstMulligan = firstInitialSnapshot.legalIntents.find(
+firstRoom.send("command", { type: "pass", playerId: b.seat });
+await new Promise((resolve) => setTimeout(resolve, 300));
+assert(first.errors.length === 1, "a forged playerId is rejected");
+
+const mulligan = a.legalIntents.find(
   (intent) =>
     intent.type === "mulligan" &&
     Array.isArray(intent.instanceIds) &&
     intent.instanceIds.length === 0,
 );
-if (!firstMulligan || "playerId" in firstMulligan)
-  throw new Error("Projected legal intents omitted a safe empty mulligan");
-firstRoom.send("command", firstMulligan);
-const [p1, p2] = await Promise.all([firstSnapshot, secondSnapshot]);
-if (p1.seat !== "p1" || p2.seat !== "p2")
-  throw new Error(`Unexpected seats: ${p1.seat}, ${p2.seat}`);
-if (p1.hash !== p2.hash || p1.commandNumber !== 1 || p2.commandNumber !== 1)
-  throw new Error("Projected snapshots do not describe the same command batch");
-if (
-  p1.view.players.p1.hand?.length !== 5 ||
-  p1.view.players.p2.hand !== undefined
-)
-  throw new Error("Player 1 projection leaked or omitted a private hand");
-if (
-  p2.view.players.p2.hand?.length !== 5 ||
-  p2.view.players.p1.hand !== undefined
-)
-  throw new Error("Player 2 projection leaked or omitted a private hand");
-
+assert(
+  mulligan && !("playerId" in mulligan),
+  "legal intents carry no identity",
+);
+firstRoom.send("command", mulligan);
+const [p, q] = await Promise.all([
+  first.until((snapshot) => snapshot.commandNumber === 1),
+  second.until((snapshot) => snapshot.commandNumber === 1),
+]);
+assert(p.hash === q.hash, "both seats share one canonical hash");
+assert(
+  p.view.players[p.seat].hand?.length === 5 && !p.view.players[q.seat].hand,
+  "seat one sees only its hand",
+);
+assert(
+  q.view.players[q.seat].hand?.length === 5 && !q.view.players[p.seat].hand,
+  "seat two sees only its hand",
+);
+firstRoom.send("concede");
+await Promise.all([
+  first.until((s) => s.outcome !== null),
+  second.until((s) => s.outcome !== null),
+]);
 await Promise.all([firstRoom.leave(), secondRoom.leave()]);
 console.log(
   JSON.stringify({
+    smoke: "rooms",
     roomId: firstRoom.roomId,
-    rejected: rejected.code,
-    commandNumber: p1.commandNumber,
-    sharedHash: p1.hash,
-    privateHands: { p1: 5, p2: 5 },
+    sharedHash: p.hash,
+    ok: true,
   }),
 );
+process.exit(0);

@@ -44,7 +44,8 @@ export interface CraftQuote {
 export interface EconomyTransaction {
   readonly transactionId: string;
   readonly accountId: string;
-  readonly kind: "bootstrap" | "craft" | "cosmetic_unlock" | "reward";
+  readonly kind:
+    "bootstrap" | "craft" | "cosmetic_unlock" | "reward" | "starter_grant";
   readonly currencyId?: CurrencyId;
   readonly currencyDelta?: number;
   readonly itemId?: string;

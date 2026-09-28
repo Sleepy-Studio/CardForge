@@ -16,17 +16,13 @@
     "sim:matrix": "tsc -b && node apps/simulator/dist/cli.js --matrix",
     "smoke:web": "pnpm --filter @cardforge/web smoke",
     "smoke:server": "pnpm --filter @cardforge/match-server smoke",
-    "smoke:storage": "pnpm --filter @cardforge/match-server smoke:storage",
-    "smoke:selected-decks": "pnpm --filter @cardforge/match-server smoke:selected-decks",
-    "smoke:ranked": "pnpm --filter @cardforge/match-server smoke:ranked",
-    "smoke:online": "pnpm --filter @cardforge/web smoke:online",
     "smoke:studio": "pnpm --filter @cardforge/web smoke:studio",
-    "smoke:competitive": "pnpm --filter @cardforge/web smoke:competitive",
-    "smoke:collection": "pnpm --filter @cardforge/web smoke:collection",
-    "smoke:academy": "pnpm --filter @cardforge/web smoke:academy",
-    "smoke:operations": "pnpm --filter @cardforge/web smoke:operations",
     "test": "pnpm build && node --test apps/simulator/dist/*.test.js apps/match-server/dist/*.test.js packages/persistence/dist/*.test.js packages/content-tools/dist/*.test.js packages/competitive/dist/*.test.js packages/economy/dist/*.test.js packages/training/dist/*.test.js packages/live-ops/dist/*.test.js",
-    "smoke:persistence": "pnpm --filter @cardforge/persistence smoke"
+    "smoke:persistence": "pnpm --filter @cardforge/persistence smoke",
+    "smoke:journey": "pnpm --filter @cardforge/match-server smoke:journey",
+    "smoke:training": "pnpm --filter @cardforge/match-server smoke:training",
+    "smoke:operations:server": "pnpm --filter @cardforge/match-server smoke:operations",
+    "smoke:player": "pnpm --filter @cardforge/web smoke:player"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",

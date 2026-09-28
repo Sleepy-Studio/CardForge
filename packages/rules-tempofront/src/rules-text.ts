@@ -3,6 +3,7 @@ import type {
   EffectNode,
   TargetRef,
 } from "@cardforge/card-schema";
+import { statusEntry } from "./glossary.js";
 
 export interface RulesTextTerms {
   readonly focus: string;
@@ -69,7 +70,7 @@ function effectText(effect: EffectNode, terms: RulesTextTerms): string {
       return sentence(`give ${targetText(effect.target, terms)} Barrier`);
     case "add_status":
       return sentence(
-        `give ${targetText(effect.target, terms)} ${effect.status.statusId} ${effect.status.value}`,
+        `give ${targetText(effect.target, terms)} ${statusEntry(effect.status.statusId)?.name ?? effect.status.statusId} ${effect.status.value}`,
       );
     case "optional_focus":
       return `You may pay ${effect.amount} ${terms.focus}. ${effect.effects

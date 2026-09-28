@@ -4,8 +4,11 @@ import type { CardDefinition } from "@cardforge/card-schema";
 import {
   collectionCompletion,
   cosmeticCatalog,
+  matchShardReward,
   maximumOwnedCopies,
+  missingCards,
   quoteCraft,
+  starterGrant,
   tradingProvider,
 } from "./policy.js";
 
@@ -63,5 +66,56 @@ void describe("economy policy", () => {
       ),
       { owned: 1, total: 1, percent: 100 },
     );
+  });
+});
+
+void describe("starter and match rewards", () => {
+  void it("grants starter collectibles capped at ownership limits", () => {
+    const unique: CardDefinition = {
+      ...common,
+      cardId: "entity.unique",
+      unique: true,
+    };
+    const leader: CardDefinition = {
+      ...common,
+      cardId: "leader.test",
+      type: "leader",
+    };
+    const cards = new Map(
+      [common, unique, leader].map((card) => [card.cardId, card]),
+    );
+    assert.deepEqual(
+      starterGrant(
+        [
+          "entity.test",
+          "entity.test",
+          "entity.unique",
+          "entity.unique",
+          "leader.test",
+          "entity.unknown",
+        ],
+        cards,
+      ),
+      [
+        { cardId: "entity.test", quantity: 2 },
+        { cardId: "entity.unique", quantity: 1 },
+      ],
+    );
+  });
+
+  void it("reports missing copies for a deck", () => {
+    assert.deepEqual(
+      missingCards(["a", "a", "a", "b"], [{ cardId: "a", quantity: 1 }]),
+      [
+        { cardId: "a", quantity: 2 },
+        { cardId: "b", quantity: 1 },
+      ],
+    );
+  });
+
+  void it("never rewards friend matches or early concessions", () => {
+    assert.equal(matchShardReward("friend", true, "played"), 0);
+    assert.equal(matchShardReward("ranked", true, "conceded_early"), 0);
+    assert.equal(matchShardReward("casual", false, "played"), 30);
   });
 });

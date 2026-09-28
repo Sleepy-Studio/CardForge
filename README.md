@@ -1,48 +1,89 @@
 # CardForge
 
-CardForge is a deterministic, rebrandable web TCG framework. This repository contains the completed **Milestone 1 engine**, **Milestone 2 browser implementation**, and **Milestone 3 authoritative online alpha** for its reference game, TempoFront.
+CardForge is a deterministic, rebrandable web trading-card-game framework,
+shipping with a reference game, **TempoFront**: a no-turns tactical card game
+where both players share one Timeline across three contested Fronts.
 
-The proof is intentionally headless. It establishes the expensive invariants before UI work begins:
+**Current status: M7 — Production Alpha.** A new player can register (email
+or Discord), choose a starter Leader, learn the rules, build and save decks,
+craft cards, play casual, ranked, friend-invite, or practice matches against a
+fully authoritative server, reconnect after a drop, earn exactly-once rewards
+and rating, review their match history, and watch a server-verified replay.
+The stack deploys from one Dockerfile and a production compose file (Coolify
+guide included). See [docs/m7-roadmap.md](docs/m7-roadmap.md) for the audit
+and plan, and the [M7 section](#milestone-7-production-alpha) below for the
+verification evidence.
 
-- server-shaped commands express player intent rather than outcomes;
-- game state uses integer math and seeded randomness;
-- cards use typed ability data rather than executable scripts;
-- card definitions, match instances, and revisions are distinct;
-- public/private projections hide opponent hands;
-- every accepted command is replayable through the production engine;
-- canonical state hashes expose any deterministic divergence;
-- random legal-action simulations assert invariants after every command.
+## Run it locally
 
-## Run it
-
-Requires Node.js 22 or newer and pnpm.
+Requires Node.js 22+ and pnpm 11.
 
 ```bash
 pnpm install
-pnpm build
-pnpm test
-pnpm sim --games 1000 --seed 1
+pnpm build                    # typecheck every package and build the web app
+docker compose up -d postgres # optional; without DATABASE_URL the server uses memory
+cp .env.example .env          # then export the variables you need
+pnpm dev:server               # match server + API on :2567 (after pnpm build)
+pnpm dev                      # web client on :3000
 ```
 
-The simulator runs complete matches, immediately replays each command log, and fails if any final state hash differs.
+Open http://localhost:3000, create an account, and follow onboarding.
+Developer tools live outside the player navigation: `/lab` (local engine
+sandbox), `/studio` (Card Studio), and `/operations` (admin accounts only).
+
+```bash
+pnpm test                     # unit, contract, determinism, and property tests
+pnpm sim --games 1000 --seed 1
+pnpm sim:matrix               # seat-swapped 12×12 archetype matrix
+pnpm smoke:journey            # full player journey against a running server
+pnpm smoke:player             # the same journey in real browsers (needs web + server)
+```
+
+`CARDFORGE_TEST_DATABASE_URL` runs the persistence contract tests against
+Postgres as well as the in-memory adapter.
+
+## Production
+
+- [docs/deployment.md](docs/deployment.md) — Docker images, production compose,
+  Coolify setup, staging, migrations, backups, observability.
+- [docs/auth.md](docs/auth.md) — sessions, Discord OAuth, room tickets, admin
+  boundary, and migrating alpha accounts.
+- [docs/architecture.md](docs/architecture.md) — engine and service boundaries.
 
 ## Workspace
 
 ```text
-apps/simulator              CLI, random bot, invariants, replay verification
-apps/web                    React/Next application shell and Pixi match client
-apps/match-server           Authoritative sessions and Colyseus room transport
-packages/persistence       PostgreSQL schema, migrations, and storage contracts
-packages/card-schema       Semantic card, ability, format, and theme contracts
-packages/content-core-set  Versioned semantic core-set source pack
-packages/content-tools     Pack compiler, CSV import, linting, and SVG previews
-packages/rules-kernel      Commands, events, game state, PRNG, canonical hashing
-packages/rules-tempofront  TempoFront rules, proof cards, and rules engine
-packages/theme-default     Aetherfront fantasy presentation pack
-packages/theme-test-scifi  Orbital Conflict science-fiction presentation pack
+apps/web                    Next.js player client, Pixi battlefield, dev tools
+apps/match-server           API, auth, Colyseus rooms, settlement, telemetry
+apps/simulator              CLI, bots, invariants, replay verification, matrix
+packages/persistence        PostgreSQL schema, migrations, storage contract
+packages/card-schema        Semantic card, ability, format, and theme contracts
+packages/content-core-set   Versioned semantic core-set source pack
+packages/content-tools      Pack compiler, CSV import, linting, SVG previews
+packages/rules-kernel       Commands, events, game state, PRNG, hashing
+packages/rules-tempofront   TempoFront rules, cards, glossary, rules text
+packages/competitive        Seasons, Elo rating, rank tiers, progression, telemetry
+packages/economy            Shards, Style Tokens, crafting, rewards policy
+packages/training           Academy tutorials and PvE scenarios
+packages/live-ops           Additive live-ops revisions, quests, events, flags
+packages/theme-default      Aetherfront fantasy presentation pack
+packages/theme-test-scifi   Orbital Conflict science-fiction presentation pack
 ```
 
-## Implemented rules slice
+## Engineering principles
+
+Server authority; deterministic state with seeded RNG and canonical hashes;
+exact replays; immutable content revisions and balance patches;
+hidden-information projections; typed card effects with no user scripts;
+presentation that can never gate or alter rules; theme terminology outside the
+kernel; strict validation at every external boundary; idempotent rewards and
+settlements; and never trusting a client to report results or rewards.
+
+## Milestone history
+
+### Milestone 1 — deterministic engine
+
+#### Implemented rules slice
 
 - three Fronts with Vanguard and Support slots;
 - Focus ramp from three to eight;
@@ -72,7 +113,7 @@ packages/theme-test-scifi  Orbital Conflict science-fiction presentation pack
 - 40-card proof decks and a semantic content fixture covering every fundamental interaction;
 - property-based seed coverage and JSON round-trip replay verification.
 
-## Milestone 1 verification
+#### Milestone 1 verification
 
 - 24 focused and property-based tests pass.
 - A 1,000-game batch over seeds 7001–8000 completes without an invariant failure.
@@ -80,13 +121,14 @@ packages/theme-test-scifi  Orbital Conflict science-fiction presentation pack
 - Matches average 11.62 Cycles, 185 commands, 3.61 Reactions, and 7.55 resolved choices.
 - The bot win split is 519–481. These bot numbers are regression telemetry, not a balance verdict.
 
-## Deliberately deferred
+#### Deferred at Milestone 1
 
-Accounts, durable match/deck persistence, ranked matchmaking, complete keyword/status vocabulary, redirect and set-value replacements, player-ordered simultaneous triggers, full publication tooling, and launch content remain deferred. Simultaneous triggers use the documented deterministic order for this slice; manual ordering is intentionally not required by the Milestone 1 rules contract.
+Redirect and set-value replacements and player-ordered simultaneous
+triggers remain deferred; simultaneous triggers use the documented
+deterministic order. (Accounts, persistence, ranked play, and launch content
+were delivered in later milestones.)
 
-See [docs/architecture.md](docs/architecture.md) for boundaries and the next implementation cut.
-
-## Milestone 2 progress
+### Milestone 2 — browser client
 
 The first browser slice is now runnable in `apps/web`:
 
@@ -107,7 +149,7 @@ The first browser slice is now runnable in `apps/web`:
 - reduced-motion, Skip FX, and responsive layouts; presentation never gates engine resolution;
 - production build, HTTP smoke, screenshot review, and CDP interaction smoke.
 
-Run it with `pnpm dev`. Hot-seat privacy is designed for two people sharing one
+The local match lab now lives at `/lab`. Hot-seat privacy is designed for two people sharing one
 device: the hand and controls are blanked during every priority transfer, but
 the full local state still exists in browser memory. Server-projected secrecy
 arrives with online play in Milestone 3.
@@ -120,7 +162,7 @@ Milestone 2 implementation is complete. The remaining exit gate is an external
 new-player running the Field Guide and a match without developer coaching,
 followed by any clarity fixes that observation exposes.
 
-## Milestone 3 complete
+### Milestone 3 — authoritative online alpha
 
 `apps/match-server` now provides the first authoritative online boundary:
 
@@ -144,18 +186,14 @@ followed by any clarity fixes that observation exposes.
 - two accounts may safely use the same human-friendly deck ID because storage identity is `(account_id, deck_id)`;
 - a live selected-deck smoke proves distinct stored Leaders enter the same room and a process-independent restore reproduces their shared hash.
 
-Run `pnpm dev:server` for the room service on port 2567 and `pnpm smoke:server`
-to exercise it. With the web server running, `pnpm smoke:online` drives two
-independent browser clients. Configure the action deadline with
-`CARDFORGE_ACTION_CLOCK_MS`.
+Configure the action deadline with `CARDFORGE_ACTION_CLOCK_MS`.
 
 For durable local development, run `docker compose up -d postgres`, copy the
 values from `.env.example`, and start the match server with `DATABASE_URL` set.
 Without that variable the server deliberately uses an in-memory test adapter.
-The alpha account header is a scope boundary, not production authentication;
-real identity-provider integration remains a launch hardening task.
+(The M3 alpha account header was replaced by verified authentication in M7.)
 
-## Milestone 4 complete
+### Milestone 4 — content factory and rebrand proof
 
 The content-factory foundation is now executable:
 
@@ -179,7 +217,7 @@ The browser now completes the rebrand proof:
 Milestone 5 is next: six mono-Aspect Leaders, a 120-card competitive pool,
 ranked seasons, analytics, balance telemetry, patches, and starter progression.
 
-## Milestone 5 progress
+### Milestone 5 — competitive beta
 
 The competitive content target is now executable:
 
@@ -209,7 +247,7 @@ are regression evidence, not a substitute for skill-banded human playtests.
 Milestone 5 engineering is complete. External usability and competitive balance
 validation remain release gates while Milestone 6 launch systems are built.
 
-## Milestone 6 progress
+### Milestone 6 — launch systems
 
 The launch content contract is complete:
 
@@ -219,5 +257,58 @@ The launch content contract is complete:
 - every production card has a unique three-digit collector number plus generated budget and complexity metadata;
 - all twelve existing starter decks remain legal, all fifty tests pass, and browser smoke compiles 181 definitions including the generated Token under both themes.
 
-Collection/crafting, cosmetics, tutorials and PvE, live-ops controls, and support
-audit tooling are the remaining launch-system slices.
+The remaining launch systems then landed: an auditable Shards/Style Tokens
+economy with idempotent crafting and cosmetic unlocks, the collection vault,
+five deterministic tutorials and three PvE challenges run by an authoritative
+training room with once-only rewards, published live-ops definitions (quests,
+events, feature flags), and persisted support cases with an append-only audit
+log behind an operations console.
+
+### Milestone 7 — production alpha
+
+M7 turned the framework into a game a stranger can pick up. Summary (details
+in [docs/m7-roadmap.md](docs/m7-roadmap.md)):
+
+- **Authentication** — email/password (scrypt) and Discord OAuth; hashed
+  opaque session cookies; five-minute HMAC tickets for room joins; admin role
+  and operator token for operations; one-time claim codes for alpha accounts.
+  The `X-CardForge-Account-Id` header and all `/api/accounts/:id` routes are
+  gone; player data lives under `/api/me`.
+- **Player journey** — onboarding (starter Leader, Field Guide, practice
+  match), Home with rank, level, quests, events, and recent matches; Play menu
+  (Casual, Ranked, Vs Friend with `/join/CODE`, Practice, Academy);
+  deckbuilder with filters, ownership, legality, and drafts; collection
+  crafting; match history; replay viewer; rules reference; profile.
+- **Match UX** — legal-target highlighting, target lines, drag-and-drop or
+  tap-to-target, Time and Focus previews on every action, Response and choice
+  prompts, clocks, concession, result screens with rewards, automatic
+  reconnect after a reload, and scaling for tablet, Steam Deck, and landscape
+  phones. Everything is derived from server-listed legal intents.
+- **Server** — rooms require legal, owned decks with unlocked Leaders; record
+  participants, outcomes, and server-derived per-seat stats; end matches by
+  concession or by abandonment after a 60-second reconnect window; settle
+  rating and rewards exactly once; serve verified replay frames without ever
+  exposing seeds or hidden cards.
+- **Content and live ops** — a canonical keyword/status glossary drives
+  tooltips, the rules reference, and generated rules text; rank tiers
+  (Bronze → Master) wrap the unchanged Elo rating; live ops gained an
+  additive revision with current events, and expired events are no longer
+  shown as live.
+- **Operations** — structured JSON logs with request and match IDs,
+  credential redaction, `critical` alerts for integrity failures, `/health`,
+  `/ready`, Prometheus `/metrics`, and a playtest dashboard where every rate
+  carries its sample size and a caution level.
+- **Delivery** — one Dockerfile (web and match-server targets), production
+  compose with health-gated startup, Coolify guide, and GitHub Actions for PRs
+  (tests, 50-game simulation, build, server and browser smokes, image build),
+  `main` (matrix, GHCR images, staging deploy and smoke), and nightly
+  simulation.
+
+Fixed along the way: targeted Reactions could never be played online (the wire
+schema dropped their targets), and the API echoed `Access-Control-Allow-Origin`
+with credentials for unlisted origins, including `null`.
+
+Still open before a public launch: observing real first-session players (the
+funnel is now instrumented), skill-banded balance evidence from human matches,
+multi-replica scaling (Redis presence for Colyseus), email verification and
+password reset, and production art.

@@ -1,19 +1,4 @@
-interface CdpTarget {
-  readonly type: string;
-  readonly url: string;
-  readonly webSocketDebuggerUrl: string;
-}
-
-interface CdpEnvelope<T = unknown> {
-  readonly id?: number;
-  readonly error?: { readonly message: string };
-  readonly result?: T;
-}
-
-interface EvaluationResult<T> {
-  readonly exceptionDetails?: { readonly text?: string };
-  readonly result: { readonly value: T };
-}
+import { Browser } from "./cdp.ts";
 
 interface SmokeEntry {
   readonly mulliganClosed: boolean;
@@ -65,79 +50,27 @@ interface HotseatSeat {
   readonly actionCount: number;
 }
 
-const endpoint = process.env.CARDFORGE_CDP_URL ?? "http://127.0.0.1:9222";
-
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-const discoveryResponse = await fetch(`${endpoint}/json`);
-if (!discoveryResponse.ok)
-  throw new Error(`CDP discovery failed: ${discoveryResponse.status}`);
-const targets = (await discoveryResponse.json()) as CdpTarget[];
-const page = targets.find(
-  (target) => target.type === "page" && target.url.includes("localhost:3000"),
+const web = (process.env.CARDFORGE_WEB_URL ?? "http://localhost:3000").replace(
+  /\/$/,
+  "",
 );
-if (!page) throw new Error("CardForge page target was not found");
-
-const socket = new WebSocket(page.webSocketDebuggerUrl);
-await new Promise<void>((resolve, reject) => {
-  socket.addEventListener("open", () => resolve(), { once: true });
-  socket.addEventListener(
-    "error",
-    () => reject(new Error("CDP socket failed")),
-    {
-      once: true,
-    },
-  );
-});
-
-let nextId = 1;
-const pending = new Map<
-  number,
-  {
-    readonly resolve: (value: unknown) => void;
-    readonly reject: (reason: Error) => void;
-  }
->();
-socket.addEventListener("message", (message) => {
-  const payload = JSON.parse(String(message.data)) as CdpEnvelope;
-  if (!payload.id) return;
-  const callback = pending.get(payload.id);
-  if (!callback) return;
-  pending.delete(payload.id);
-  if (payload.error) callback.reject(new Error(payload.error.message));
-  else callback.resolve(payload.result);
-});
-
-function send<T>(method: string, params: object = {}): Promise<T> {
-  const id = nextId++;
-  socket.send(JSON.stringify({ id, method, params }));
-  return new Promise<T>((resolve, reject) => {
-    pending.set(id, {
-      resolve: (value) => resolve(value as T),
-      reject,
-    });
-  });
-}
-
-async function evaluate<T>(expression: string): Promise<T> {
-  const response = await send<EvaluationResult<T>>("Runtime.evaluate", {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-  });
-  if (response.exceptionDetails)
-    throw new Error(
-      response.exceptionDetails.text ?? "Browser evaluation failed",
-    );
-  return response.result.value;
-}
-
+const browser = await Browser.launch();
+const labPage = await browser.newPage(`${web}/lab`);
+const send = <T>(method: string, params: object = {}): Promise<T> =>
+  labPage.send<T>(method, params);
+const evaluate = <T>(expression: string): Promise<T> =>
+  labPage.evaluate<T>(expression);
 await send("Runtime.enable");
 await send("Emulation.setEmulatedMedia", {
   features: [{ name: "prefers-reduced-motion", value: "reduce" }],
 });
+// The lab reads the motion preference when it mounts, so reload under it.
+await labPage.goto(`${web}/lab`);
+await labPage.waitForSelector('select[data-player="p1"]');
 await delay(300);
 const initialLeaders = await evaluate<LeaderSetup>(`({
   poolLabel: document.querySelector('.brand-lockup p')?.textContent ?? '',
@@ -391,7 +324,6 @@ if (
 )
   throw new Error(`Live rebrand failed: ${JSON.stringify(rebrand)}`);
 
-socket.close();
 console.log(
   JSON.stringify(
     {
@@ -415,4 +347,4 @@ console.log(
   ),
 );
 
-export {};
+await browser.close();

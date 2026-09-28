@@ -1088,3 +1088,48 @@ void describe("TempoFront deterministic proof", () => {
     assert.ok(summary.averageChoices > 0);
   });
 });
+
+void describe("canonical glossary", () => {
+  void it("defines every keyword and status with bounded tooltips", async () => {
+    const { glossary, keywordEntry, statusEntry, glossaryName } =
+      await import("@cardforge/rules-tempofront");
+    for (const keyword of [
+      "armor",
+      "barrier",
+      "ranged",
+      "rapid",
+      "structure",
+      "mobile",
+    ] as const)
+      assert.ok(keywordEntry(keyword), `missing keyword ${keyword}`);
+    for (const status of [
+      "stunned",
+      "rooted",
+      "silenced",
+      "exposed",
+      "protected",
+    ] as const)
+      assert.ok(statusEntry(status), `missing status ${status}`);
+    const ids = new Set<string>();
+    for (const entry of glossary) {
+      assert.ok(!ids.has(entry.id), `duplicate ${entry.id}`);
+      ids.add(entry.id);
+      assert.ok(entry.tooltip.length <= 90, `${entry.id} tooltip is too long`);
+      assert.ok(entry.rules.length > 10 && entry.explanation.length > 10);
+      assert.match(entry.icon, /^icon\./);
+    }
+    const focus = glossary.find((entry) => entry.id === "resource.focus")!;
+    assert.equal(glossaryName(focus, { focus: "Aether" }), "Aether");
+    assert.equal(glossaryName(focus), "Focus");
+  });
+
+  void it("uses canonical status names in generated rules text", async () => {
+    const { generateRulesText, proofCards } =
+      await import("@cardforge/rules-tempofront");
+    const text = proofCards.map((card) => generateRulesText(card)).join("\n");
+    assert.doesNotMatch(
+      text,
+      /\b(stunned|rooted|silenced|exposed|protected) \d/,
+    );
+  });
+});

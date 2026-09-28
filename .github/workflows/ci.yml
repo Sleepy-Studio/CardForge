@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: cardforge
+          POSTGRES_PASSWORD: cardforge_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cardforge"
+          --health-interval 2s --health-timeout 2s --health-retries 30
+    env:
+      CARDFORGE_TEST_DATABASE_URL: postgres://postgres:cardforge_ci@127.0.0.1:5432/cardforge
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install -g "$(node -p "require('./package.json').packageManager")"
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck (build all packages)
+        run: pnpm exec tsc -b
+      - name: Lint
+        run: pnpm lint
+      - name: Format
+        run: pnpm format:check
+      - name: Unit, contract, and determinism tests
+        run: pnpm test
+      - name: Simulation sample (50 games, every replay verified)
+        run: node apps/simulator/dist/cli.js --games 50 --seed 1
+      - name: Build web
+        run: pnpm --filter @cardforge/web build
+
+  smoke:
+    name: Server and browser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: verify
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: cardforge
+          POSTGRES_PASSWORD: cardforge_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cardforge"
+          --health-interval 2s --health-timeout 2s --health-retries 30
+    env:
+      DATABASE_URL: postgres://postgres:cardforge_ci@127.0.0.1:5432/cardforge
+      CARDFORGE_CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        run: npm install -g "$(node -p "require('./package.json').packageManager")"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc -b && pnpm --filter @cardforge/web build
+      - name: Smokes
+        run: scripts/ci/run-smokes.sh
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: smoke-logs
+          path: smoke-logs/
+
+  images:
+    name: Container images build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: verify
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build match-server image
+        run: docker build --target match-server --tag cardforge-match-server:ci .
+      - name: Build web image
+        run: docker build --target web --tag cardforge-web:ci .
