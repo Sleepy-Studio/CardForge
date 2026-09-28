@@ -83,8 +83,15 @@ per hour per account. Oversized WebSocket frames (> 16 KiB) and JSON bodies
 ## Promoting operators
 
 Registration never grants admin, because emails are not verified. After an
-operator registers normally, promote the account with the operator token (or
-from an existing admin session); every change is audited:
+operator registers normally, promote the account from a shell on the
+match-server container (Coolify: the resource's **Terminal** tab):
+
+```bash
+node dist/admin-cli.js promote ops@example.com   # or: demote
+```
+
+Existing operators can do the same over HTTP with the operator token or
+their admin session; every change is audited either way:
 
 ```bash
 curl "https://api.example.com/api/admin/accounts?q=ops@example.com" \

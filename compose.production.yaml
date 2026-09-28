@@ -1,11 +1,14 @@
 # CardForge production stack: web + match-server + Postgres.
 #
-#   docker compose -f compose.production.yaml --env-file .env.production up -d --build
+# Coolify (Docker Compose build pack, compose path /compose.production.yaml):
+# the SERVICE_* variables below are Coolify "magic" variables. Coolify
+# generates the database credentials, session secret, and operator token,
+# and assigns a domain to `web` and `match-server`; the only value to enter is
+# CARDFORGE_SIGNUP_CODES. See docs/deployment.md.
 #
-# Coolify: create a "Docker Compose" resource pointing at this file and assign
-# domains to `web` (port 3000) and `match-server` (port 2567). See
-# docs/deployment.md. No ports are published here; the platform proxy routes
-# traffic to the containers over the compose network.
+# Any other Docker host: set the SERVICE_* values yourself in .env.production
+# (see .env.production.example) and run
+#   docker compose -f compose.production.yaml --env-file .env.production up -d --build
 
 name: cardforge
 
@@ -17,9 +20,9 @@ services:
     <<: *restart
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-cardforge}
-      POSTGRES_USER: ${POSTGRES_USER:-cardforge}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      - POSTGRES_DB=cardforge
+      - POSTGRES_USER=${SERVICE_USER_POSTGRES}
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_POSTGRES}
     volumes:
       - cardforge-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -34,31 +37,32 @@ services:
     build:
       context: .
       target: match-server
-      args:
-        CARDFORGE_VERSION: ${CARDFORGE_VERSION:-dev}
-        CARDFORGE_COMMIT: ${CARDFORGE_COMMIT:-${SOURCE_COMMIT:-unknown}}
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      NODE_ENV: production
-      PORT: "2567"
-      DATABASE_URL: postgres://${POSTGRES_USER:-cardforge}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-cardforge}
-      CARDFORGE_ENVIRONMENT: ${CARDFORGE_ENVIRONMENT:-production}
-      CARDFORGE_PUBLIC_URL: ${CARDFORGE_PUBLIC_API_URL:?set CARDFORGE_PUBLIC_API_URL}
-      CARDFORGE_WEB_URL: ${CARDFORGE_WEB_URL:?set CARDFORGE_WEB_URL}
-      CARDFORGE_ALLOWED_ORIGINS: ${CARDFORGE_WEB_URL}
-      CARDFORGE_SESSION_SECRET: ${CARDFORGE_SESSION_SECRET:?set CARDFORGE_SESSION_SECRET}
-      CARDFORGE_ADMIN_TOKEN: ${CARDFORGE_ADMIN_TOKEN:-}
-      CARDFORGE_ADMIN_DISCORD_IDS: ${CARDFORGE_ADMIN_DISCORD_IDS:-}
-      CARDFORGE_SIGNUP_MODE: ${CARDFORGE_SIGNUP_MODE:-invite}
-      CARDFORGE_SIGNUP_CODES: ${CARDFORGE_SIGNUP_CODES:-}
-      CARDFORGE_TRUST_PROXY: ${CARDFORGE_TRUST_PROXY:-1}
-      CARDFORGE_ACTION_CLOCK_MS: ${CARDFORGE_ACTION_CLOCK_MS:-45000}
-      CARDFORGE_RECONNECT_SECONDS: ${CARDFORGE_RECONNECT_SECONDS:-60}
-      CARDFORGE_LOG_LEVEL: ${CARDFORGE_LOG_LEVEL:-info}
-      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
-      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      # Public API domain, routed to container port 2567 (HTTP + WebSocket).
+      - SERVICE_URL_MATCH_SERVER_2567
+      - NODE_ENV=production
+      - PORT=2567
+      - DATABASE_URL=postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/cardforge
+      - CARDFORGE_PUBLIC_URL=${SERVICE_URL_MATCH_SERVER}
+      - CARDFORGE_WEB_URL=${SERVICE_URL_WEB}
+      - CARDFORGE_ALLOWED_ORIGINS=${SERVICE_URL_WEB}
+      - CARDFORGE_SESSION_SECRET=${SERVICE_HEX_64_SESSION}
+      - CARDFORGE_ADMIN_TOKEN=${SERVICE_HEX_64_OPERATOR}
+      - CARDFORGE_COMMIT=${SOURCE_COMMIT:-unknown}
+      - CARDFORGE_ENVIRONMENT=${CARDFORGE_ENVIRONMENT:-production}
+      # Closed alpha: comma-separated codes players enter when registering.
+      - CARDFORGE_SIGNUP_MODE=${CARDFORGE_SIGNUP_MODE:-invite}
+      - CARDFORGE_SIGNUP_CODES=${CARDFORGE_SIGNUP_CODES:?}
+      - CARDFORGE_ADMIN_DISCORD_IDS=${CARDFORGE_ADMIN_DISCORD_IDS:-}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET:-}
+      - CARDFORGE_TRUST_PROXY=${CARDFORGE_TRUST_PROXY:-1}
+      - CARDFORGE_ACTION_CLOCK_MS=${CARDFORGE_ACTION_CLOCK_MS:-45000}
+      - CARDFORGE_RECONNECT_SECONDS=${CARDFORGE_RECONNECT_SECONDS:-60}
+      - CARDFORGE_LOG_LEVEL=${CARDFORGE_LOG_LEVEL:-info}
     expose:
       - "2567"
     stop_grace_period: 30s
@@ -68,16 +72,16 @@ services:
     build:
       context: .
       target: web
-      args:
-        CARDFORGE_VERSION: ${CARDFORGE_VERSION:-dev}
     depends_on:
       match-server:
         condition: service_healthy
     environment:
-      NODE_ENV: production
-      PORT: "3000"
-      CARDFORGE_PUBLIC_API_URL: ${CARDFORGE_PUBLIC_API_URL}
-      CARDFORGE_ENVIRONMENT: ${CARDFORGE_ENVIRONMENT:-production}
+      # Public player domain, routed to container port 3000.
+      - SERVICE_URL_WEB_3000
+      - NODE_ENV=production
+      - PORT=3000
+      - CARDFORGE_PUBLIC_API_URL=${SERVICE_URL_MATCH_SERVER}
+      - CARDFORGE_ENVIRONMENT=${CARDFORGE_ENVIRONMENT:-production}
     expose:
       - "3000"
 
