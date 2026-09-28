@@ -12,114 +12,107 @@ Redis is not used. The closed alpha runs one match-server replica; rooms,
 rate limits, and the replay cache live in that process (see
 [Scaling limits](#scaling-limits)).
 
-## Domains
+## Coolify (recommended)
 
-Both public services need HTTPS hostnames **on the same registrable domain**
-so the session cookie is first-party:
+`compose.production.yaml` is written for Coolify's Docker Compose build pack.
+Its `SERVICE_*` [magic variables](https://coolify.io/docs/applications/builds/docker-compose)
+make Coolify generate the database credentials, session secret, and operator
+token, and assign a domain to `web` (port 3000) and `match-server` (port
+2567, HTTP and WebSocket). Nothing is hand-configured except invite codes.
 
-```text
-https://play.example.com  → web:3000
-https://api.example.com   → match-server:2567   (HTTP + WebSocket upgrade)
+1. **New Resource → Public/Private Repository** (`Sleepy-Studio/CardForge`,
+   branch `main`), build pack **Docker Compose**, compose location
+   `/compose.production.yaml`.
+2. **Environment Variables:** fill in `CARDFORGE_SIGNUP_CODES`
+   (comma-separated invite codes). Coolify marks it required and will not
+   deploy without it. Everything else is generated or defaulted.
+3. **Domains:** if the server has a wildcard domain (_Servers → your server
+   → Wildcard Domain_, for example `https://yourdomain.com`), Coolify has
+   already assigned `web` and `match-server` hostnames under it and there is
+   nothing to do. Otherwise, or to choose nicer names, set them on the
+   resource, e.g. `web` → `https://play.yourdomain.com` and `match-server` →
+   `https://api.yourdomain.com`.
+4. **Deploy.** Health checks gate the rollout: the match server is healthy
+   only after migrations finish and the database answers, and `web` starts
+   only after that. With Coolify's GitHub App, pushes to `main` redeploy
+   automatically.
+
+Then make yourself operator: register on the site, open the resource's
+**Terminal** tab, choose the `match-server` container, and run
+
+```bash
+node dist/admin-cli.js promote you@yourdomain.com
 ```
 
-Platform-generated names under public suffixes (for example `*.sslip.io`)
-are separate sites to the browser and will break sign-in; use your own
-domain for anything beyond a smoke test.
+The operator token (for `/metrics` and automation) is the generated
+`SERVICE_HEX_64_OPERATOR` value under Environment Variables.
 
-## Configuration
+### Requirements Coolify cannot check
 
-All configuration is environment variables; nothing is baked into images, so
-one build can be promoted from staging to production. Start from
-[`.env.production.example`](../.env.production.example).
+- **Both domains must share a registrable domain you own** (the session
+  cookie is first-party). Coolify's fallback `*.sslip.io` names are separate
+  sites to browsers and break sign-in; use them only for a smoke test.
+- **HTTPS.** Use `https://` domains so cookies are `Secure`.
 
-| Variable                                           | Required    | Notes                                                                                                       |
-| -------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
-| `CARDFORGE_WEB_URL`                                | yes         | Public web origin, e.g. `https://play.example.com`. Also the CORS allow-list and OAuth return target.       |
-| `CARDFORGE_PUBLIC_API_URL`                         | yes         | Public API origin, e.g. `https://api.example.com`. The web client reads it at request time.                 |
-| `POSTGRES_PASSWORD`                                | yes         | Database password (the compose file builds `DATABASE_URL`).                                                 |
-| `CARDFORGE_SESSION_SECRET`                         | yes         | ≥ 32 random characters. Signs match tickets and OAuth state. Rotating it invalidates tickets, not sessions. |
-| `CARDFORGE_ADMIN_TOKEN`                            | recommended | ≥ 32 characters. Operator automation, `/metrics`, and promoting the first operator (see `docs/auth.md`).    |
-| `CARDFORGE_ADMIN_DISCORD_IDS`                      | optional    | Discord user IDs granted the admin role at Discord sign-in.                                                 |
-| `CARDFORGE_SIGNUP_MODE` / `CARDFORGE_SIGNUP_CODES` | recommended | `invite` plus comma-separated codes for a closed alpha.                                                     |
-| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET`      | optional    | Enables Discord login. Redirect URI: `https://api.example.com/api/auth/discord/callback`.                   |
-| `CARDFORGE_ENVIRONMENT`                            | optional    | `production` or `staging`; shown in the web footer and logs.                                                |
-| `CARDFORGE_ACTION_CLOCK_MS`                        | optional    | Per-action clock (default 45 s in the compose file).                                                        |
-| `CARDFORGE_RECONNECT_SECONDS`                      | optional    | Reconnect grace before a dropped player forfeits (default 60).                                              |
-| `CARDFORGE_TRUST_PROXY`                            | optional    | Reverse-proxy hops to trust for client IPs (default 1).                                                     |
+### Optional settings
 
-The match server refuses to start in production without a session secret,
-database URL, and allowed origins.
+| Variable                                        | Default      | Notes                                                                       |
+| ----------------------------------------------- | ------------ | --------------------------------------------------------------------------- |
+| `CARDFORGE_SIGNUP_MODE`                         | `invite`     | `open` lets anyone register (codes are then ignored but still required).    |
+| `CARDFORGE_ENVIRONMENT`                         | `production` | `staging` for a staging resource; shown in the web footer and logs.         |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET`   | unset        | Enables Discord login. Redirect URI: `<API URL>/api/auth/discord/callback`. |
+| `CARDFORGE_ADMIN_DISCORD_IDS`                   | unset        | Discord user IDs granted the admin role at Discord sign-in.                 |
+| `CARDFORGE_ACTION_CLOCK_MS`                     | `45000`      | Per-action clock.                                                           |
+| `CARDFORGE_RECONNECT_SECONDS`                   | `60`         | Reconnect grace before a dropped player forfeits.                           |
+| `CARDFORGE_TRUST_PROXY` / `CARDFORGE_LOG_LEVEL` | `1` / `info` | Proxy hops for client IPs; log verbosity.                                   |
 
-## Coolify
+`/health` reports the deployed commit from Coolify's `SOURCE_COMMIT` at
+runtime, so the build cache is unaffected.
 
-1. **Create the resource.** In your project choose _New Resource → Docker
-   Compose_ (from the Git repository), branch `main`, and set the compose
-   path to `/compose.production.yaml`.
-2. **Environment.** Open _Environment Variables_ and paste the contents of
-   your `.env.production` (all variables above). Mark the secrets as
-   secrets. Do not set `DATABASE_URL`; the compose file derives it.
-3. **Domains.** Under the service list set:
-   - `web` → `https://play.example.com:3000`
-   - `match-server` → `https://api.example.com:2567`
+### Verify
 
-   The `:port` suffix tells Coolify which container port to route to.
-   Leave `postgres` without a domain. Coolify's Traefik proxy forwards
-   WebSocket upgrades automatically; no extra labels are needed.
+From any machine with Node 22 and this repository:
 
-4. **Persistent storage.** The named volume `cardforge-postgres` persists
-   across deploys. Configure Coolify's scheduled backups for the Postgres
-   service (or `pg_dump` via a scheduled task) before inviting players.
-5. **Health checks.** Both images declare Docker `HEALTHCHECK`s: the match
-   server reports healthy only once migrations finish and the database
-   answers (`GET /ready`); `web` depends on a healthy match server. Coolify
-   waits for these before routing traffic.
-6. **Deploy.** Click _Deploy_. Watch the match-server logs for
-   `migrations complete` and `match server ready`.
-7. **Verify.** Run the deployment checks from any machine with Node 22:
+```bash
+CARDFORGE_SMOKE_SIGNUP_CODE=<an invite code> \
+  node scripts/verify-deployment.ts https://play.yourdomain.com https://api.yourdomain.com
+```
 
-   ```bash
-   CARDFORGE_SMOKE_SIGNUP_CODE=<a signup code> \
-     node scripts/verify-deployment.ts https://play.example.com https://api.example.com
-   ```
+It checks HTTPS and same-site domains, `/health` and `/ready`, gated
+`/metrics`, CORS and CSRF against foreign origins, session-cookie flags
+(registers one `deploy-check-…@example.invalid` account when a code is
+given), web security headers, and that the web app points at this API. For
+the full two-player journey against the live API:
 
-   They cover HTTPS and same-site domains, `/health` and `/ready`, gated
-   `/metrics`, CORS and CSRF against foreign origins, session-cookie flags
-   (registers one `deploy-check-…@example.invalid` account when a signup code
-   is given), web security headers, and that the web app points at this API.
-   Then run the full two-player journey against the live API:
-
-   ```bash
-   CARDFORGE_SERVER_URL=https://api.example.com \
-   CARDFORGE_SMOKE_ORIGIN=https://play.example.com \
-   CARDFORGE_SMOKE_SIGNUP_CODE=<a signup code> \
-     pnpm --filter @cardforge/match-server smoke:journey
-   ```
-
-   Finally open `https://play.example.com`, register, and finish onboarding.
-   If `/health` reports `"commit":"unknown"`, enable Coolify's _Include
-   Source Commit in Build_ so `SOURCE_COMMIT` reaches the image.
+```bash
+CARDFORGE_SERVER_URL=https://api.yourdomain.com \
+CARDFORGE_SMOKE_ORIGIN=https://play.yourdomain.com \
+CARDFORGE_SMOKE_SIGNUP_CODE=<an invite code> \
+  pnpm --filter @cardforge/match-server smoke:journey
+```
 
 ### Staging
 
-Create a second Coolify resource from the same repository and compose file
-with its own domains (for example `staging-play.example.com` and
-`staging-api.example.com`), `CARDFORGE_ENVIRONMENT=staging`, and different
-secrets. The main-branch workflow can trigger its deploy webhook (see
-[CI/CD](#cicd)); production stays a manual _Deploy_ in Coolify, or a
-redeploy pinned to an image tag that already passed staging.
+Add a second resource from the same repository and compose file with
+`CARDFORGE_ENVIRONMENT=staging` and its own domains. `main.yml` can trigger
+it and smoke it after each merge when `COOLIFY_STAGING_WEBHOOK` (secret),
+`COOLIFY_API_TOKEN` (secret), `STAGING_API_URL`, and `STAGING_WEB_URL`
+(variables) are set; without them that job is skipped.
 
 ## Any other Docker host
 
 ```bash
-cp .env.production.example .env.production   # fill in values
+cp .env.production.example .env.production   # fill in the SERVICE_* values
 docker compose -f compose.production.yaml --env-file .env.production up -d --build
 ```
 
 Put a TLS-terminating reverse proxy (Caddy, Traefik, nginx) in front and
 route the two hostnames to `web:3000` and `match-server:2567`, forwarding
-`Upgrade`/`Connection` headers for WebSockets. For a local production-mode
-trial without a proxy, add `-f compose.production.local.yaml`, which
-publishes both ports on `127.0.0.1` and allows non-HTTPS cookies.
+`Upgrade`/`Connection` headers for WebSockets. Promote your operator with
+`docker compose -f compose.production.yaml exec match-server node dist/admin-cli.js promote <email>`.
+For a local production-mode trial without a proxy, add
+`-f compose.production.local.yaml` and use `http://localhost:3000` /
+`http://localhost:2567` as the two `SERVICE_URL_*` values.
 
 ## Migrations
 
@@ -150,7 +143,7 @@ columns only and preserve every existing account ID.
 - **Probes**: `GET /health` (liveness), `GET /ready` (migrations + database),
   web `GET /healthz`.
 - **Metrics**: `GET /metrics` (Prometheus text, requires
-  `Authorization: Bearer $CARDFORGE_ADMIN_TOKEN` in production): HTTP
+  `Authorization: Bearer <operator token>` in production): HTTP
   requests and 5xx by route class, WebSocket joins/drops/reconnects,
   connected clients, queue sizes, active/started/completed matches, rejected
   commands, auth events, integrity failures, and error log lines.
@@ -183,10 +176,14 @@ database schema and migration lock already support multiple replicas.
 
 ```bash
 docker compose -f compose.production.yaml exec postgres \
-  pg_dump -U cardforge -Fc cardforge > cardforge-$(date +%F).dump
+  sh -c 'pg_dump -U "$POSTGRES_USER" -Fc cardforge' > cardforge-$(date +%F).dump
 docker compose -f compose.production.yaml exec -T postgres \
-  pg_restore -U cardforge -d cardforge --clean < cardforge-YYYY-MM-DD.dump
+  sh -c 'pg_restore -U "$POSTGRES_USER" -d cardforge --clean' < cardforge-YYYY-MM-DD.dump
 ```
 
 Replays are stored as JSONB inside the database, so a database backup is a
 complete backup.
+
+On Coolify, run the dump from the resource's Terminal (the `postgres`
+container) or as a Scheduled Task, and copy it off the server; the volume
+lives on the same host as the application.
