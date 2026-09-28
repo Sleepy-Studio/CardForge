@@ -74,7 +74,7 @@ export function OperationsConsole() {
         error instanceof ApiError && error.status === 401
           ? "Sign in with an operator account to continue."
           : error instanceof ApiError && error.status === 403
-            ? "This account is not an operator. Ask an admin to add your email to CARDFORGE_ADMIN_EMAILS."
+            ? "This account is not an operator. Ask an existing operator to grant it the admin role."
             : messageFor(error),
       );
     }

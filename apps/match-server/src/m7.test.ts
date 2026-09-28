@@ -16,6 +16,7 @@ import { createLogger } from "./logger.js";
 import { participantStats, emptyActivity } from "./match-stats.js";
 import { cautionFor, playtestOverview, rate } from "./playtest-telemetry.js";
 import { RateLimiter } from "./rate-limit.js";
+import { retryWithBackoff } from "./retry.js";
 import { reconstructReplay } from "./replay-frames.js";
 import { AuthoritativeMatchSession } from "./session.js";
 import { chooseTrainingBotCommand } from "./training-room.js";
@@ -118,6 +119,8 @@ void describe("M7 authentication primitives", () => {
     assert.equal(safeNextPath("//evil.example"), null);
     assert.equal(safeNextPath("https://evil.example"), null);
     assert.equal(safeNextPath("/\\evil"), null);
+    assert.equal(safeNextPath("/%5Cevil"), "/%5Cevil");
+    assert.equal(safeNextPath("/a b"), null);
   });
 
   void it("refuses unsafe production configuration", () => {
@@ -137,6 +140,40 @@ void describe("M7 authentication primitives", () => {
     assert.equal(config.cookieSecure, true);
     assert.equal(config.trustProxy, 1);
     assert.equal(config.webUrl, "https://play.example.com");
+  });
+
+  void it("refuses the removed admin-email grant", () => {
+    assert.throws(
+      () => loadConfig({ CARDFORGE_ADMIN_EMAILS: "ops@example.com" }),
+      (error: unknown) =>
+        error instanceof ConfigError &&
+        error.problems.some((problem) => problem.includes("ADMIN_EMAILS")),
+    );
+  });
+
+  void it("retries idempotent work with backoff, then gives up", async () => {
+    const seen: number[] = [];
+    const value = await retryWithBackoff(
+      (attempt) => {
+        seen.push(attempt);
+        return attempt < 3
+          ? Promise.reject(new Error("transient"))
+          : Promise.resolve("settled");
+      },
+      { attempts: 5, baseDelayMs: 1 },
+    );
+    assert.equal(value, "settled");
+    assert.deepEqual(seen, [1, 2, 3]);
+    const retried: number[] = [];
+    await assert.rejects(
+      retryWithBackoff(() => Promise.reject(new Error("down")), {
+        attempts: 2,
+        baseDelayMs: 1,
+        onRetry: (_error, attempt) => retried.push(attempt),
+      }),
+      /down/,
+    );
+    assert.deepEqual(retried, [1]);
   });
 
   void it("rate limits within a window and resets afterwards", () => {

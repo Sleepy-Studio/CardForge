@@ -5,7 +5,8 @@
  * verified replay, crafting, and the operator dashboard.
  *
  * Needs the web app (CARDFORGE_WEB_URL, default http://localhost:3000) and a
- * match server started with CARDFORGE_ADMIN_EMAILS=smoke-ops@smoke.test.
+ * match server (CARDFORGE_SERVER_URL, default http://localhost:2567) started
+ * with CARDFORGE_ADMIN_TOKEN, which the smoke uses to promote its operator.
  */
 import { Browser, check, delay, type Page } from "./cdp.ts";
 
@@ -13,10 +14,23 @@ const web = (process.env.CARDFORGE_WEB_URL ?? "http://localhost:3000").replace(
   /\/$/,
   "",
 );
+const server = (
+  process.env.CARDFORGE_SERVER_URL ?? "http://localhost:2567"
+).replace(/\/$/, "");
 const run = Date.now().toString(36);
 const browser = await Browser.launch();
 const log = (step: string, detail: Record<string, unknown> = {}) =>
   console.log(JSON.stringify({ smoke: "player-browser", step, ...detail }));
+
+/**
+ * Waits until React owns the auth form: submit stays disabled until then, and
+ * typing earlier would be reset by hydration of the controlled inputs.
+ */
+async function waitForAuthForm(page: Page): Promise<void> {
+  await page.waitFor(
+    "document.querySelector('button[type=\"submit\"]')?.disabled === false",
+  );
+}
 
 /** Invite-only deployments need a signup code on the register form. */
 async function fillSignupCode(page: Page): Promise<void> {
@@ -32,6 +46,7 @@ async function register(
   leader: string,
 ): Promise<Page> {
   const page = await browser.newPage(`${web}/login?mode=register`);
+  await waitForAuthForm(page);
   await page.fill('input[autocomplete="nickname"]', name);
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', "browser-smoke-password");
@@ -44,6 +59,29 @@ async function register(
     "document.querySelector('[data-onboarding-step=\"learn\"]')",
   );
   return page;
+}
+
+/** Operators are promoted out of band, never by registration email. */
+async function promoteOperator(email: string): Promise<void> {
+  const token = process.env.CARDFORGE_ADMIN_TOKEN;
+  check(token, "set CARDFORGE_ADMIN_TOKEN to promote the smoke operator");
+  const headers = {
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+  };
+  const lookup = await fetch(
+    `${server}/api/admin/accounts?q=${encodeURIComponent(email)}`,
+    { headers },
+  );
+  check(lookup.ok, `operator account lookup (${lookup.status})`);
+  const { account } = (await lookup.json()) as {
+    account: { accountId: string };
+  };
+  const promoted = await fetch(
+    `${server}/api/admin/accounts/${account.accountId}/role`,
+    { method: "POST", headers, body: JSON.stringify({ role: "admin" }) },
+  );
+  check(promoted.ok, `operator promotion (${promoted.status})`);
 }
 
 try {
@@ -167,20 +205,24 @@ try {
 
   // --- Operator dashboard ---------------------------------------------------------
   const ops = await browser.newPage(`${web}/login?mode=register`);
+  await waitForAuthForm(ops);
   await ops.fill('input[autocomplete="nickname"]', "Smoke Ops");
   await ops.fill('input[type="email"]', "smoke-ops@smoke.test");
   await ops.fill('input[type="password"]', "browser-smoke-password");
   await fillSignupCode(ops);
   await ops.click('button[type="submit"]');
-  await delay(800);
+  // Registered (left /login) or already exists from an earlier run (error).
+  await ops.waitFor(
+    "location.pathname !== '/login' || document.querySelector('.form-error')",
+  );
   if ((await ops.url()).includes("/login")) {
-    // The operator account exists from an earlier run; sign in instead.
     await ops.clickText('[role="tab"]', "Sign in");
     await ops.fill('input[type="email"]', "smoke-ops@smoke.test");
     await ops.fill('input[type="password"]', "browser-smoke-password");
     await ops.click('button[type="submit"]');
+    await ops.waitFor("location.pathname !== '/login'");
   }
-  await delay(800);
+  await promoteOperator("smoke-ops@smoke.test");
   await ops.goto(`${web}/operations`);
   await ops.waitForSelector(".telemetry-grid");
   check(

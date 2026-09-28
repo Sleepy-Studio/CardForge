@@ -1,6 +1,5 @@
 /**
- * Operations smoke. Requires the server to run with CARDFORGE_ADMIN_TOKEN and
- * CARDFORGE_ADMIN_EMAILS containing the pattern used below.
+ * Operations smoke. Requires the server to run with CARDFORGE_ADMIN_TOKEN.
  */
 import { SmokeAccount, assert, endpoint } from "./smoke-kit.js";
 
@@ -42,6 +41,37 @@ assert(
   ).status === 403,
   "a wrong operator token is refused",
 );
+
+// Operator promotion: registration never grants admin; operators promote.
+const candidate = await new SmokeAccount("Ops Candidate").register();
+assert(
+  (
+    await player.api(`/api/admin/accounts/${candidate.accountId}/role`, {
+      body: { role: "admin" },
+    })
+  ).status === 403,
+  "players cannot promote accounts",
+);
+const promoted = await adminFetch<{ account: { role: string } }>(
+  `/api/admin/accounts/${candidate.accountId}/role`,
+  { role: "admin" },
+);
+assert(
+  promoted.status === 200 && promoted.body.account.role === "admin",
+  "operators can grant the admin role",
+);
+assert(
+  (await candidate.api("/api/admin/operations")).status === 200,
+  "a promoted account reaches operations APIs",
+);
+await adminFetch(`/api/admin/accounts/${candidate.accountId}/role`, {
+  role: "player",
+});
+assert(
+  (await candidate.api("/api/admin/operations")).status === 403,
+  "a demoted account loses operations access",
+);
+
 const created = await player.api<{ case: { caseId: string } }>(
   "/api/me/support-cases",
   {

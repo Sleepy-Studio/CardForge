@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
   AuthStoreError,
   type AccountRecord,
-  type AccountRole,
   type CardForgeStore,
 } from "@cardforge/persistence";
 import {
@@ -162,16 +161,14 @@ export function registerAuthRoutes(
         return;
       }
       const email = normalizeEmail(body.email);
-      const role: AccountRole = config.adminEmails.has(email)
-        ? "admin"
-        : "player";
       try {
         const accountId = await store.registerPasswordAccount({
           accountId: newAccountId(),
           displayName: body.displayName,
           email,
           passwordHash: await hashPassword(body.password),
-          role,
+          // Emails are unverified, so registration never grants admin.
+          role: "player",
           ...(body.claimCode === undefined
             ? {}
             : { claimCodeHash: digest(body.claimCode) }),
@@ -224,15 +221,9 @@ export function registerAuthRoutes(
         response.status(401).json({ error: "INVALID_CREDENTIALS" });
         return;
       }
-      let current = account;
-      if (config.adminEmails.has(email) && account.role !== "admin")
-        current =
-          (await store.updateAccountProfile(account.accountId, {
-            role: "admin",
-          })) ?? account;
-      await startSession(response, current.accountId);
+      await startSession(response, account.accountId);
       metrics.authEvents.inc({ kind: "login", result: "ok" });
-      response.json({ account: accountView(current) });
+      response.json({ account: accountView(account) });
     },
   );
 

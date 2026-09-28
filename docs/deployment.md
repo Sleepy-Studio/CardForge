@@ -38,8 +38,8 @@ one build can be promoted from staging to production. Start from
 | `CARDFORGE_PUBLIC_API_URL`                         | yes         | Public API origin, e.g. `https://api.example.com`. The web client reads it at request time.                 |
 | `POSTGRES_PASSWORD`                                | yes         | Database password (the compose file builds `DATABASE_URL`).                                                 |
 | `CARDFORGE_SESSION_SECRET`                         | yes         | ≥ 32 random characters. Signs match tickets and OAuth state. Rotating it invalidates tickets, not sessions. |
-| `CARDFORGE_ADMIN_TOKEN`                            | recommended | ≥ 32 characters. Operator automation and `/metrics`.                                                        |
-| `CARDFORGE_ADMIN_EMAILS`                           | recommended | Accounts granted the admin role at sign-in (Operations console).                                            |
+| `CARDFORGE_ADMIN_TOKEN`                            | recommended | ≥ 32 characters. Operator automation, `/metrics`, and promoting the first operator (see `docs/auth.md`).    |
+| `CARDFORGE_ADMIN_DISCORD_IDS`                      | optional    | Discord user IDs granted the admin role at Discord sign-in.                                                 |
 | `CARDFORGE_SIGNUP_MODE` / `CARDFORGE_SIGNUP_CODES` | recommended | `invite` plus comma-separated codes for a closed alpha.                                                     |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET`      | optional    | Enables Discord login. Redirect URI: `https://api.example.com/api/auth/discord/callback`.                   |
 | `CARDFORGE_ENVIRONMENT`                            | optional    | `production` or `staging`; shown in the web footer and logs.                                                |

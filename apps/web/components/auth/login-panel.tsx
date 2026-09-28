@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { messageFor, useApi } from "@/lib/api";
 import { useRuntimeConfig } from "@/lib/runtime-config";
 import { useSession } from "@/lib/session";
+import { useHydrated } from "@/lib/use-hydrated";
 import type { Account } from "@/lib/types";
 
 const oauthErrors: Record<string, string> = {
@@ -21,10 +22,12 @@ const oauthErrors: Record<string, string> = {
   provider_disabled: "Discord sign-in is not enabled on this server.",
 };
 
+/** Same-origin paths only; mirrors the server's `safeNextPath`. */
 function safeNext(value: string | null): string {
-  return value && value.startsWith("/") && !value.startsWith("//")
-    ? value
-    : "/";
+  if (!value || value.length > 200) return "/";
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\"))
+    return "/";
+  return /^\/[a-zA-Z0-9/_\-?=&.%]*$/.test(value) ? value : "/";
 }
 
 export function LoginPanel() {
@@ -45,6 +48,7 @@ export function LoginPanel() {
     oauthErrors[params.get("error") ?? ""] ?? null,
   );
   const [busy, setBusy] = useState(false);
+  const hydrated = useHydrated();
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -204,7 +208,7 @@ export function LoginPanel() {
         ) : null}
         <button
           className="button button--primary button--wide"
-          disabled={busy}
+          disabled={busy || !hydrated}
           type="submit"
         >
           {busy
@@ -240,6 +244,7 @@ function ResetPassword({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const hydrated = useHydrated();
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -285,7 +290,7 @@ function ResetPassword({
           />
         </label>
         {error ? <p className="form-error">{error}</p> : null}
-        <button className="button" disabled={busy} type="submit">
+        <button className="button" disabled={busy || !hydrated} type="submit">
           Set new password
         </button>
       </form>

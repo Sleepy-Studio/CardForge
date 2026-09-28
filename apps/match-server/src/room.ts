@@ -35,6 +35,7 @@ import {
 } from "./match-stats.js";
 import { gauge, metrics } from "./metrics.js";
 import { RateLimiter } from "./rate-limit.js";
+import { retryWithBackoff } from "./retry.js";
 import {
   authenticateRoomJoin,
   identityOf,
@@ -78,6 +79,8 @@ gauge(
   },
 );
 let activeMatches = 0;
+const settlementAttempts = 5;
+const settlementRetryMs = 500;
 gauge(
   "cardforge_matches_active",
   "Matches in progress on this process",
@@ -120,6 +123,7 @@ export class TempoFrontRoom extends Room {
   #started = false;
   #result: MatchResult | null = null;
   #finishing: Promise<void> | null = null;
+  #countedActive = false;
   #persistChain: Promise<void> = Promise.resolve();
   #log: Logger = logger;
   /** Per-connection message budget; humans need far less than this. */
@@ -326,8 +330,7 @@ export class TempoFrontRoom extends Room {
   override async onDispose(): Promise<void> {
     this.#clockTimer?.clear();
     waitingRooms.delete(this.roomId);
-    if (this.#started && !this.#result)
-      activeMatches = Math.max(0, activeMatches - 1);
+    this.#endActiveMatch();
     await this.#persistChain;
     await this.#finishing;
   }
@@ -359,6 +362,7 @@ export class TempoFrontRoom extends Room {
     this.#started = true;
     waitingRooms.delete(this.roomId);
     activeMatches += 1;
+    this.#countedActive = true;
     await this.lock();
     await this.#persist();
     await cardForgeStore.recordMatchStart({
@@ -412,22 +416,60 @@ export class TempoFrontRoom extends Room {
     this.#broadcast(events);
   }
 
-  /** Records the outcome, telemetry, settlement, and rewards exactly once. */
+  /**
+   * Records the outcome, telemetry, settlement, and rewards exactly once.
+   * Every step is guarded by a receipt, so a failed attempt is retried from
+   * the top; if all attempts fail, players still see the decided result and
+   * operators get a critical alert to reconcile.
+   */
   #finish(winnerId: PlayerId, reason: MatchOutcomeReason): Promise<void> {
-    this.#finishing ??= this.#settle(winnerId, reason).catch(
-      (error: unknown) => {
-        metrics.integrityFailures.inc({ kind: "settlement" });
-        this.#log.critical("match settlement failed", {
-          error,
-          winnerId,
-          reason,
-        });
+    this.#finishing ??= retryWithBackoff(
+      (attempt) => this.#settle(winnerId, reason, attempt > 1),
+      {
+        attempts: settlementAttempts,
+        baseDelayMs: settlementRetryMs,
+        onRetry: (error, attempt) =>
+          this.#log.warn("match settlement attempt failed; retrying", {
+            error,
+            attempt,
+          }),
       },
-    );
+    ).catch((error: unknown) => {
+      metrics.integrityFailures.inc({ kind: "settlement" });
+      this.#log.critical("match settlement failed", {
+        error,
+        winnerId,
+        reason,
+        attempts: settlementAttempts,
+      });
+      this.#endActiveMatch();
+      this.#complete({ winnerId, reason, settlement: null, rewards: {} });
+    });
     return this.#finishing;
   }
 
-  async #settle(winnerId: PlayerId, reason: MatchOutcomeReason): Promise<void> {
+  #endActiveMatch(): void {
+    if (this.#countedActive) activeMatches = Math.max(0, activeMatches - 1);
+    this.#countedActive = false;
+  }
+
+  #complete(result: MatchResult): void {
+    this.#result = result;
+    metrics.matchesCompleted.inc({ queue: this.queue, reason: result.reason });
+    this.#log.info("match completed", {
+      winnerId: result.winnerId,
+      reason: result.reason,
+      cycles: this.#match.state.cycle,
+      commands: this.#match.replay().acceptedCommands.length,
+    });
+    this.#broadcast([]);
+  }
+
+  async #settle(
+    winnerId: PlayerId,
+    reason: MatchOutcomeReason,
+    retry: boolean,
+  ): Promise<void> {
     this.#clockTimer?.clear();
     await this.#persist();
     const state = this.#match.state;
@@ -441,7 +483,14 @@ export class TempoFrontRoom extends Room {
       cycles: state.cycle,
       stats,
     });
-    if (!firstRecord) {
+    // A retry resumes when an earlier attempt recorded this same outcome.
+    const resumed =
+      !firstRecord &&
+      retry &&
+      (await cardForgeStore
+        .getMatchMeta(this.roomId)
+        .then((meta) => meta?.winnerId === winnerId && meta.reason === reason));
+    if (!firstRecord && !resumed) {
       metrics.integrityFailures.inc({ kind: "duplicate_outcome" });
       this.#log.critical(
         "match outcome already recorded; skipping settlement",
@@ -449,7 +498,7 @@ export class TempoFrontRoom extends Room {
       );
       return;
     }
-    activeMatches = Math.max(0, activeMatches - 1);
+    this.#endActiveMatch();
     const telemetry = createMatchTelemetry({
       replay,
       queue: this.queue,
@@ -470,7 +519,7 @@ export class TempoFrontRoom extends Room {
         cycles: state.cycle,
         telemetry,
       });
-      if (!settlement) {
+      if (!settlement && !retry) {
         metrics.integrityFailures.inc({ kind: "duplicate_ranked_settlement" });
         this.#log.critical(
           "ranked settlement already existed for a fresh outcome",
@@ -499,36 +548,30 @@ export class TempoFrontRoom extends Room {
         ),
         grantUnrankedXp: this.queue === "casual" && !earlyExit,
       });
-      if (rewards[seat] === null) {
+      if (rewards[seat] === null && !retry) {
         metrics.integrityFailures.inc({ kind: "duplicate_reward" });
         this.#log.critical("match reward already settled", {
           seat,
           accountId: participant.accountId,
         });
       }
+    }
+    // Emitted once, after the attempt that finished every settlement step.
+    for (const seat of ["p1", "p2"] as const)
       void cardForgeStore
         .recordProductEvent({
           eventId: `evt:${randomUUID()}`,
-          accountId: participant.accountId,
+          accountId: participants[seat].accountId,
           name: "match_completed",
           properties: {
             matchId: this.roomId,
             queue: this.queue,
-            result: won ? "win" : "loss",
+            result: seat === winnerId ? "win" : "loss",
             reason,
           },
         })
         .catch(() => undefined);
-    }
-    this.#result = { winnerId, reason, settlement, rewards };
-    metrics.matchesCompleted.inc({ queue: this.queue, reason });
-    this.#log.info("match completed", {
-      winnerId,
-      reason,
-      cycles: state.cycle,
-      commands: replay.acceptedCommands.length,
-    });
-    this.#broadcast([]);
+    this.#complete({ winnerId, reason, settlement, rewards });
   }
 
   #participants(): Readonly<Record<PlayerId, RankedParticipant>> {

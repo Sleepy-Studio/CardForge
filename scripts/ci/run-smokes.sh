@@ -7,7 +7,6 @@ pids=()
 cleanup() { for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done; }
 trap cleanup EXIT
 export CARDFORGE_ADMIN_TOKEN="${CARDFORGE_ADMIN_TOKEN:-ci-operator-token-0123456789abcdef0123}"
-export CARDFORGE_ADMIN_EMAILS="smoke-ops@smoke.test"
 export CARDFORGE_ACTION_CLOCK_MS=60000
 export CARDFORGE_AUTH_RATE_LIMIT=1000
 export CARDFORGE_ROOM_MESSAGE_LIMIT=1000

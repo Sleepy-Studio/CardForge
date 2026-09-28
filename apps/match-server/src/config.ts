@@ -19,7 +19,6 @@ export interface ServerConfig {
   readonly cookieDomain: string | null;
   readonly signupMode: "open" | "invite";
   readonly signupCodes: ReadonlySet<string>;
-  readonly adminEmails: ReadonlySet<string>;
   readonly adminToken: string | null;
   readonly adminDiscordIds: ReadonlySet<string>;
   readonly discord: {
@@ -78,6 +77,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     problems.push("CARDFORGE_ADMIN_TOKEN must be at least 32 characters");
   if (production && !env.DATABASE_URL)
     problems.push("DATABASE_URL is required in production");
+  // Removed: registration emails are unverified, so they cannot grant admin.
+  if (env.CARDFORGE_ADMIN_EMAILS?.trim())
+    problems.push(
+      "CARDFORGE_ADMIN_EMAILS is no longer supported; promote operators with POST /api/admin/accounts/:accountId/role or CARDFORGE_ADMIN_DISCORD_IDS",
+    );
 
   const signupMode = env.CARDFORGE_SIGNUP_MODE === "invite" ? "invite" : "open";
   const signupCodes = list(env.CARDFORGE_SIGNUP_CODES);
@@ -119,9 +123,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     cookieDomain: env.CARDFORGE_COOKIE_DOMAIN?.trim() || null,
     signupMode,
     signupCodes: new Set(signupCodes),
-    adminEmails: new Set(
-      list(env.CARDFORGE_ADMIN_EMAILS).map((email) => email.toLowerCase()),
-    ),
     adminToken,
     adminDiscordIds: new Set(list(env.CARDFORGE_ADMIN_DISCORD_IDS)),
     discord:

@@ -290,6 +290,36 @@ export function registerAdminRoutes(
     },
   );
 
+  /** Grants or revokes the operator role; the only path to admin by email. */
+  app.post(
+    "/api/admin/accounts/:accountId/role",
+    async (request: AuthenticatedRequest, response) => {
+      const actor = admin(request, response);
+      if (!actor) return;
+      const body = parseBody(
+        z.object({ role: z.enum(["player", "admin"]) }).strict(),
+        request,
+        response,
+        "INVALID_ROLE",
+      );
+      if (!body) return;
+      const accountId = String(request.params.accountId);
+      if (accountId === actor.actorId && body.role !== "admin") {
+        response.status(400).json({ error: "CANNOT_DEMOTE_SELF" });
+        return;
+      }
+      const account = await store.updateAccountProfile(accountId, {
+        role: body.role,
+      });
+      if (!account) {
+        response.status(404).json({ error: "ACCOUNT_NOT_FOUND" });
+        return;
+      }
+      await audit(actor.actorId, "account.role", accountId, body);
+      response.json({ account: { accountId, role: account.role } });
+    },
+  );
+
   /**
    * Issues a one-time, 7-day code. For an account without a password it lets
    * the player attach one (legacy alpha claim); for an account with a
