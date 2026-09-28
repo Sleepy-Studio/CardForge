@@ -75,10 +75,29 @@ database URL, and allowed origins.
    waits for these before routing traffic.
 6. **Deploy.** Click _Deploy_. Watch the match-server logs for
    `migrations complete` and `match server ready`.
-7. **Verify.** `curl https://api.example.com/ready` returns
-   `{"status":"ready","database":"ok"}`; open `https://play.example.com`,
-   create an account (with a signup code if in invite mode), and finish
-   onboarding.
+7. **Verify.** Run the deployment checks from any machine with Node 22:
+
+   ```bash
+   CARDFORGE_SMOKE_SIGNUP_CODE=<a signup code> \
+     node scripts/verify-deployment.ts https://play.example.com https://api.example.com
+   ```
+
+   They cover HTTPS and same-site domains, `/health` and `/ready`, gated
+   `/metrics`, CORS and CSRF against foreign origins, session-cookie flags
+   (registers one `deploy-check-…@example.invalid` account when a signup code
+   is given), web security headers, and that the web app points at this API.
+   Then run the full two-player journey against the live API:
+
+   ```bash
+   CARDFORGE_SERVER_URL=https://api.example.com \
+   CARDFORGE_SMOKE_ORIGIN=https://play.example.com \
+   CARDFORGE_SMOKE_SIGNUP_CODE=<a signup code> \
+     pnpm --filter @cardforge/match-server smoke:journey
+   ```
+
+   Finally open `https://play.example.com`, register, and finish onboarding.
+   If `/health` reports `"commit":"unknown"`, enable Coolify's _Include
+   Source Commit in Build_ so `SOURCE_COMMIT` reaches the image.
 
 ### Staging
 
