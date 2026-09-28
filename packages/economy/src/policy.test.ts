@@ -71,12 +71,29 @@ void describe("economy policy", () => {
 
 void describe("starter and match rewards", () => {
   void it("grants starter collectibles capped at ownership limits", () => {
-    const unique: CardDefinition = { ...common, cardId: "entity.unique", unique: true };
-    const leader: CardDefinition = { ...common, cardId: "leader.test", type: "leader" };
-    const cards = new Map([common, unique, leader].map((card) => [card.cardId, card]));
+    const unique: CardDefinition = {
+      ...common,
+      cardId: "entity.unique",
+      unique: true,
+    };
+    const leader: CardDefinition = {
+      ...common,
+      cardId: "leader.test",
+      type: "leader",
+    };
+    const cards = new Map(
+      [common, unique, leader].map((card) => [card.cardId, card]),
+    );
     assert.deepEqual(
       starterGrant(
-        ["entity.test", "entity.test", "entity.unique", "entity.unique", "leader.test", "entity.unknown"],
+        [
+          "entity.test",
+          "entity.test",
+          "entity.unique",
+          "entity.unique",
+          "leader.test",
+          "entity.unknown",
+        ],
         cards,
       ),
       [

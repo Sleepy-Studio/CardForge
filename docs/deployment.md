@@ -2,11 +2,11 @@
 
 CardForge ships as three services:
 
-| Service | Image target | Port | Purpose |
-| --- | --- | --- | --- |
-| `web` | `Dockerfile` → `web` | 3000 | Next.js player client (standalone server) |
-| `match-server` | `Dockerfile` → `match-server` | 2567 | REST API, authentication, Colyseus WebSocket rooms |
-| `postgres` | `postgres:17-alpine` | 5432 (internal) | Accounts, decks, matches, replays, economy |
+| Service        | Image target                  | Port            | Purpose                                            |
+| -------------- | ----------------------------- | --------------- | -------------------------------------------------- |
+| `web`          | `Dockerfile` → `web`          | 3000            | Next.js player client (standalone server)          |
+| `match-server` | `Dockerfile` → `match-server` | 2567            | REST API, authentication, Colyseus WebSocket rooms |
+| `postgres`     | `postgres:17-alpine`          | 5432 (internal) | Accounts, decks, matches, replays, economy         |
 
 Redis is not used. The closed alpha runs one match-server replica; rooms,
 rate limits, and the replay cache live in that process (see
@@ -32,30 +32,30 @@ All configuration is environment variables; nothing is baked into images, so
 one build can be promoted from staging to production. Start from
 [`.env.production.example`](../.env.production.example).
 
-| Variable | Required | Notes |
-| --- | --- | --- |
-| `CARDFORGE_WEB_URL` | yes | Public web origin, e.g. `https://play.example.com`. Also the CORS allow-list and OAuth return target. |
-| `CARDFORGE_PUBLIC_API_URL` | yes | Public API origin, e.g. `https://api.example.com`. The web client reads it at request time. |
-| `POSTGRES_PASSWORD` | yes | Database password (the compose file builds `DATABASE_URL`). |
-| `CARDFORGE_SESSION_SECRET` | yes | ≥ 32 random characters. Signs match tickets and OAuth state. Rotating it invalidates tickets, not sessions. |
-| `CARDFORGE_ADMIN_TOKEN` | recommended | ≥ 32 characters. Operator automation and `/metrics`. |
-| `CARDFORGE_ADMIN_EMAILS` | recommended | Accounts granted the admin role at sign-in (Operations console). |
-| `CARDFORGE_SIGNUP_MODE` / `CARDFORGE_SIGNUP_CODES` | recommended | `invite` plus comma-separated codes for a closed alpha. |
-| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | optional | Enables Discord login. Redirect URI: `https://api.example.com/api/auth/discord/callback`. |
-| `CARDFORGE_ENVIRONMENT` | optional | `production` or `staging`; shown in the web footer and logs. |
-| `CARDFORGE_ACTION_CLOCK_MS` | optional | Per-action clock (default 45 s in the compose file). |
-| `CARDFORGE_RECONNECT_SECONDS` | optional | Reconnect grace before a dropped player forfeits (default 60). |
-| `CARDFORGE_TRUST_PROXY` | optional | Reverse-proxy hops to trust for client IPs (default 1). |
+| Variable                                           | Required    | Notes                                                                                                       |
+| -------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
+| `CARDFORGE_WEB_URL`                                | yes         | Public web origin, e.g. `https://play.example.com`. Also the CORS allow-list and OAuth return target.       |
+| `CARDFORGE_PUBLIC_API_URL`                         | yes         | Public API origin, e.g. `https://api.example.com`. The web client reads it at request time.                 |
+| `POSTGRES_PASSWORD`                                | yes         | Database password (the compose file builds `DATABASE_URL`).                                                 |
+| `CARDFORGE_SESSION_SECRET`                         | yes         | ≥ 32 random characters. Signs match tickets and OAuth state. Rotating it invalidates tickets, not sessions. |
+| `CARDFORGE_ADMIN_TOKEN`                            | recommended | ≥ 32 characters. Operator automation and `/metrics`.                                                        |
+| `CARDFORGE_ADMIN_EMAILS`                           | recommended | Accounts granted the admin role at sign-in (Operations console).                                            |
+| `CARDFORGE_SIGNUP_MODE` / `CARDFORGE_SIGNUP_CODES` | recommended | `invite` plus comma-separated codes for a closed alpha.                                                     |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET`      | optional    | Enables Discord login. Redirect URI: `https://api.example.com/api/auth/discord/callback`.                   |
+| `CARDFORGE_ENVIRONMENT`                            | optional    | `production` or `staging`; shown in the web footer and logs.                                                |
+| `CARDFORGE_ACTION_CLOCK_MS`                        | optional    | Per-action clock (default 45 s in the compose file).                                                        |
+| `CARDFORGE_RECONNECT_SECONDS`                      | optional    | Reconnect grace before a dropped player forfeits (default 60).                                              |
+| `CARDFORGE_TRUST_PROXY`                            | optional    | Reverse-proxy hops to trust for client IPs (default 1).                                                     |
 
 The match server refuses to start in production without a session secret,
 database URL, and allowed origins.
 
 ## Coolify
 
-1. **Create the resource.** In your project choose *New Resource → Docker
-   Compose* (from the Git repository), branch `main`, and set the compose
+1. **Create the resource.** In your project choose _New Resource → Docker
+   Compose_ (from the Git repository), branch `main`, and set the compose
    path to `/compose.production.yaml`.
-2. **Environment.** Open *Environment Variables* and paste the contents of
+2. **Environment.** Open _Environment Variables_ and paste the contents of
    your `.env.production` (all variables above). Mark the secrets as
    secrets. Do not set `DATABASE_URL`; the compose file derives it.
 3. **Domains.** Under the service list set:
@@ -65,6 +65,7 @@ database URL, and allowed origins.
    The `:port` suffix tells Coolify which container port to route to.
    Leave `postgres` without a domain. Coolify's Traefik proxy forwards
    WebSocket upgrades automatically; no extra labels are needed.
+
 4. **Persistent storage.** The named volume `cardforge-postgres` persists
    across deploys. Configure Coolify's scheduled backups for the Postgres
    service (or `pg_dump` via a scheduled task) before inviting players.
@@ -72,7 +73,7 @@ database URL, and allowed origins.
    server reports healthy only once migrations finish and the database
    answers (`GET /ready`); `web` depends on a healthy match server. Coolify
    waits for these before routing traffic.
-6. **Deploy.** Click *Deploy*. Watch the match-server logs for
+6. **Deploy.** Click _Deploy_. Watch the match-server logs for
    `migrations complete` and `match server ready`.
 7. **Verify.** `curl https://api.example.com/ready` returns
    `{"status":"ready","database":"ok"}`; open `https://play.example.com`,
@@ -85,7 +86,7 @@ Create a second Coolify resource from the same repository and compose file
 with its own domains (for example `staging-play.example.com` and
 `staging-api.example.com`), `CARDFORGE_ENVIRONMENT=staging`, and different
 secrets. The main-branch workflow can trigger its deploy webhook (see
-[CI/CD](#cicd)); production stays a manual *Deploy* in Coolify, or a
+[CI/CD](#cicd)); production stays a manual _Deploy_ in Coolify, or a
 redeploy pinned to an image tag that already passed staging.
 
 ## Any other Docker host

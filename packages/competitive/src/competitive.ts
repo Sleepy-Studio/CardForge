@@ -339,9 +339,8 @@ export function aggregateBalanceOverview(
     ).length,
     dominionWins: matches.filter((match) => match.victoryReason === "dominion")
       .length,
-    concessions: matches.filter(
-      (match) => match.victoryReason === "concession",
-    ).length,
+    concessions: matches.filter((match) => match.victoryReason === "concession")
+      .length,
     abandonments: matches.filter(
       (match) => match.victoryReason === "abandonment",
     ).length,

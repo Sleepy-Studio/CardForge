@@ -78,12 +78,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const signupMode = env.CARDFORGE_SIGNUP_MODE === "invite" ? "invite" : "open";
   const signupCodes = list(env.CARDFORGE_SIGNUP_CODES);
   if (signupMode === "invite" && !signupCodes.length)
-    problems.push("CARDFORGE_SIGNUP_MODE=invite requires CARDFORGE_SIGNUP_CODES");
+    problems.push(
+      "CARDFORGE_SIGNUP_MODE=invite requires CARDFORGE_SIGNUP_CODES",
+    );
 
   const discordId = env.DISCORD_CLIENT_ID?.trim();
   const discordSecret = env.DISCORD_CLIENT_SECRET?.trim();
   if (Boolean(discordId) !== Boolean(discordSecret))
-    problems.push("DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET must be set together");
+    problems.push(
+      "DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET must be set together",
+    );
 
   if (problems.length) throw new ConfigError(problems);
   const port = integer(env.PORT, 2567);
@@ -92,8 +96,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     port,
     databaseUrl: env.DATABASE_URL ?? null,
     allowedOrigins: new Set(allowedOrigins),
-    webUrl: (env.CARDFORGE_WEB_URL ?? allowedOrigins[0] ?? "http://localhost:3000").replace(/\/$/, ""),
-    publicUrl: (env.CARDFORGE_PUBLIC_URL ?? `http://localhost:${port}`).replace(/\/$/, ""),
+    webUrl: (
+      env.CARDFORGE_WEB_URL ??
+      allowedOrigins[0] ??
+      "http://localhost:3000"
+    ).replace(/\/$/, ""),
+    publicUrl: (env.CARDFORGE_PUBLIC_URL ?? `http://localhost:${port}`).replace(
+      /\/$/,
+      "",
+    ),
     sessionSecret:
       secret.length >= 32 ? Buffer.from(secret, "utf8") : randomBytes(32),
     sessionTtlMs: integer(env.CARDFORGE_SESSION_TTL_DAYS, 30) * 86_400_000,
@@ -104,7 +115,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     cookieDomain: env.CARDFORGE_COOKIE_DOMAIN?.trim() || null,
     signupMode,
     signupCodes: new Set(signupCodes),
-    adminEmails: new Set(list(env.CARDFORGE_ADMIN_EMAILS).map((email) => email.toLowerCase())),
+    adminEmails: new Set(
+      list(env.CARDFORGE_ADMIN_EMAILS).map((email) => email.toLowerCase()),
+    ),
     adminToken,
     adminDiscordIds: new Set(list(env.CARDFORGE_ADMIN_DISCORD_IDS)),
     discord:
@@ -113,9 +126,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
             clientId: discordId,
             clientSecret: discordSecret,
             // Overridable only so integration tests can use a local stub.
-            apiBase: (env.CARDFORGE_DISCORD_API_BASE ?? "https://discord.com/api").replace(/\/$/, ""),
+            apiBase: (
+              env.CARDFORGE_DISCORD_API_BASE ?? "https://discord.com/api"
+            ).replace(/\/$/, ""),
             authorizeUrl:
-              env.CARDFORGE_DISCORD_AUTHORIZE_URL ?? "https://discord.com/oauth2/authorize",
+              env.CARDFORGE_DISCORD_AUTHORIZE_URL ??
+              "https://discord.com/oauth2/authorize",
           }
         : null,
     actionClockMs: integer(env.CARDFORGE_ACTION_CLOCK_MS, 30_000),

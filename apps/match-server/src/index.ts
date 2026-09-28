@@ -23,12 +23,15 @@ logger.info("match server listening", {
   signupMode: config.signupMode,
 });
 if (!config.databaseUrl)
-  logger.warn("DATABASE_URL is not set; using the in-memory store (data is lost on restart)");
+  logger.warn(
+    "DATABASE_URL is not set; using the in-memory store (data is lost on restart)",
+  );
 
 try {
   await runMigrations(cardForgeStore);
   const seeded = await seedLiveOps(cardForgeStore);
-  if (seeded.length) logger.info("seeded live-ops revisions", { revisions: seeded });
+  if (seeded.length)
+    logger.info("seeded live-ops revisions", { revisions: seeded });
   markReady();
   logger.info("match server ready");
 } catch (error) {

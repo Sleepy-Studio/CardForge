@@ -1,6 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { ApiError, messageFor, useApi } from "@/lib/api";
+import { useSession } from "@/lib/session";
+import { TelemetryDashboard } from "./ops/telemetry-dashboard";
 
 interface LiveOpsDefinition {
   readonly configId: string;
@@ -44,56 +48,45 @@ interface OperationsPayload {
   readonly revisions: readonly LiveOpsDefinition[];
   readonly cases: readonly SupportCase[];
   readonly audit: readonly AuditRecord[];
+  readonly warnings?: readonly string[];
 }
 
 export function OperationsConsole() {
-  const endpoint =
-    process.env.NEXT_PUBLIC_MATCH_SERVER_URL ?? "http://localhost:2567";
-  const [token, setToken] = useState("cardforge-local-admin");
-  const [actor, setActor] = useState("local-operator");
+  const api = useApi();
+  const { account } = useSession();
   const [payload, setPayload] = useState<OperationsPayload | null>(null);
-  const [status, setStatus] = useState("Operator authentication required");
+  const [status, setStatus] = useState("Loading operations…");
   const [draftFlags, setDraftFlags] = useState<Record<string, boolean>>({});
-  const headers = useMemo(
-    () => ({
-      "content-type": "application/json",
-      "x-cardforge-admin-token": token,
-      "x-cardforge-admin-actor": actor,
-    }),
-    [actor, token],
-  );
 
   const refresh = useCallback(async () => {
-    setStatus("Reading immutable operations records…");
-    const response = await fetch(`${endpoint}/api/admin/operations`, {
-      headers,
-    });
-    if (!response.ok) throw new Error("Admin scope was rejected.");
-    const next = (await response.json()) as OperationsPayload;
-    setPayload(next);
-    setDraftFlags({ ...next.current.featureFlags });
-    setStatus(`Live // ${next.audit.length} audited actions`);
-  }, [endpoint, headers]);
+    try {
+      const next = await api<OperationsPayload>("/api/admin/operations");
+      setPayload(next);
+      setDraftFlags({ ...next.current.featureFlags });
+      setStatus(
+        next.warnings?.length
+          ? `Warnings: ${next.warnings.join("; ")}`
+          : `Live · ${next.audit.length} audited actions`,
+      );
+    } catch (error) {
+      setPayload(null);
+      setStatus(
+        error instanceof ApiError && error.status === 401
+          ? "Sign in with an operator account to continue."
+          : error instanceof ApiError && error.status === 403
+            ? "This account is not an operator. Ask an admin to add your email to CARDFORGE_ADMIN_EMAILS."
+            : messageFor(error),
+      );
+    }
+  }, [api]);
 
   useEffect(() => {
-    const storedToken = window.localStorage.getItem("cardforge.admin.token");
-    const storedActor = window.localStorage.getItem("cardforge.admin.actor");
-    if (storedToken) setToken(storedToken);
-    if (storedActor) setActor(storedActor);
-  }, []);
+    if (account !== undefined) void refresh();
+  }, [account, refresh]);
 
   const adminPost = async (path: string, body: Record<string, unknown>) => {
     setStatus("Committing operator action…");
-    const response = await fetch(`${endpoint}${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-    const result = (await response.json()) as { message?: string };
-    if (!response.ok)
-      throw new Error(result.message ?? "Operator action rejected.");
-    window.localStorage.setItem("cardforge.admin.token", token);
-    window.localStorage.setItem("cardforge.admin.actor", actor);
+    await api(path, { body });
     await refresh();
   };
 
@@ -110,49 +103,26 @@ export function OperationsConsole() {
           <p>{status}</p>
         </div>
         <nav>
-          <a className="button button--quiet" href="/competitive">
-            Competitive
-          </a>
-          <a className="button button--quiet" href="/academy">
-            Academy
-          </a>
+          <Link className="button button--quiet" href="/">
+            Player app
+          </Link>
+          {account === null ? (
+            <Link
+              className="button button--quiet"
+              href="/login?next=/operations"
+            >
+              Sign in
+            </Link>
+          ) : null}
           <button
             className="button button--primary"
-            onClick={() =>
-              void refresh().catch((error) =>
-                setStatus(
-                  error instanceof Error ? error.message : "Refresh failed.",
-                ),
-              )
-            }
+            onClick={() => void refresh()}
             type="button"
           >
-            Authenticate
+            Refresh
           </button>
         </nav>
       </header>
-
-      <section className="operations-auth">
-        <label>
-          <span>ADMIN TOKEN</span>
-          <input
-            type="password"
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-          />
-        </label>
-        <label>
-          <span>OPERATOR ID</span>
-          <input
-            value={actor}
-            onChange={(event) => setActor(event.target.value)}
-          />
-        </label>
-        <p>
-          Local development uses an explicit test token. Production disables
-          this API unless a server secret is configured.
-        </p>
-      </section>
 
       {payload ? (
         <div className="operations-grid">
@@ -290,7 +260,7 @@ export function OperationsConsole() {
                       className="button button--quiet"
                       onClick={() =>
                         void adminPost(
-                          `/api/admin/support-cases/${supportCase.caseId}`,
+                          `/api/admin/support-cases/${encodeURIComponent(supportCase.caseId)}`,
                           {
                             status: "resolved",
                             note: "Resolved through operations console.",
@@ -335,6 +305,7 @@ export function OperationsConsole() {
           </section>
         </div>
       ) : null}
+      {payload ? <TelemetryDashboard /> : null}
     </main>
   );
 }

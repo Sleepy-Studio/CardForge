@@ -20,6 +20,29 @@ import {
 } from "@cardforge/rules-tempofront";
 
 export const browserEngine = new TempoFrontEngine();
+
+/**
+ * Structural board shape shared by a full local GameState and a server
+ * ProjectedGameView (whose hidden zones are simply absent).
+ */
+export interface BoardLike {
+  readonly commandNumber?: number;
+  readonly players: Readonly<
+    Record<
+      PlayerId,
+      {
+        readonly leader: CardInstance;
+        readonly hand?: readonly CardInstance[];
+        readonly deck?: readonly CardInstance[];
+        readonly discard: readonly CardInstance[];
+        readonly relics: readonly CardInstance[];
+        readonly reserve?: CardInstance | null;
+      }
+    >
+  >;
+  readonly fronts: GameState["fronts"];
+  readonly pendingAction?: GameState["pendingAction"];
+}
 export const browserStarterDecks = prototypeDecks;
 export const browserLeaderOptions = prototypeLeaderOptions;
 export const browserCardPoolSize = prototypeCards.length;
@@ -73,7 +96,7 @@ export function activePlayer(state: GameState): PlayerId | null {
   return null;
 }
 
-export function commandTime(state: GameState, command: Command): number {
+export function commandTime(state: BoardLike, command: Command): number {
   if (command.type === "play_card") {
     const instance = findInstance(state, command.instanceId);
     return instance
@@ -119,7 +142,7 @@ export function commandTime(state: GameState, command: Command): number {
 }
 
 export function commandLabel(
-  state: GameState,
+  state: BoardLike,
   command: Command,
   terms: Partial<DisplayTerms> = {},
 ): string {
@@ -252,7 +275,7 @@ export interface PresentationBatch {
 }
 
 function boardAnchor(
-  state: GameState,
+  state: BoardLike,
   instanceId: string,
 ): BoardAnchor | undefined {
   for (const front of ["left", "center", "right"] as const)
@@ -266,8 +289,8 @@ function boardAnchor(
 }
 
 function instanceName(
-  before: GameState,
-  after: GameState,
+  before: BoardLike,
+  after: BoardLike,
   instanceId: string,
 ): string {
   const instance =
@@ -278,8 +301,8 @@ function instanceName(
 }
 
 function leaderTarget(
-  before: GameState,
-  after: GameState,
+  before: BoardLike,
+  after: BoardLike,
   sourceId: string,
 ): BoardAnchor {
   const source = boardAnchor(after, sourceId) ?? boardAnchor(before, sourceId);
@@ -293,13 +316,13 @@ function leaderTarget(
 
 export function presentationCues(
   events: readonly GameEvent[],
-  before: GameState,
-  after: GameState,
+  before: BoardLike,
+  after: BoardLike,
   terms: Partial<DisplayTerms> = {},
 ): readonly PresentationCue[] {
   const display = { ...defaultDisplayTerms, ...terms };
   return events.flatMap((event, index): readonly PresentationCue[] => {
-    const id = `${after.commandNumber}-${index}-${event.type}`;
+    const id = `${after.commandNumber ?? 0}-${index}-${event.type}`;
     switch (event.type) {
       case "entity_deployed":
         return [
@@ -483,7 +506,7 @@ export function chooseBotCommand(
 }
 
 export function findInstance(
-  state: GameState,
+  state: BoardLike,
   instanceId: string,
 ): CardInstance | null {
   const visit = (instance: CardInstance): CardInstance | null => {
@@ -497,8 +520,8 @@ export function findInstance(
   for (const player of Object.values(state.players)) {
     for (const instance of [
       player.leader,
-      ...player.hand,
-      ...player.deck,
+      ...(player.hand ?? []),
+      ...(player.deck ?? []),
       ...player.discard,
       ...player.relics,
       ...(player.reserve ? [player.reserve] : []),
@@ -523,7 +546,7 @@ export function findInstance(
 }
 
 export function definitionForInstance(
-  state: GameState,
+  state: BoardLike,
   instanceId: string | null,
 ): CardDefinition | null {
   if (!instanceId) return null;

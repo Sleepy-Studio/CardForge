@@ -25,7 +25,10 @@ import { generateInviteCode } from "./http/player-routes.js";
 
 /** Plays a complete deterministic match through the authoritative session. */
 function completedSession(seed = 91): AuthoritativeMatchSession {
-  const session = new AuthoritativeMatchSession({ matchId: `m7-${seed}`, seed });
+  const session = new AuthoritativeMatchSession({
+    matchId: `m7-${seed}`,
+    seed,
+  });
   session.join("alpha");
   session.join("bravo");
   for (let step = 0; step < 2_000 && !session.state.winner; step += 1) {
@@ -54,25 +57,59 @@ void describe("M7 authentication primitives", () => {
     const secret = randomBytes(32);
     const ticket = issueMatchTicket(secret, "acct-one", 1_000);
     assert.equal(verifyMatchTicket(secret, ticket, 2_000), "acct-one");
-    assert.equal(verifyMatchTicket(secret, ticket, 1_000 + 5 * 60_000), null, "expired");
-    assert.equal(verifyMatchTicket(randomBytes(32), ticket, 2_000), null, "wrong key");
+    assert.equal(
+      verifyMatchTicket(secret, ticket, 1_000 + 5 * 60_000),
+      null,
+      "expired",
+    );
+    assert.equal(
+      verifyMatchTicket(randomBytes(32), ticket, 2_000),
+      null,
+      "wrong key",
+    );
     const [body, signature] = ticket.split(".");
     const forgedBody = Buffer.from(
       JSON.stringify({ sub: "acct-two", pur: "match", exp: 9_999_999_999_999 }),
     ).toString("base64url");
-    assert.equal(verifyMatchTicket(secret, `${forgedBody}.${signature}`, 2_000), null);
-    assert.equal(verifyMatchTicket(secret, `${body}.${signature}.x`, 2_000), null);
-    const oauth = signPayload(secret, "oauth", { sub: "acct-one" }, 60_000, 1_000);
-    assert.equal(verifyMatchTicket(secret, oauth, 2_000), null, "purpose-bound");
+    assert.equal(
+      verifyMatchTicket(secret, `${forgedBody}.${signature}`, 2_000),
+      null,
+    );
+    assert.equal(
+      verifyMatchTicket(secret, `${body}.${signature}.x`, 2_000),
+      null,
+    );
+    const oauth = signPayload(
+      secret,
+      "oauth",
+      { sub: "acct-one" },
+      60_000,
+      1_000,
+    );
+    assert.equal(
+      verifyMatchTicket(secret, oauth, 2_000),
+      null,
+      "purpose-bound",
+    );
     assert.equal(verifyPayload(secret, "oauth", oauth, 2_000)?.sub, "acct-one");
   });
 
   void it("serialises HttpOnly SameSite cookies and parses headers defensively", () => {
-    const cookie = serializeCookie("cardforge_session", "abc", { secure: true, domain: null }, 60);
+    const cookie = serializeCookie(
+      "cardforge_session",
+      "abc",
+      { secure: true, domain: null },
+      60,
+    );
     assert.match(cookie, /HttpOnly/);
     assert.match(cookie, /SameSite=Lax/);
     assert.match(cookie, /Secure/);
-    assert.equal(parseCookies("a=1; cardforge_session=abc; bad=%E0%A4%A").get("cardforge_session"), "abc");
+    assert.equal(
+      parseCookies("a=1; cardforge_session=abc; bad=%E0%A4%A").get(
+        "cardforge_session",
+      ),
+      "abc",
+    );
   });
 
   void it("only accepts relative post-login destinations", () => {
@@ -118,9 +155,14 @@ void describe("M7 authentication primitives", () => {
   void it("redacts credentials from structured logs", () => {
     const lines: string[] = [];
     const log = createLogger({ sink: (line) => lines.push(line) });
-    log.info("login", { password: "hunter2", nested: { sessionToken: "abc", ok: 1 } });
+    log.info("login", {
+      password: "hunter2",
+      nested: { sessionToken: "abc", ok: 1 },
+    });
     log.critical("replay mismatch", { matchId: "m1" });
-    const [first, second] = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+    const [first, second] = lines.map(
+      (line) => JSON.parse(line) as Record<string, unknown>,
+    );
     assert.equal(first!.password, "[redacted]");
     assert.deepEqual(first!.nested, { sessionToken: "[redacted]", ok: 1 });
     assert.equal(second!.alert, true);
@@ -150,9 +192,15 @@ void describe("M7 replay reconstruction", () => {
     assert.ok(seatView.players.p1.hand);
     assert.equal(seatView.players.p2.hand, undefined);
     const rivalMulligan = reconstructReplay(replay, "p1").frames.find(
-      (frame) => frame.command?.type === "mulligan" && frame.command.playerId === "p2",
+      (frame) =>
+        frame.command?.type === "mulligan" && frame.command.playerId === "p2",
     );
-    assert.deepEqual(Object.keys(rivalMulligan!.command!).sort(), ["count", "playerId", "redacted", "type"]);
+    assert.deepEqual(Object.keys(rivalMulligan!.command!).sort(), [
+      "count",
+      "playerId",
+      "redacted",
+      "type",
+    ]);
   });
 
   void it("flags a tampered replay instead of trusting it", () => {
@@ -160,16 +208,25 @@ void describe("M7 replay reconstruction", () => {
     const result = reconstructReplay(tampered, "public");
     assert.equal(result.verified, false);
     assert.match(result.error ?? "", /hash/);
-    const truncated = { ...replay, acceptedCommands: replay.acceptedCommands.slice(0, -1) };
+    const truncated = {
+      ...replay,
+      acceptedCommands: replay.acceptedCommands.slice(0, -1),
+    };
     assert.equal(reconstructReplay(truncated, "public").verified, false);
     const corrupt = { ...replay, contentHash: "sha256:other" };
     assert.equal(reconstructReplay(corrupt, "public").verified, false);
   });
 
   void it("derives per-seat statistics from the replay", () => {
-    const stats = participantStats(replay, { p1: emptyActivity(), p2: emptyActivity() });
+    const stats = participantStats(replay, {
+      p1: emptyActivity(),
+      p2: emptyActivity(),
+    });
     const winner = session.state.winner!;
-    assert.equal(stats[winner].dominion, session.state.players[winner].dominion);
+    assert.equal(
+      stats[winner].dominion,
+      session.state.players[winner].dominion,
+    );
     assert.ok(stats.p1.cardsDrawn >= 5);
     assert.equal(
       Object.values(stats.p1.cardIdsPlayed).reduce((a, b) => a + b, 0),
@@ -182,16 +239,22 @@ void describe("wire intent schema", () => {
   void it("accepts every command the engine reports as legal", async () => {
     const { commandFromIntent } = await import("./intents.js");
     const { prototypeDecks } = await import("@cardforge/rules-tempofront");
-    const leaders = Object.keys(prototypeDecks) as (keyof typeof prototypeDecks)[];
+    const leaders = Object.keys(
+      prototypeDecks,
+    ) as (keyof typeof prototypeDecks)[];
     let checked = 0;
     for (let game = 0; game < leaders.length; game += 1) {
       const session = new AuthoritativeMatchSession({
         matchId: `wire-${game}`,
         seed: 500 + game,
-        leaders: { p1: leaders[game]!, p2: leaders[(game + 5) % leaders.length]! },
+        leaders: {
+          p1: leaders[game]!,
+          p2: leaders[(game + 5) % leaders.length]!,
+        },
       });
       for (let step = 0; step < 600 && !session.state.winner; step += 1) {
-        const seat = session.activePlayers()[step % session.activePlayers().length];
+        const seat =
+          session.activePlayers()[step % session.activePlayers().length];
         if (!seat) break;
         const legal = session.engine.getLegalCommands(session.state, seat);
         for (const command of legal) {
@@ -212,18 +275,43 @@ void describe("M7 playtest telemetry", () => {
     assert.equal(cautionFor(5), "insufficient");
     assert.equal(cautionFor(50), "low");
     assert.equal(cautionFor(500), "adequate");
-    assert.deepEqual(rate(0, 0), { value: null, numerator: 0, sample: 0, caution: "insufficient" });
+    assert.deepEqual(rate(0, 0), {
+      value: null,
+      numerator: 0,
+      sample: 0,
+      caution: "insufficient",
+    });
     const overview = playtestOverview({
       matches: [],
       telemetry: [],
       events: [
-        { eventId: "1", accountId: "a", name: "account_registered", properties: {}, createdAt: "" },
-        { eventId: "2", accountId: "a", name: "tutorial_started", properties: {}, createdAt: "" },
+        {
+          eventId: "1",
+          accountId: "a",
+          name: "account_registered",
+          properties: {},
+          createdAt: "",
+        },
+        {
+          eventId: "2",
+          accountId: "a",
+          name: "tutorial_started",
+          properties: {},
+          createdAt: "",
+        },
       ],
       collectibleCardIds: ["entity.one"],
     });
     assert.equal(overview.onboarding.registered, 1);
-    assert.equal(overview.onboarding.steps.find((step) => step.name === "tutorial_started")?.conversion.value, 1);
-    assert.deepEqual(overview.cards.neverPlayed, [], "no conclusions without matches");
+    assert.equal(
+      overview.onboarding.steps.find((step) => step.name === "tutorial_started")
+        ?.conversion.value,
+      1,
+    );
+    assert.deepEqual(
+      overview.cards.neverPlayed,
+      [],
+      "no conclusions without matches",
+    );
   });
 });

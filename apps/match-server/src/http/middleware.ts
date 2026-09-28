@@ -36,9 +36,11 @@ export function requestContext() {
       const routeClass = routeClassFor(request.path);
       const statusClass = `${Math.floor(response.statusCode / 100)}xx`;
       metrics.httpRequests.inc({ route: routeClass, status: statusClass });
-      if (response.statusCode >= 500) metrics.httpErrors.inc({ route: routeClass });
+      if (response.statusCode >= 500)
+        metrics.httpErrors.inc({ route: routeClass });
       if (routeClass === "probe" && response.statusCode < 400) return;
-      const account = (request as Request & { account?: { accountId: string } }).account;
+      const account = (request as Request & { account?: { accountId: string } })
+        .account;
       log[response.statusCode >= 500 ? "error" : "info"]("http request", {
         method: request.method,
         route: routeClass,
@@ -53,7 +55,8 @@ export function requestContext() {
 }
 
 function routeClassFor(path: string): string {
-  if (path === "/health" || path === "/ready" || path === "/metrics") return "probe";
+  if (path === "/health" || path === "/ready" || path === "/metrics")
+    return "probe";
   if (path.startsWith("/api/auth")) return "auth";
   if (path.startsWith("/api/admin")) return "admin";
   if (path.startsWith("/api/me")) return "player";
@@ -78,7 +81,10 @@ export function corsAndCsrf(config: ServerConfig) {
         "access-control-allow-headers",
         "content-type,authorization,x-request-id",
       );
-      response.header("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+      response.header(
+        "access-control-allow-methods",
+        "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+      );
       response.header("access-control-max-age", "600");
     }
     response.header("vary", "origin");
@@ -154,11 +160,18 @@ export function errorHandler() {
       response.status(400).json({ error: "MALFORMED_JSON" });
       return;
     }
-    if (error && typeof error === "object" && "type" in error && error.type === "entity.too.large") {
+    if (
+      error &&
+      typeof error === "object" &&
+      "type" in error &&
+      error.type === "entity.too.large"
+    ) {
       response.status(413).json({ error: "PAYLOAD_TOO_LARGE" });
       return;
     }
-    (request.context?.log ?? logger).error("unhandled request error", { error });
+    (request.context?.log ?? logger).error("unhandled request error", {
+      error,
+    });
     if (!response.headersSent)
       response.status(500).json({
         error: "INTERNAL_ERROR",

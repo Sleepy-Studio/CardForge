@@ -3,7 +3,10 @@ import { Room, ServerError, type Client } from "@colyseus/core";
 import { z } from "zod";
 import type { Command, GameEvent } from "@cardforge/rules-kernel";
 import { monoStarterLeaders } from "@cardforge/competitive";
-import { prototypeDecks, type PrototypeLeaderId } from "@cardforge/rules-tempofront";
+import {
+  prototypeDecks,
+  type PrototypeLeaderId,
+} from "@cardforge/rules-tempofront";
 import {
   trainingMatchSetup,
   trainingScenarios,
@@ -14,7 +17,11 @@ import { intentFromCommand } from "./intents.js";
 import { logger, type Logger } from "./logger.js";
 import { emptyActivity, participantStats } from "./match-stats.js";
 import { metrics } from "./metrics.js";
-import { authenticateRoomJoin, identityOf, type RoomIdentity } from "./room-auth.js";
+import {
+  authenticateRoomJoin,
+  identityOf,
+  type RoomIdentity,
+} from "./room-auth.js";
 import { AuthoritativeMatchSession, SessionError } from "./session.js";
 import { cardForgeStore } from "./store.js";
 
@@ -25,8 +32,14 @@ const scenarioOptions = z
 const practiceOptions = z
   .object({
     mode: z.literal("practice"),
-    deckId: z.string().regex(/^[a-zA-Z0-9_-]{3,80}$/).optional(),
-    opponentLeaderId: z.string().regex(/^leader\.[a-z_]{2,40}$/).optional(),
+    deckId: z
+      .string()
+      .regex(/^[a-zA-Z0-9_-]{3,80}$/)
+      .optional(),
+    opponentLeaderId: z
+      .string()
+      .regex(/^leader\.[a-z_]{2,40}$/)
+      .optional(),
   })
   .strict();
 
@@ -108,7 +121,10 @@ export class TempoFrontTrainingRoom extends Room {
       } catch (error) {
         if (error instanceof SessionError) {
           metrics.commandsRejected.inc({ code: error.code });
-          client.send("command_error", { code: error.code, message: error.message });
+          client.send("command_error", {
+            code: error.code,
+            message: error.message,
+          });
           return;
         }
         throw error;
@@ -147,7 +163,8 @@ export class TempoFrontTrainingRoom extends Room {
   }
 
   override async onJoin(client: Client): Promise<void> {
-    if (this.#humanConnectionId) throw new ServerError(409, "This room is occupied.");
+    if (this.#humanConnectionId)
+      throw new ServerError(409, "This room is occupied.");
     const identity = identityOf(client);
     this.#identity = identity;
     await cardForgeStore.getEconomySnapshot(identity.accountId);
@@ -156,7 +173,10 @@ export class TempoFrontTrainingRoom extends Room {
       this.#match = new AuthoritativeMatchSession({
         matchId: this.roomId,
         seed: serverSeed(),
-        leaders: { p1: plan.scenario.playerLeaderId, p2: plan.scenario.opponentLeaderId },
+        leaders: {
+          p1: plan.scenario.playerLeaderId,
+          p2: plan.scenario.opponentLeaderId,
+        },
         decks: {
           p1: prototypeDecks[plan.scenario.playerLeaderId],
           p2: prototypeDecks[plan.scenario.opponentLeaderId],
@@ -166,11 +186,15 @@ export class TempoFrontTrainingRoom extends Room {
     } else {
       // Practice never grants rewards, so any legal saved deck may be used,
       // including one with cards still to be crafted.
-      const deck = plan.deckId ? await cardForgeStore.getDeck(identity.accountId, plan.deckId) : null;
-      if (plan.deckId && !deck) throw new ServerError(404, "That deck no longer exists.");
+      const deck = plan.deckId
+        ? await cardForgeStore.getDeck(identity.accountId, plan.deckId)
+        : null;
+      if (plan.deckId && !deck)
+        throw new ServerError(404, "That deck no longer exists.");
       if (deck && deckLegalityErrors(deck.leaderId, deck.cardIds).length)
         throw new ServerError(422, "That deck is not legal yet.");
-      const playerLeaderId = (deck?.leaderId ?? "leader.ember") as PrototypeLeaderId;
+      const playerLeaderId = (deck?.leaderId ??
+        "leader.ember") as PrototypeLeaderId;
       this.#match = new AuthoritativeMatchSession({
         matchId: this.roomId,
         seed: serverSeed(),
@@ -180,7 +204,10 @@ export class TempoFrontTrainingRoom extends Room {
           p2: prototypeDecks[plan.opponentLeaderId],
         },
       });
-      await cardForgeStore.saveMatch({ status: "active", replay: this.#match.replay() });
+      await cardForgeStore.saveMatch({
+        status: "active",
+        replay: this.#match.replay(),
+      });
       await cardForgeStore.recordMatchStart({
         matchId: this.roomId,
         queue: "practice",
@@ -226,13 +253,25 @@ export class TempoFrontTrainingRoom extends Room {
 
   #runBot(): readonly GameEvent[] {
     const events: GameEvent[] = [];
-    for (let operation = 0; operation < 16 && !this.#match.state.winner; operation += 1) {
-      const legal = this.#match.engine.getLegalCommands(this.#match.state, "p2");
-      const humanLegal = this.#match.engine.getLegalCommands(this.#match.state, "p1");
+    for (
+      let operation = 0;
+      operation < 16 && !this.#match.state.winner;
+      operation += 1
+    ) {
+      const legal = this.#match.engine.getLegalCommands(
+        this.#match.state,
+        "p2",
+      );
+      const humanLegal = this.#match.engine.getLegalCommands(
+        this.#match.state,
+        "p1",
+      );
       if (!legal.length || humanLegal.length) break;
       const command = chooseTrainingBotCommand(legal);
       if (!command) break;
-      events.push(...this.#match.submitForPlayer("p2", intentFromCommand(command)));
+      events.push(
+        ...this.#match.submitForPlayer("p2", intentFromCommand(command)),
+      );
     }
     return events;
   }
@@ -254,14 +293,21 @@ export class TempoFrontTrainingRoom extends Room {
   ): Promise<void> {
     if (this.#plan.kind !== "practice" || this.#outcomeRecorded) return;
     this.#outcomeRecorded = true;
-    await cardForgeStore.saveMatch({ status: "complete", replay: this.#match.replay() });
+    await cardForgeStore.saveMatch({
+      status: "complete",
+      replay: this.#match.replay(),
+    });
     const activity = { p1: emptyActivity(), p2: emptyActivity() };
     await cardForgeStore.recordMatchOutcome({
       matchId: this.roomId,
       winnerId,
       reason,
       cycles: this.#match.state.cycle,
-      stats: participantStats(this.#match.replay(), activity, this.#match.engine),
+      stats: participantStats(
+        this.#match.replay(),
+        activity,
+        this.#match.engine,
+      ),
     });
     this.#log.info("practice completed", { winnerId, reason });
   }
@@ -276,15 +322,27 @@ export class TempoFrontTrainingRoom extends Room {
     });
     if (state.winner && state.victoryReason)
       await this.#recordPracticeOutcome(state.winner, state.victoryReason);
-    if (!completed || this.#completion || this.#plan.kind !== "scenario" || !this.#identity) return;
+    if (
+      !completed ||
+      this.#completion ||
+      this.#plan.kind !== "scenario" ||
+      !this.#identity
+    )
+      return;
     const scenario = this.#plan.scenario;
     const result = await cardForgeStore.completeTrainingScenario(
       `training-room:${this.roomId}`,
       this.#identity.accountId,
       scenario.scenarioId,
-      { shards: scenario.reward.shards, styleTokens: scenario.reward.styleTokens },
+      {
+        shards: scenario.reward.shards,
+        styleTokens: scenario.reward.styleTokens,
+      },
     );
-    this.#completion = { firstCompletion: result.firstCompletion, scenarioId: result.scenarioId };
+    this.#completion = {
+      firstCompletion: result.firstCompletion,
+      scenarioId: result.scenarioId,
+    };
     void cardForgeStore
       .recordProductEvent({
         eventId: `evt:${randomUUID()}`,
@@ -305,16 +363,23 @@ export class TempoFrontTrainingRoom extends Room {
       matchId: this.roomId,
       legalIntents: this.#finished
         ? []
-        : this.#match.engine.getLegalCommands(state, "p1").map((command) => intentFromCommand(command)),
+        : this.#match.engine
+            .getLegalCommands(state, "p1")
+            .map((command) => intentFromCommand(command)),
       ...(plan.kind === "scenario" ? { scenario: plan.scenario } : {}),
       opponent: {
         kind: "heuristic_bot",
-        label: plan.kind === "practice" ? "Practice Automaton" : "Field Automaton",
+        label:
+          plan.kind === "practice" ? "Practice Automaton" : "Field Automaton",
       },
       players: {
-        p1: { displayName: this.#identity?.displayName ?? "You", leaderId: state.players.p1.leader.cardId },
+        p1: {
+          displayName: this.#identity?.displayName ?? "You",
+          leaderId: state.players.p1.leader.cardId,
+        },
         p2: {
-          displayName: plan.kind === "practice" ? "Practice Automaton" : "Field Automaton",
+          displayName:
+            plan.kind === "practice" ? "Practice Automaton" : "Field Automaton",
           leaderId: state.players.p2.leader.cardId,
         },
       },
@@ -323,7 +388,10 @@ export class TempoFrontTrainingRoom extends Room {
         actionDurationMs: 0,
         deadlines: { p1: null, p2: null },
       },
-      competitive: { queue: plan.kind === "practice" ? "practice" : "pve", settlement: null },
+      competitive: {
+        queue: plan.kind === "practice" ? "practice" : "pve",
+        settlement: null,
+      },
       outcome:
         plan.kind === "practice" && this.#finished
           ? {

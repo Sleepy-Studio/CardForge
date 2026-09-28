@@ -193,7 +193,10 @@ export class PostgresCardForgeStore implements CardForgeStore {
    * wait rather than apply the same migration twice.
    */
   async migrate(
-    log: (event: { readonly migrationId: string; readonly durationMs: number }) => void = () => {},
+    log: (event: {
+      readonly migrationId: string;
+      readonly durationMs: number;
+    }) => void = () => {},
   ): Promise<readonly string[]> {
     const reserved = await this.#sql.reserve();
     try {
@@ -206,7 +209,10 @@ export class PostgresCardForgeStore implements CardForgeStore {
   }
 
   async #applyMigrations(
-    log: (event: { readonly migrationId: string; readonly durationMs: number }) => void,
+    log: (event: {
+      readonly migrationId: string;
+      readonly durationMs: number;
+    }) => void,
   ): Promise<readonly string[]> {
     const appliedNow: string[] = [];
     await this.#sql`
@@ -325,10 +331,13 @@ export class PostgresCardForgeStore implements CardForgeStore {
     });
   }
 
-  async getPasswordCredential(
-    email: string,
-  ): Promise<{ readonly accountId: string; readonly passwordHash: string } | null> {
-    const rows = await this.#sql<{ account_id: string; password_hash: string }[]>`
+  async getPasswordCredential(email: string): Promise<{
+    readonly accountId: string;
+    readonly passwordHash: string;
+  } | null> {
+    const rows = await this.#sql<
+      { account_id: string; password_hash: string }[]
+    >`
       SELECT account_id, password_hash FROM cardforge_password_credentials
       WHERE email = ${email}
     `;
@@ -823,7 +832,10 @@ export class PostgresCardForgeStore implements CardForgeStore {
     return rows.length > 0;
   }
 
-  async questActivity(accountId: string, since: string): Promise<QuestActivity> {
+  async questActivity(
+    accountId: string,
+    since: string,
+  ): Promise<QuestActivity> {
     const [matches] = await this.#sql<
       { played: number; won: number; dominion: number; reactions: number }[]
     >`
@@ -852,14 +864,19 @@ export class PostgresCardForgeStore implements CardForgeStore {
 
   async listQuestClaims(
     accountId: string,
-  ): Promise<readonly { readonly questId: string; readonly periodKey: string }[]> {
+  ): Promise<
+    readonly { readonly questId: string; readonly periodKey: string }[]
+  > {
     const rows = await this.#sql<{ quest_id: string; period_key: string }[]>`
       SELECT quest_id, period_key FROM cardforge_quest_claims
       WHERE account_id = ${accountId}
       ORDER BY claimed_at DESC
       LIMIT 500
     `;
-    return rows.map((row) => ({ questId: row.quest_id, periodKey: row.period_key }));
+    return rows.map((row) => ({
+      questId: row.quest_id,
+      periodKey: row.period_key,
+    }));
   }
 
   claimQuestReward(input: {
@@ -871,7 +888,10 @@ export class PostgresCardForgeStore implements CardForgeStore {
       readonly styleTokens?: number;
       readonly cosmetic?: CosmeticDefinition;
     };
-  }): Promise<{ readonly claimed: boolean; readonly snapshot: EconomySnapshot }> {
+  }): Promise<{
+    readonly claimed: boolean;
+    readonly snapshot: EconomySnapshot;
+  }> {
     return this.#sql.begin(async (sql) => {
       await this.#bootstrapEconomy(sql, input.accountId);
       const inserted = await sql`
@@ -916,7 +936,10 @@ export class PostgresCardForgeStore implements CardForgeStore {
         accountId: input.accountId,
         kind: "reward",
         ...(input.reward.shards
-          ? { currencyId: "shards" as const, currencyDelta: input.reward.shards }
+          ? {
+              currencyId: "shards" as const,
+              currencyDelta: input.reward.shards,
+            }
           : {}),
         itemId: input.questId,
         itemDelta: 1,

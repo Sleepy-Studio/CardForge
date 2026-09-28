@@ -26,7 +26,11 @@ export function registerPublicRoutes(
 
   /** Liveness: the process is serving HTTP. No dependencies are checked. */
   app.get("/health", (_request, response) => {
-    response.json({ service: "cardforge-match-server", status: "ok", ...buildInfo });
+    response.json({
+      service: "cardforge-match-server",
+      status: "ok",
+      ...buildInfo,
+    });
   });
 
   /** Readiness: migrations finished and the database answers. */
@@ -39,11 +43,15 @@ export function registerPublicRoutes(
     try {
       await Promise.race([
         store.ping(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2_000)),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), 2_000),
+        ),
       ]);
       response.json({ status: "ready", database: "ok" });
     } catch {
-      response.status(503).json({ status: "degraded", database: "unreachable" });
+      response
+        .status(503)
+        .json({ status: "degraded", database: "unreachable" });
     }
   });
 

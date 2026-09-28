@@ -138,7 +138,13 @@ export function issueMatchTicket(
   accountId: string,
   nowMs = Date.now(),
 ): string {
-  return signPayload(secret, "match", { sub: accountId }, matchTicketTtlMs, nowMs);
+  return signPayload(
+    secret,
+    "match",
+    { sub: accountId },
+    matchTicketTtlMs,
+    nowMs,
+  );
 }
 
 export function verifyMatchTicket(
@@ -219,7 +225,10 @@ export function sessionMiddleware(
           if (account && account.status === "active") {
             request.account = account;
             request.sessionTokenHash = tokenHash;
-            if (Date.now() - Date.parse(session.lastSeenAt) > sessionTouchIntervalMs)
+            if (
+              Date.now() - Date.parse(session.lastSeenAt) >
+              sessionTouchIntervalMs
+            )
               await store.touchSession(
                 tokenHash,
                 new Date(Date.now() + options.ttlMs).toISOString(),

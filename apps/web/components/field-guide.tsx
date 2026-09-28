@@ -126,9 +126,12 @@ export interface FieldGuideResult {
 export function FieldGuide({
   onClose,
   onComplete,
+  onStep,
 }: {
   readonly onClose: () => void;
   readonly onComplete: (result: FieldGuideResult) => void;
+  /** Called when a lesson is passed, with its 1-based number. */
+  readonly onStep?: (lesson: number, title: string) => void;
 }) {
   const { theme, term } = useGameTheme();
   const themedText = (text: string): string =>
@@ -164,6 +167,7 @@ export function FieldGuide({
   };
 
   const advance = () => {
+    onStep?.(lessonIndex + 1, lesson.title);
     if (lessonIndex === lessons.length - 1) {
       const result = { score, total: lessons.length, attempts };
       onComplete(result);

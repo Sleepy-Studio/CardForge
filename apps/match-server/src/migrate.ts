@@ -3,7 +3,9 @@ import { logger } from "./logger.js";
 import { metrics } from "./metrics.js";
 
 /** Applies pending migrations with structured logs; failures are critical. */
-export async function runMigrations(store: CardForgeStore): Promise<readonly string[]> {
+export async function runMigrations(
+  store: CardForgeStore,
+): Promise<readonly string[]> {
   const startedAt = Date.now();
   try {
     const applied = await store.migrate((event) =>

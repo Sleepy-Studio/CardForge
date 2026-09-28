@@ -47,14 +47,18 @@ export function starterDeckId(leaderId: string): string {
 }
 
 export function starterDeckName(leaderId: string): string {
-  const option = prototypeLeaderOptions.find((item) => item.cardId === leaderId);
+  const option = prototypeLeaderOptions.find(
+    (item) => item.cardId === leaderId,
+  );
   return `${option?.archetype ?? "Starter"} Starter`;
 }
 
 export function starterOptions() {
   return monoStarterLeaders.map((leaderId) => {
     const card = proofCardMap.get(leaderId);
-    const option = prototypeLeaderOptions.find((item) => item.cardId === leaderId);
+    const option = prototypeLeaderOptions.find(
+      (item) => item.cardId === leaderId,
+    );
     return {
       leaderId,
       name: card?.name ?? leaderId,
@@ -128,7 +132,10 @@ export async function currentProfile(
   store: CardForgeStore,
   accountId: string,
 ): Promise<CompetitiveProfile> {
-  const existing = await store.getCompetitiveProfile(accountId, seasonOne.seasonId);
+  const existing = await store.getCompetitiveProfile(
+    accountId,
+    seasonOne.seasonId,
+  );
   if (existing) return existing;
   const profile = createCompetitiveProfile(accountId, seasonOne.seasonId);
   await store.saveCompetitiveProfile(profile);
@@ -164,14 +171,18 @@ export async function requirePlayableDeck(
   deckId: string,
 ): Promise<DeckRecord> {
   const deck = await store.getDeck(accountId, deckId);
-  if (!deck) throw new PlayabilityError("DECK_NOT_FOUND", "That deck no longer exists.");
+  if (!deck)
+    throw new PlayabilityError("DECK_NOT_FOUND", "That deck no longer exists.");
   const [economy, profile] = await Promise.all([
     store.getEconomySnapshot(accountId),
     currentProfile(store, accountId),
   ]);
   const status = deckStatus(deck, economy.cards, profile);
   if (!status.legal)
-    throw new PlayabilityError("DECK_ILLEGAL", `This deck is not legal: ${status.errors[0]}`);
+    throw new PlayabilityError(
+      "DECK_ILLEGAL",
+      `This deck is not legal: ${status.errors[0]}`,
+    );
   if (!status.leaderUnlocked)
     throw new PlayabilityError(
       "LEADER_LOCKED",
@@ -183,7 +194,9 @@ export async function requirePlayableDeck(
       `You are missing ${status.missing
         .slice(0, 3)
         .map((card) => `${card.quantity}× ${cardName(card.cardId)}`)
-        .join(", ")}${status.missing.length > 3 ? " and more" : ""}. Craft them in your Collection.`,
+        .join(
+          ", ",
+        )}${status.missing.length > 3 ? " and more" : ""}. Craft them in your Collection.`,
     );
   return deck;
 }
@@ -193,8 +206,14 @@ export async function grantStarterFor(
   account: AccountRecord,
   leaderId: string,
 ): Promise<{ readonly granted: boolean; readonly deckId: string }> {
-  if (!(monoStarterLeaders as readonly string[]).includes(leaderId) || !isKnownLeader(leaderId))
-    throw new PlayabilityError("DECK_ILLEGAL", "Choose one of the starter Leaders.");
+  if (
+    !(monoStarterLeaders as readonly string[]).includes(leaderId) ||
+    !isKnownLeader(leaderId)
+  )
+    throw new PlayabilityError(
+      "DECK_ILLEGAL",
+      "Choose one of the starter Leaders.",
+    );
   const cardIds = prototypeDecks[leaderId];
   const deckId = starterDeckId(leaderId);
   const granted = await store.grantStarter({
@@ -250,7 +269,10 @@ export async function seedLiveOps(
   return seeded;
 }
 
-function questProgress(quest: QuestDefinition, activity: QuestActivity): number {
+function questProgress(
+  quest: QuestDefinition,
+  activity: QuestActivity,
+): number {
   switch (quest.objective.type) {
     case "play_matches":
       return activity.matchesPlayed;
@@ -327,7 +349,10 @@ export function competitiveView(profile: CompetitiveProfile) {
   };
 }
 
-export function liveEventsView(definition: LiveOpsDefinition, nowMs = Date.now()) {
+export function liveEventsView(
+  definition: LiveOpsDefinition,
+  nowMs = Date.now(),
+) {
   return visibleEvents(definition, nowMs);
 }
 

@@ -1,5 +1,9 @@
 import type { PlayerId } from "@cardforge/card-schema";
-import type { CardInstance, GameState, ReplayRecord } from "@cardforge/rules-kernel";
+import type {
+  CardInstance,
+  GameState,
+  ReplayRecord,
+} from "@cardforge/rules-kernel";
 import type { ParticipantStats } from "@cardforge/persistence";
 import { TempoFrontEngine } from "@cardforge/rules-tempofront";
 

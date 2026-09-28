@@ -32,7 +32,8 @@ const adapters: [string, () => CardForgeStore][] = [
   ["memory", () => new MemoryCardForgeStore()],
 ];
 const databaseUrl = process.env.CARDFORGE_TEST_DATABASE_URL;
-if (databaseUrl) adapters.push(["postgres", () => new PostgresCardForgeStore(databaseUrl)]);
+if (databaseUrl)
+  adapters.push(["postgres", () => new PostgresCardForgeStore(databaseUrl)]);
 
 for (const [name, create] of adapters)
   void describe(`${name} store: M7 journey contract`, () => {
@@ -68,14 +69,24 @@ for (const [name, create] of adapters)
         (error: unknown) =>
           error instanceof AuthStoreError && error.code === "EMAIL_TAKEN",
       );
-      assert.equal((await store.getPasswordCredential(email))?.accountId, accountId);
+      assert.equal(
+        (await store.getPasswordCredential(email))?.accountId,
+        accountId,
+      );
       const account = await store.getAccount(accountId);
       assert.equal(account?.role, "player");
       assert.equal(account?.starterLeaderId, null);
 
       const future = new Date(Date.now() + 60_000).toISOString();
-      await store.createSession({ tokenHash: id("session"), accountId, expiresAt: future });
-      assert.equal((await store.getSession(id("session")))?.accountId, accountId);
+      await store.createSession({
+        tokenHash: id("session"),
+        accountId,
+        expiresAt: future,
+      });
+      assert.equal(
+        (await store.getSession(id("session")))?.accountId,
+        accountId,
+      );
       await store.createSession({
         tokenHash: id("expired"),
         accountId,
@@ -132,7 +143,10 @@ for (const [name, create] of adapters)
         role: "player",
       });
       assert.deepEqual(first, { accountId: id("acct-discord"), created: true });
-      assert.deepEqual(second, { accountId: id("acct-discord"), created: false });
+      assert.deepEqual(second, {
+        accountId: id("acct-discord"),
+        created: false,
+      });
     });
 
     void it("grants the starter collection exactly once", async () => {
@@ -149,7 +163,12 @@ for (const [name, create] of adapters)
       };
       const grant = [{ cardId: "entity.test", quantity: 2 }];
       assert.equal(
-        await store.grantStarter({ accountId, starterLeaderId: "leader.ember", grant, deck }),
+        await store.grantStarter({
+          accountId,
+          starterLeaderId: "leader.ember",
+          grant,
+          deck,
+        }),
         true,
       );
       assert.equal(
@@ -162,8 +181,13 @@ for (const [name, create] of adapters)
         false,
       );
       const snapshot = await store.getEconomySnapshot(accountId);
-      assert.deepEqual(snapshot.cards, [{ cardId: "entity.test", quantity: 2 }]);
-      assert.equal((await store.getAccount(accountId))?.starterLeaderId, "leader.ember");
+      assert.deepEqual(snapshot.cards, [
+        { cardId: "entity.test", quantity: 2 },
+      ]);
+      assert.equal(
+        (await store.getAccount(accountId))?.starterLeaderId,
+        "leader.ember",
+      );
       assert.equal((await store.listDecks(accountId)).length, 1);
       assert.equal(await store.deleteDeck(accountId, "starter-ember"), true);
       assert.equal(await store.deleteDeck(accountId, "starter-ember"), false);
@@ -175,13 +199,30 @@ for (const [name, create] of adapters)
       const hostId = id("acct-a");
       const guestId = id("acct-discord");
       const matchId = id("match");
-      await store.saveMatch({ status: "active", replay: persistenceTestReplay(matchId) });
+      await store.saveMatch({
+        status: "active",
+        replay: persistenceTestReplay(matchId),
+      });
       await store.recordMatchStart({
         matchId,
         queue: "casual",
         participants: [
-          { seat: "p1", accountId: hostId, displayName: "Player A", deckId: "d1", deckName: "Deck", leaderId: "leader.ember" },
-          { seat: "p2", accountId: guestId, displayName: "Discord Player", deckId: "d2", deckName: "Other", leaderId: "leader.citadel" },
+          {
+            seat: "p1",
+            accountId: hostId,
+            displayName: "Player A",
+            deckId: "d1",
+            deckName: "Deck",
+            leaderId: "leader.ember",
+          },
+          {
+            seat: "p2",
+            accountId: guestId,
+            displayName: "Discord Player",
+            deckId: "d2",
+            deckName: "Other",
+            leaderId: "leader.citadel",
+          },
         ],
       });
       const outcome = {
@@ -192,19 +233,32 @@ for (const [name, create] of adapters)
         stats: { p1: stats(6, 2), p2: stats(3, 1) },
       };
       assert.equal(await store.recordMatchOutcome(outcome), true);
-      assert.equal(await store.recordMatchOutcome({ ...outcome, winnerId: "p2" }), false);
+      assert.equal(
+        await store.recordMatchOutcome({ ...outcome, winnerId: "p2" }),
+        false,
+      );
       // A late save must not reopen a completed match.
-      await store.saveMatch({ status: "active", replay: persistenceTestReplay(matchId) });
+      await store.saveMatch({
+        status: "active",
+        replay: persistenceTestReplay(matchId),
+      });
       assert.equal((await store.getMatchMeta(matchId))?.status, "complete");
 
       const before = await store.getEconomySnapshot(hostId);
-      const shardsBefore = before.wallets.find((w) => w.currencyId === "shards")!.balance;
+      const shardsBefore = before.wallets.find(
+        (w) => w.currencyId === "shards",
+      )!.balance;
       const rewardInput = {
         matchId,
         accountId: hostId,
         queue: "casual" as const,
         seasonId: "frontier-test",
-        participant: { playerId: "p1" as const, accountId: hostId, leaderId: "leader.ember", aspects: ["force" as const] },
+        participant: {
+          playerId: "p1" as const,
+          accountId: hostId,
+          leaderId: "leader.ember",
+          aspects: ["force" as const],
+        },
         won: true,
         cycles: 9,
         shards: 60,
@@ -214,7 +268,11 @@ for (const [name, create] of adapters)
         store.settleMatchReward(rewardInput),
         store.settleMatchReward(rewardInput),
       ]);
-      assert.equal([first, second].filter(Boolean).length, 1, "reward settled once under concurrency");
+      assert.equal(
+        [first, second].filter(Boolean).length,
+        1,
+        "reward settled once under concurrency",
+      );
       assert.equal(await store.settleMatchReward(rewardInput), null);
       const afterSnapshot = await store.getEconomySnapshot(hostId);
       assert.equal(
@@ -229,30 +287,53 @@ for (const [name, create] of adapters)
       assert.equal(entry?.reward?.shards, 60);
       assert.equal(entry?.reason, "dominion");
 
-      const activity = await store.questActivity(hostId, new Date(Date.now() - 60_000).toISOString());
+      const activity = await store.questActivity(
+        hostId,
+        new Date(Date.now() - 60_000).toISOString(),
+      );
       assert.equal(activity.matchesPlayed, 1);
       assert.equal(activity.matchesWon, 1);
       assert.equal(activity.dominion, 6);
-      assert.ok((await store.listCompletedMatches({ limit: 50 })).some((m) => m.meta.matchId === matchId));
+      assert.ok(
+        (await store.listCompletedMatches({ limit: 50 })).some(
+          (m) => m.meta.matchId === matchId,
+        ),
+      );
     });
 
     void it("admits one guest per invite and rejects expired codes", async () => {
-      const code = `Q${run.toUpperCase().replace(/[^A-Z2-9]/g, "Z").slice(0, 5).padEnd(5, "Z")}`;
+      const code = `Q${run
+        .toUpperCase()
+        .replace(/[^A-Z2-9]/g, "Z")
+        .slice(0, 5)
+        .padEnd(5, "Z")}`;
       await store.createInvite({
         code,
         hostAccountId: id("acct-a"),
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
       });
       await assert.rejects(
-        store.createInvite({ code, hostAccountId: id("acct-a"), expiresAt: new Date().toISOString() }),
-        (error: unknown) => error instanceof InviteError && error.code === "INVITE_CODE_TAKEN",
+        store.createInvite({
+          code,
+          hostAccountId: id("acct-a"),
+          expiresAt: new Date().toISOString(),
+        }),
+        (error: unknown) =>
+          error instanceof InviteError && error.code === "INVITE_CODE_TAKEN",
       );
-      assert.equal((await store.admitToInvite(code, id("acct-a"))).status, "open");
-      assert.equal((await store.admitToInvite(code, id("acct-discord"))).guestAccountId, id("acct-discord"));
+      assert.equal(
+        (await store.admitToInvite(code, id("acct-a"))).status,
+        "open",
+      );
+      assert.equal(
+        (await store.admitToInvite(code, id("acct-discord"))).guestAccountId,
+        id("acct-discord"),
+      );
       await store.upsertAccount(id("third"), "Third");
       await assert.rejects(
         store.admitToInvite(code, id("third")),
-        (error: unknown) => error instanceof InviteError && error.code === "INVITE_USED",
+        (error: unknown) =>
+          error instanceof InviteError && error.code === "INVITE_USED",
       );
       await store.markInviteStarted(code, id("friend-match"));
       assert.equal((await store.getInvite(code))?.status, "started");
@@ -260,7 +341,9 @@ for (const [name, create] of adapters)
     });
 
     void it("claims quest rewards once per period", async () => {
-      const cosmetic = cosmeticCatalog.find((item) => item.cosmeticId === "frame.founder-brass")!;
+      const cosmetic = cosmeticCatalog.find(
+        (item) => item.cosmeticId === "frame.founder-brass",
+      )!;
       const input = {
         accountId: id("acct-a"),
         questId: "season.first-six",
@@ -270,12 +353,25 @@ for (const [name, create] of adapters)
       assert.equal((await store.claimQuestReward(input)).claimed, true);
       const repeat = await store.claimQuestReward(input);
       assert.equal(repeat.claimed, false);
-      assert.ok(repeat.snapshot.entitlements.some((e) => e.entitlementId === cosmetic.cosmeticId));
-      assert.ok((await store.listQuestClaims(id("acct-a"))).some((c) => c.questId === "season.first-six"));
+      assert.ok(
+        repeat.snapshot.entitlements.some(
+          (e) => e.entitlementId === cosmetic.cosmeticId,
+        ),
+      );
+      assert.ok(
+        (await store.listQuestClaims(id("acct-a"))).some(
+          (c) => c.questId === "season.first-six",
+        ),
+      );
     });
 
     void it("stores product analytics idempotently", async () => {
-      const event = { eventId: id("evt"), accountId: id("acct-a"), name: "tutorial_started", properties: { step: 1 } };
+      const event = {
+        eventId: id("evt"),
+        accountId: id("acct-a"),
+        name: "tutorial_started",
+        properties: { step: 1 },
+      };
       await store.recordProductEvent(event);
       await store.recordProductEvent(event);
       const events = await store.listProductEvents({ limit: 1_000 });

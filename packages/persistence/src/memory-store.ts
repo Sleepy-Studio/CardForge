@@ -169,9 +169,10 @@ export class MemoryCardForgeStore implements CardForgeStore {
     return accountId;
   }
 
-  getPasswordCredential(
-    email: string,
-  ): Promise<{ readonly accountId: string; readonly passwordHash: string } | null> {
+  getPasswordCredential(email: string): Promise<{
+    readonly accountId: string;
+    readonly passwordHash: string;
+  } | null> {
     const credential = this.#passwords.get(email);
     return Promise.resolve(credential ? { ...credential } : null);
   }
@@ -197,7 +198,9 @@ export class MemoryCardForgeStore implements CardForgeStore {
     provider: OAuthProvider,
     subject: string,
   ): Promise<string | null> {
-    return Promise.resolve(this.#oauth.get(`${provider}\u0000${subject}`) ?? null);
+    return Promise.resolve(
+      this.#oauth.get(`${provider}\u0000${subject}`) ?? null,
+    );
   }
 
   createSession(input: {
@@ -352,7 +355,9 @@ export class MemoryCardForgeStore implements CardForgeStore {
   }
 
   deleteDeck(accountId: string, deckId: string): Promise<boolean> {
-    return Promise.resolve(this.#decks.delete(this.#deckKey(accountId, deckId)));
+    return Promise.resolve(
+      this.#decks.delete(this.#deckKey(accountId, deckId)),
+    );
   }
 
   recordMatchStart(input: {
@@ -361,7 +366,8 @@ export class MemoryCardForgeStore implements CardForgeStore {
     readonly participants: readonly MatchParticipantInput[];
   }): Promise<void> {
     const meta = this.#matchMeta.get(input.matchId);
-    if (!meta) return Promise.reject(new Error(`Unknown match: ${input.matchId}`));
+    if (!meta)
+      return Promise.reject(new Error(`Unknown match: ${input.matchId}`));
     this.#matchMeta.set(input.matchId, {
       ...meta,
       queue: input.queue,
@@ -558,7 +564,11 @@ export class MemoryCardForgeStore implements CardForgeStore {
 
   async admitToInvite(code: string, accountId: string): Promise<InviteRecord> {
     await Promise.resolve();
-    const next = admitInvite(this.#invites.get(code) ?? null, accountId, Date.now());
+    const next = admitInvite(
+      this.#invites.get(code) ?? null,
+      accountId,
+      Date.now(),
+    );
     this.#invites.set(code, next);
     return { ...next };
   }
@@ -613,7 +623,9 @@ export class MemoryCardForgeStore implements CardForgeStore {
 
   listQuestClaims(
     accountId: string,
-  ): Promise<readonly { readonly questId: string; readonly periodKey: string }[]> {
+  ): Promise<
+    readonly { readonly questId: string; readonly periodKey: string }[]
+  > {
     return Promise.resolve(
       [...this.#questClaims.values()]
         .filter((claim) => claim.accountId === accountId)
@@ -630,11 +642,19 @@ export class MemoryCardForgeStore implements CardForgeStore {
       readonly styleTokens?: number;
       readonly cosmetic?: CosmeticDefinition;
     };
-  }): Promise<{ readonly claimed: boolean; readonly snapshot: EconomySnapshot }> {
-    const key = [input.accountId, input.questId, input.periodKey].join("\u0000");
+  }): Promise<{
+    readonly claimed: boolean;
+    readonly snapshot: EconomySnapshot;
+  }> {
+    const key = [input.accountId, input.questId, input.periodKey].join(
+      "\u0000",
+    );
     if (this.#questClaims.has(key)) {
       await this.bootstrapEconomy(input.accountId);
-      return { claimed: false, snapshot: this.#economySnapshot(input.accountId) };
+      return {
+        claimed: false,
+        snapshot: this.#economySnapshot(input.accountId),
+      };
     }
     this.#questClaims.set(key, {
       accountId: input.accountId,
@@ -643,7 +663,10 @@ export class MemoryCardForgeStore implements CardForgeStore {
     });
     await this.bootstrapEconomy(input.accountId);
     const wallet = this.#wallets.get(input.accountId)!;
-    wallet.set("shards", (wallet.get("shards") ?? 0) + (input.reward.shards ?? 0));
+    wallet.set(
+      "shards",
+      (wallet.get("shards") ?? 0) + (input.reward.shards ?? 0),
+    );
     wallet.set(
       "style_tokens",
       (wallet.get("style_tokens") ?? 0) + (input.reward.styleTokens ?? 0),

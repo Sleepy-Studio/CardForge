@@ -273,9 +273,10 @@ export interface CardForgeStore {
   ): Promise<AccountRecord | null>;
   /** Creates (or claims) an account and its password credential atomically. */
   registerPasswordAccount(input: PasswordRegistration): Promise<string>;
-  getPasswordCredential(
-    email: string,
-  ): Promise<{ readonly accountId: string; readonly passwordHash: string } | null>;
+  getPasswordCredential(email: string): Promise<{
+    readonly accountId: string;
+    readonly passwordHash: string;
+  } | null>;
   /** Finds or atomically creates the account bound to an OAuth identity. */
   resolveOAuthAccount(input: {
     readonly provider: OAuthProvider;
@@ -327,7 +328,9 @@ export interface CardForgeStore {
     matchId: string,
   ): Promise<readonly MatchParticipantRecord[]>;
   /** Exactly-once per (match, account); returns null for a repeat. */
-  settleMatchReward(input: MatchRewardInput): Promise<MatchRewardReceipt | null>;
+  settleMatchReward(
+    input: MatchRewardInput,
+  ): Promise<MatchRewardReceipt | null>;
   listMatchHistory(
     accountId: string,
     options?: { readonly limit?: number; readonly before?: string },
@@ -349,7 +352,9 @@ export interface CardForgeStore {
   questActivity(accountId: string, since: string): Promise<QuestActivity>;
   listQuestClaims(
     accountId: string,
-  ): Promise<readonly { readonly questId: string; readonly periodKey: string }[]>;
+  ): Promise<
+    readonly { readonly questId: string; readonly periodKey: string }[]
+  >;
   /** Exactly-once per (account, quest, period). */
   claimQuestReward(input: {
     readonly accountId: string;
@@ -360,7 +365,10 @@ export interface CardForgeStore {
       readonly styleTokens?: number;
       readonly cosmetic?: CosmeticDefinition;
     };
-  }): Promise<{ readonly claimed: boolean; readonly snapshot: EconomySnapshot }>;
+  }): Promise<{
+    readonly claimed: boolean;
+    readonly snapshot: EconomySnapshot;
+  }>;
   recordProductEvent(
     input: Omit<ProductEventRecord, "createdAt">,
   ): Promise<void>;

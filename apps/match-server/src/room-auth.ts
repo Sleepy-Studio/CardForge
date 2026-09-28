@@ -14,7 +14,9 @@ export interface RoomIdentity {
  * Colyseus calls this before any seat is reserved. The client supplies only
  * the opaque ticket; account identity is never read from join options.
  */
-export async function authenticateRoomJoin(token: string): Promise<RoomIdentity> {
+export async function authenticateRoomJoin(
+  token: string,
+): Promise<RoomIdentity> {
   const accountId = verifyMatchTicket(config.sessionSecret, token ?? "");
   if (!accountId) {
     metrics.authEvents.inc({ kind: "room_ticket", result: "rejected" });

@@ -9,20 +9,20 @@ work lands.
 
 ### What already existed
 
-| Area | State at audit | Gap for M7 |
-| --- | --- | --- |
-| Rules engine, replay, hashing | Complete and tested (62 tests, 1,000-game batches, 12×12 matrix) | None. Frozen for M7. |
-| Authoritative rooms | Casual, ranked, training rooms; seat-injected identity; action clocks; reconnect | Room join trusted a client-supplied `accountId`; no concede/abandon outcome; no friend rooms |
-| Persistence | Accounts, decks, matches (replay JSONB), profiles, telemetry, economy, training, live-ops, audit | No credentials, sessions, match participants, match rewards, invites, product analytics |
-| Accounts | `PUT /api/accounts/:id` + `X-CardForge-Account-Id` header | Header is a scope hint, not authentication. Anyone could act as any account, including over WebSocket |
-| Admin | Shared `X-CardForge-Admin-Token`; default token in non-production; actor name supplied by client | Actor spoofable; no admin accounts |
-| Economy | Wallets, crafting, cosmetics, idempotent transactions | Inventory starts empty and deck legality ignores ownership, so collection had no effect on play |
-| Competitive | Elo rating, XP, mastery, Leader unlocks, balance overview | No rank tiers, no per-account history, casual play granted nothing |
-| Training/Academy | Five tutorials + three PvE scenarios, server-run bot, idempotent reward | Training room trusted client `accountId` (reward impersonation) |
-| Live ops | Single hardcoded `liveops.launch-2026` with events that expired 2026-09-01/10 | No additive revision path besides flag toggles |
-| Web | `/` = developer Match Lab, `/online`, `/studio`, `/competitive`, `/collection`, `/academy`, `/operations` | Developer vocabulary everywhere; no login, home, deckbuilder, history, replays, onboarding |
-| Deployment | `compose.yaml` runs a dev Postgres only | No Dockerfiles, production compose, readiness probe, migration step, runtime web config |
-| CI | None | Everything |
+| Area                          | State at audit                                                                                            | Gap for M7                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Rules engine, replay, hashing | Complete and tested (62 tests, 1,000-game batches, 12×12 matrix)                                          | None. Frozen for M7.                                                                                  |
+| Authoritative rooms           | Casual, ranked, training rooms; seat-injected identity; action clocks; reconnect                          | Room join trusted a client-supplied `accountId`; no concede/abandon outcome; no friend rooms          |
+| Persistence                   | Accounts, decks, matches (replay JSONB), profiles, telemetry, economy, training, live-ops, audit          | No credentials, sessions, match participants, match rewards, invites, product analytics               |
+| Accounts                      | `PUT /api/accounts/:id` + `X-CardForge-Account-Id` header                                                 | Header is a scope hint, not authentication. Anyone could act as any account, including over WebSocket |
+| Admin                         | Shared `X-CardForge-Admin-Token`; default token in non-production; actor name supplied by client          | Actor spoofable; no admin accounts                                                                    |
+| Economy                       | Wallets, crafting, cosmetics, idempotent transactions                                                     | Inventory starts empty and deck legality ignores ownership, so collection had no effect on play       |
+| Competitive                   | Elo rating, XP, mastery, Leader unlocks, balance overview                                                 | No rank tiers, no per-account history, casual play granted nothing                                    |
+| Training/Academy              | Five tutorials + three PvE scenarios, server-run bot, idempotent reward                                   | Training room trusted client `accountId` (reward impersonation)                                       |
+| Live ops                      | Single hardcoded `liveops.launch-2026` with events that expired 2026-09-01/10                             | No additive revision path besides flag toggles                                                        |
+| Web                           | `/` = developer Match Lab, `/online`, `/studio`, `/competitive`, `/collection`, `/academy`, `/operations` | Developer vocabulary everywhere; no login, home, deckbuilder, history, replays, onboarding            |
+| Deployment                    | `compose.yaml` runs a dev Postgres only                                                                   | No Dockerfiles, production compose, readiness probe, migration step, runtime web config               |
+| CI                            | None                                                                                                      | Everything                                                                                            |
 
 ### Stale documentation found
 
@@ -81,23 +81,23 @@ recorded beside the replay, not new game commands.
 
 ## 3. Plan and status
 
-| # | Slice | Status |
-| --- | --- | --- |
-| 1 | Repository audit (this document) | Done |
-| 2 | M7/Auth — sessions, password, Discord, WS tickets, admin roles, claims | Planned |
-| 3 | M7/Deployment — Dockerfile, production compose, readiness, migrations, Coolify guide | Planned |
-| 4 | M7/Player Shell — home, navigation, dev tools separated | Planned |
-| 5 | M7/Deckbuilder | Planned |
-| 6 | M7/Collection — crafting flow with confirm | Planned |
-| 7 | Casual/ranked Play UX, rank tiers, concede, abandon | Planned |
-| 8 | M7/Friend Matches — invite codes, `/join/CODE` | Planned |
-| 9 | Match history | Planned |
-| 10 | M7/Replays — verified server reconstruction, viewer | Planned |
-| 11 | Onboarding + product analytics | Planned |
-| 12 | M7/Observability — structured logs, request IDs, metrics, readiness | Planned |
-| 13 | M7/CI — PR gate, main pipeline, nightly matrix | Planned |
-| 14 | M7/Security — rate limits, cookie policy, CSRF, payload validation | Planned |
-| 15 | Closed-alpha hardening — end-to-end journey smoke | Planned |
+| #   | Slice                                                                                | Status  |
+| --- | ------------------------------------------------------------------------------------ | ------- |
+| 1   | Repository audit (this document)                                                     | Done    |
+| 2   | M7/Auth — sessions, password, Discord, WS tickets, admin roles, claims               | Planned |
+| 3   | M7/Deployment — Dockerfile, production compose, readiness, migrations, Coolify guide | Planned |
+| 4   | M7/Player Shell — home, navigation, dev tools separated                              | Planned |
+| 5   | M7/Deckbuilder                                                                       | Planned |
+| 6   | M7/Collection — crafting flow with confirm                                           | Planned |
+| 7   | Casual/ranked Play UX, rank tiers, concede, abandon                                  | Planned |
+| 8   | M7/Friend Matches — invite codes, `/join/CODE`                                       | Planned |
+| 9   | Match history                                                                        | Planned |
+| 10  | M7/Replays — verified server reconstruction, viewer                                  | Planned |
+| 11  | Onboarding + product analytics                                                       | Planned |
+| 12  | M7/Observability — structured logs, request IDs, metrics, readiness                  | Planned |
+| 13  | M7/CI — PR gate, main pipeline, nightly matrix                                       | Planned |
+| 14  | M7/Security — rate limits, cookie policy, CSRF, payload validation                   | Planned |
+| 15  | Closed-alpha hardening — end-to-end journey smoke                                    | Planned |
 
 The table is updated as slices land; see the README status section for the
 verification evidence.

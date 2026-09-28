@@ -63,7 +63,8 @@ export function createLogger(
 ): Logger {
   const minimum = levelRank[options.level ?? "info"];
   const base = options.base ?? {};
-  const sink: Sink = options.sink ?? ((line) => process.stdout.write(`${line}\n`));
+  const sink: Sink =
+    options.sink ?? ((line) => process.stdout.write(`${line}\n`));
   const write = (level: LogLevel, message: string, fields?: LogFields) => {
     if (levelRank[level] < minimum) return;
     const entry = redact({
@@ -113,6 +114,9 @@ export const logger = createLogger({
   level: configuredLevel(),
   base: {
     service: "cardforge-match-server",
-    environment: process.env.CARDFORGE_ENVIRONMENT ?? process.env.NODE_ENV ?? "development",
+    environment:
+      process.env.CARDFORGE_ENVIRONMENT ??
+      process.env.NODE_ENV ??
+      "development",
   },
 });

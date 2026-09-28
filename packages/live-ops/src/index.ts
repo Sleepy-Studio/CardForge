@@ -260,12 +260,24 @@ export interface QuestPeriod {
 export function questPeriod(
   cadence: QuestDefinition["cadence"],
   nowMs: number,
-  season: { readonly seasonId: string; readonly startsAt: string; readonly endsAt: string },
+  season: {
+    readonly seasonId: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+  },
 ): QuestPeriod {
   if (cadence === "seasonal")
-    return { periodKey: season.seasonId, startsAt: season.startsAt, endsAt: season.endsAt };
+    return {
+      periodKey: season.seasonId,
+      startsAt: season.startsAt,
+      endsAt: season.endsAt,
+    };
   const now = new Date(nowMs);
-  const dayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const dayStart = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
   if (cadence === "daily") {
     const start = new Date(dayStart);
     return {

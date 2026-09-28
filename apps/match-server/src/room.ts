@@ -16,7 +16,10 @@ import {
   type MatchRewardReceipt,
 } from "@cardforge/persistence";
 import type { GameEvent } from "@cardforge/rules-kernel";
-import { proofCardMap, type PrototypeLeaderId } from "@cardforge/rules-tempofront";
+import {
+  proofCardMap,
+  type PrototypeLeaderId,
+} from "@cardforge/rules-tempofront";
 import { ActionClock } from "./action-clock.js";
 import { config } from "./config.js";
 import {
@@ -25,9 +28,17 @@ import {
   requirePlayableDeck,
 } from "./game-service.js";
 import { logger, type Logger } from "./logger.js";
-import { emptyActivity, participantStats, type SeatActivity } from "./match-stats.js";
+import {
+  emptyActivity,
+  participantStats,
+  type SeatActivity,
+} from "./match-stats.js";
 import { gauge, metrics } from "./metrics.js";
-import { authenticateRoomJoin, identityOf, type RoomIdentity } from "./room-auth.js";
+import {
+  authenticateRoomJoin,
+  identityOf,
+  type RoomIdentity,
+} from "./room-auth.js";
 import { AuthoritativeMatchSession, SessionError } from "./session.js";
 import { cardForgeStore } from "./store.js";
 
@@ -36,26 +47,41 @@ export type OnlineQueue = "casual" | "ranked" | "friend";
 const joinOptionsSchema = z
   .object({
     deckId: z.string().regex(/^[a-zA-Z0-9_-]{3,80}$/),
-    inviteCode: z.string().regex(/^[A-HJ-NP-Z2-9]{6}$/).optional(),
+    inviteCode: z
+      .string()
+      .regex(/^[A-HJ-NP-Z2-9]{6}$/)
+      .optional(),
   })
   .strict();
 
-const reconnectSeconds = Number.parseInt(process.env.CARDFORGE_RECONNECT_SECONDS ?? "60", 10) || 60;
+const reconnectSeconds =
+  Number.parseInt(process.env.CARDFORGE_RECONNECT_SECONDS ?? "60", 10) || 60;
 
 /** Rooms waiting for an opponent, by queue, for the queue-size gauge. */
 const waitingRooms = new Map<string, OnlineQueue>();
-gauge("cardforge_queue_waiting", "Players waiting for an opponent, by queue", () => {
-  const counts = new Map<string, number>([
-    ['{queue="casual"}', 0],
-    ['{queue="ranked"}', 0],
-    ['{queue="friend"}', 0],
-  ]);
-  for (const queue of waitingRooms.values())
-    counts.set(`{queue="${queue}"}`, (counts.get(`{queue="${queue}"}`) ?? 0) + 1);
-  return counts;
-});
+gauge(
+  "cardforge_queue_waiting",
+  "Players waiting for an opponent, by queue",
+  () => {
+    const counts = new Map<string, number>([
+      ['{queue="casual"}', 0],
+      ['{queue="ranked"}', 0],
+      ['{queue="friend"}', 0],
+    ]);
+    for (const queue of waitingRooms.values())
+      counts.set(
+        `{queue="${queue}"}`,
+        (counts.get(`{queue="${queue}"}`) ?? 0) + 1,
+      );
+    return counts;
+  },
+);
 let activeMatches = 0;
-gauge("cardforge_matches_active", "Matches in progress on this process", () => activeMatches);
+gauge(
+  "cardforge_matches_active",
+  "Matches in progress on this process",
+  () => activeMatches,
+);
 let connectedClients = 0;
 gauge("cardforge_ws_clients", "Connected room clients", () => connectedClients);
 
@@ -85,7 +111,10 @@ export class TempoFrontRoom extends Room {
   #seed!: number;
   #inviteCode: string | null = null;
   readonly #seats = new Map<string, SeatInfo>();
-  readonly #activity: Record<PlayerId, SeatActivity> = { p1: emptyActivity(), p2: emptyActivity() };
+  readonly #activity: Record<PlayerId, SeatActivity> = {
+    p1: emptyActivity(),
+    p2: emptyActivity(),
+  };
   #startingInitiative: PlayerId = "p1";
   #started = false;
   #result: MatchResult | null = null;
@@ -110,7 +139,9 @@ export class TempoFrontRoom extends Room {
       if (!this.#started || this.#result) {
         client.send("command_error", {
           code: this.#result ? "MATCH_OVER" : "MATCH_NOT_READY",
-          message: this.#result ? "This match has ended." : "Your opponent has not joined yet.",
+          message: this.#result
+            ? "This match has ended."
+            : "Your opponent has not joined yet.",
         });
         return;
       }
@@ -128,7 +159,10 @@ export class TempoFrontRoom extends Room {
       } catch (error) {
         if (error instanceof SessionError) {
           metrics.commandsRejected.inc({ code: error.code });
-          client.send("command_error", { code: error.code, message: error.message });
+          client.send("command_error", {
+            code: error.code,
+            message: error.message,
+          });
           return;
         }
         throw error;
@@ -145,10 +179,18 @@ export class TempoFrontRoom extends Room {
     this.#seed = serverSeed();
     this.#log = logger.child({ matchId: this.roomId, queue: this.queue });
     if (this.queue === "friend") {
-      const code = z.object({ inviteCode: z.string() }).passthrough().safeParse(options);
-      if (!code.success) throw new ServerError(400, "An invite code is required.");
+      const code = z
+        .object({ inviteCode: z.string() })
+        .passthrough()
+        .safeParse(options);
+      if (!code.success)
+        throw new ServerError(400, "An invite code is required.");
       const invite = await cardForgeStore.getInvite(code.data.inviteCode);
-      if (!invite || invite.status === "started" || invite.status === "cancelled")
+      if (
+        !invite ||
+        invite.status === "started" ||
+        invite.status === "cancelled"
+      )
         throw new ServerError(404, "This invite is no longer valid.");
       this.#inviteCode = invite.code;
       // Close the room when the invite expires without a second player.
@@ -164,7 +206,10 @@ export class TempoFrontRoom extends Room {
       if (liveOps.featureFlags["queue.ranked"] === false)
         throw new ServerError(503, "Ranked play is closed right now.");
     }
-    this.#match = new AuthoritativeMatchSession({ matchId: this.roomId, seed: this.#seed });
+    this.#match = new AuthoritativeMatchSession({
+      matchId: this.roomId,
+      seed: this.#seed,
+    });
     this.#actionClock = new ActionClock(config.actionClockMs);
     await this.#persist();
     this.#log.info("room created");
@@ -173,14 +218,25 @@ export class TempoFrontRoom extends Room {
   override async onJoin(client: Client, options: unknown): Promise<void> {
     const identity = identityOf(client);
     const selection = joinOptionsSchema.safeParse(options ?? {});
-    if (!selection.success) throw new ServerError(400, "Choose a deck before joining.");
-    if ([...this.#seats.values()].some((seat) => seat.identity.accountId === identity.accountId))
-      throw new ServerError(409, "You are already in this match from another tab.");
+    if (!selection.success)
+      throw new ServerError(400, "Choose a deck before joining.");
+    if (
+      [...this.#seats.values()].some(
+        (seat) => seat.identity.accountId === identity.accountId,
+      )
+    )
+      throw new ServerError(
+        409,
+        "You are already in this match from another tab.",
+      );
     if (this.queue === "friend") {
       if (selection.data.inviteCode !== this.#inviteCode)
         throw new ServerError(404, "This invite is no longer valid.");
       try {
-        await cardForgeStore.admitToInvite(this.#inviteCode, identity.accountId);
+        await cardForgeStore.admitToInvite(
+          this.#inviteCode,
+          identity.accountId,
+        );
       } catch (error) {
         if (error instanceof InviteError)
           throw new ServerError(
@@ -194,9 +250,14 @@ export class TempoFrontRoom extends Room {
     }
     let deck: DeckRecord;
     try {
-      deck = await requirePlayableDeck(cardForgeStore, identity.accountId, selection.data.deckId);
+      deck = await requirePlayableDeck(
+        cardForgeStore,
+        identity.accountId,
+        selection.data.deckId,
+      );
     } catch (error) {
-      if (error instanceof PlayabilityError) throw new ServerError(422, error.message);
+      if (error instanceof PlayabilityError)
+        throw new ServerError(422, error.message);
       throw error;
     }
     this.#seats.set(client.sessionId, { identity, deck, joinedAt: Date.now() });
@@ -242,20 +303,26 @@ export class TempoFrontRoom extends Room {
     const seat = this.#match.seatFor(client.sessionId);
     // Leaving an unfinished match forfeits it: deliberately (concession) or
     // by failing to return inside the reconnect window (abandonment).
-    await this.#finish(seat === "p1" ? "p2" : "p1", wasDrop ? "abandonment" : "concession");
+    await this.#finish(
+      seat === "p1" ? "p2" : "p1",
+      wasDrop ? "abandonment" : "concession",
+    );
   }
 
   override async onDispose(): Promise<void> {
     this.#clockTimer?.clear();
     waitingRooms.delete(this.roomId);
-    if (this.#started && !this.#result) activeMatches = Math.max(0, activeMatches - 1);
+    if (this.#started && !this.#result)
+      activeMatches = Math.max(0, activeMatches - 1);
     await this.#persistChain;
     await this.#finishing;
   }
 
   async #start(): Promise<void> {
     const seatInfo = (seat: PlayerId) =>
-      [...this.#seats.entries()].find(([sessionId]) => this.#match.seatFor(sessionId) === seat)?.[1];
+      [...this.#seats.entries()].find(
+        ([sessionId]) => this.#match.seatFor(sessionId) === seat,
+      )?.[1];
     const p1 = seatInfo("p1");
     const p2 = seatInfo("p2");
     if (!p1 || !p2) throw new ServerError(500, "Could not seat both players.");
@@ -295,7 +362,8 @@ export class TempoFrontRoom extends Room {
         };
       }),
     });
-    if (this.#inviteCode) await cardForgeStore.markInviteStarted(this.#inviteCode, this.roomId);
+    if (this.#inviteCode)
+      await cardForgeStore.markInviteStarted(this.#inviteCode, this.roomId);
     for (const info of [p1, p2])
       void cardForgeStore
         .recordProductEvent({
@@ -332,10 +400,16 @@ export class TempoFrontRoom extends Room {
 
   /** Records the outcome, telemetry, settlement, and rewards exactly once. */
   #finish(winnerId: PlayerId, reason: MatchOutcomeReason): Promise<void> {
-    this.#finishing ??= this.#settle(winnerId, reason).catch((error: unknown) => {
-      metrics.integrityFailures.inc({ kind: "settlement" });
-      this.#log.critical("match settlement failed", { error, winnerId, reason });
-    });
+    this.#finishing ??= this.#settle(winnerId, reason).catch(
+      (error: unknown) => {
+        metrics.integrityFailures.inc({ kind: "settlement" });
+        this.#log.critical("match settlement failed", {
+          error,
+          winnerId,
+          reason,
+        });
+      },
+    );
     return this.#finishing;
   }
 
@@ -355,7 +429,10 @@ export class TempoFrontRoom extends Room {
     });
     if (!firstRecord) {
       metrics.integrityFailures.inc({ kind: "duplicate_outcome" });
-      this.#log.critical("match outcome already recorded; skipping settlement", { winnerId, reason });
+      this.#log.critical(
+        "match outcome already recorded; skipping settlement",
+        { winnerId, reason },
+      );
       return;
     }
     activeMatches = Math.max(0, activeMatches - 1);
@@ -381,10 +458,14 @@ export class TempoFrontRoom extends Room {
       });
       if (!settlement) {
         metrics.integrityFailures.inc({ kind: "duplicate_ranked_settlement" });
-        this.#log.critical("ranked settlement already existed for a fresh outcome", { winnerId });
+        this.#log.critical(
+          "ranked settlement already existed for a fresh outcome",
+          { winnerId },
+        );
       }
     } else await cardForgeStore.saveTelemetry(telemetry);
-    const earlyExit = (reason === "concession" || reason === "abandonment") && state.cycle < 3;
+    const earlyExit =
+      (reason === "concession" || reason === "abandonment") && state.cycle < 3;
     const rewards: Partial<Record<PlayerId, MatchRewardReceipt | null>> = {};
     for (const seat of ["p1", "p2"] as const) {
       const participant = participants[seat];
@@ -397,19 +478,31 @@ export class TempoFrontRoom extends Room {
         participant,
         won,
         cycles: state.cycle,
-        shards: matchShardReward(this.queue, won, earlyExit ? "conceded_early" : "played"),
+        shards: matchShardReward(
+          this.queue,
+          won,
+          earlyExit ? "conceded_early" : "played",
+        ),
         grantUnrankedXp: this.queue === "casual" && !earlyExit,
       });
       if (rewards[seat] === null) {
         metrics.integrityFailures.inc({ kind: "duplicate_reward" });
-        this.#log.critical("match reward already settled", { seat, accountId: participant.accountId });
+        this.#log.critical("match reward already settled", {
+          seat,
+          accountId: participant.accountId,
+        });
       }
       void cardForgeStore
         .recordProductEvent({
           eventId: `evt:${randomUUID()}`,
           accountId: participant.accountId,
           name: "match_completed",
-          properties: { matchId: this.roomId, queue: this.queue, result: won ? "win" : "loss", reason },
+          properties: {
+            matchId: this.roomId,
+            queue: this.queue,
+            result: won ? "win" : "loss",
+            reason,
+          },
         })
         .catch(() => undefined);
     }
@@ -449,7 +542,9 @@ export class TempoFrontRoom extends Room {
   }
 
   #publicPlayers() {
-    const players: Partial<Record<PlayerId, { displayName: string; leaderId: string }>> = {};
+    const players: Partial<
+      Record<PlayerId, { displayName: string; leaderId: string }>
+    > = {};
     for (const [sessionId, info] of this.#seats)
       players[this.#match.seatFor(sessionId)] = {
         displayName: info.identity.displayName,
@@ -484,16 +579,23 @@ export class TempoFrontRoom extends Room {
   }
 
   #broadcast(events: readonly GameEvent[]) {
-    for (const recipient of this.clients) recipient.send("snapshot", this.#snapshot(recipient, events));
+    for (const recipient of this.clients)
+      recipient.send("snapshot", this.#snapshot(recipient, events));
   }
 
   #broadcastPresence(seat: PlayerId, status: "reconnecting" | "connected") {
     for (const recipient of this.clients)
-      recipient.send("presence", { seat, status, graceSeconds: reconnectSeconds });
+      recipient.send("presence", {
+        seat,
+        status,
+        graceSeconds: reconnectSeconds,
+      });
   }
 
   #syncClock(): void {
-    this.#actionClock.reconcile(this.#started && !this.#result ? this.#match.activePlayers() : []);
+    this.#actionClock.reconcile(
+      this.#started && !this.#result ? this.#match.activePlayers() : [],
+    );
     this.#clockTimer?.clear();
     const delay = this.#actionClock.nextDelayMs();
     if (delay === null) return;
@@ -501,7 +603,9 @@ export class TempoFrontRoom extends Room {
       if (this.#result) return;
       const expired = this.#actionClock.expiredPlayers();
       for (const playerId of expired) this.#activity[playerId].timeouts += 1;
-      const events = expired.flatMap((playerId) => this.#match.submitTimeout(playerId));
+      const events = expired.flatMap((playerId) =>
+        this.#match.submitTimeout(playerId),
+      );
       void this.#afterCommands(events).catch((error: unknown) =>
         this.#log.error("timeout handling failed", { error }),
       );
@@ -511,7 +615,9 @@ export class TempoFrontRoom extends Room {
   /** Serialised so a slower earlier write can never overwrite a later one. */
   #persist(): Promise<void> {
     const record = {
-      status: this.#match.state.winner ? ("complete" as const) : ("active" as const),
+      status: this.#match.state.winner
+        ? ("complete" as const)
+        : ("active" as const),
       replay: this.#match.replay(),
     };
     this.#persistChain = this.#persistChain

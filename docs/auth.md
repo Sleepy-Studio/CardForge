@@ -17,13 +17,13 @@ the design, the trust boundaries, and how legacy alpha accounts migrate.
 
 ## Components
 
-| Piece | Where | Notes |
-| --- | --- | --- |
-| Password login | `POST /api/auth/register`, `POST /api/auth/login` | Node `scrypt` (N=16384, r=8, p=1, 16-byte salt, 64-byte key). Unknown emails still run scrypt against a decoy hash so timing does not reveal registered addresses. |
-| Discord OAuth | `GET /api/auth/discord/start` → Discord → `GET /api/auth/discord/callback` | `identify` scope only. `state` is random and bound to a signed, 10-minute, HttpOnly cookie. Post-login `next` paths must be same-app relative paths. |
-| Sessions | `cardforge_sessions` | 256-bit random token in an `HttpOnly; SameSite=Lax; Secure` cookie. Only its SHA-256 is stored. 30-day sliding expiry (`CARDFORGE_SESSION_TTL_DAYS`), refreshed at most hourly. `POST /api/auth/logout` deletes the row; `POST /api/auth/logout-all` deletes every session for the account. |
-| Room tickets | `POST /api/me/match-ticket` | HMAC-SHA256 signed `{sub, pur: "match", exp}` valid for five minutes. The browser sets it as the Colyseus auth token; `onAuth` verifies it and loads the account before any seat is reserved. Reconnection uses Colyseus reconnection tokens and needs no new ticket. |
-| Admin | `/api/admin/*`, `/metrics` in production | An account with `role = 'admin'`, or `Authorization: Bearer $CARDFORGE_ADMIN_TOKEN` (≥ 32 characters) for automation. Admin role is granted by `CARDFORGE_ADMIN_EMAILS` / `CARDFORGE_ADMIN_DISCORD_IDS` at login. There is no default token. |
+| Piece          | Where                                                                      | Notes                                                                                                                                                                                                                                                                                       |
+| -------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Password login | `POST /api/auth/register`, `POST /api/auth/login`                          | Node `scrypt` (N=16384, r=8, p=1, 16-byte salt, 64-byte key). Unknown emails still run scrypt against a decoy hash so timing does not reveal registered addresses.                                                                                                                          |
+| Discord OAuth  | `GET /api/auth/discord/start` → Discord → `GET /api/auth/discord/callback` | `identify` scope only. `state` is random and bound to a signed, 10-minute, HttpOnly cookie. Post-login `next` paths must be same-app relative paths.                                                                                                                                        |
+| Sessions       | `cardforge_sessions`                                                       | 256-bit random token in an `HttpOnly; SameSite=Lax; Secure` cookie. Only its SHA-256 is stored. 30-day sliding expiry (`CARDFORGE_SESSION_TTL_DAYS`), refreshed at most hourly. `POST /api/auth/logout` deletes the row; `POST /api/auth/logout-all` deletes every session for the account. |
+| Room tickets   | `POST /api/me/match-ticket`                                                | HMAC-SHA256 signed `{sub, pur: "match", exp}` valid for five minutes. The browser sets it as the Colyseus auth token; `onAuth` verifies it and loads the account before any seat is reserved. Reconnection uses Colyseus reconnection tokens and needs no new ticket.                       |
+| Admin          | `/api/admin/*`, `/metrics` in production                                   | An account with `role = 'admin'`, or `Authorization: Bearer $CARDFORGE_ADMIN_TOKEN` (≥ 32 characters) for automation. Admin role is granted by `CARDFORGE_ADMIN_EMAILS` / `CARDFORGE_ADMIN_DISCORD_IDS` at login. There is no default token.                                                |
 
 ## Request flow
 
@@ -64,13 +64,13 @@ own domain (see [deployment.md](deployment.md)).
 
 ## Authorization rules
 
-| Resource | Rule |
-| --- | --- |
-| Decks, collection, crafting, cosmetics, quests, profile, history, rewards, support cases | Session account only (`/api/me`). |
-| Online queues | Ticket account; the deck must belong to that account, be legal, fully owned, and use an unlocked Leader. |
-| Friend invites | Host plus exactly one guest; codes expire after 15 minutes and start one match only. |
-| Replays | Participants see the public view and their own seat; opponents' hands stay hidden. Admins may view any perspective. Unfinished matches are not viewable. |
-| Rewards and ranked settlement | Only the room awards them, once per (match, account) and once per match, inside database transactions. |
+| Resource                                                                                 | Rule                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decks, collection, crafting, cosmetics, quests, profile, history, rewards, support cases | Session account only (`/api/me`).                                                                                                                        |
+| Online queues                                                                            | Ticket account; the deck must belong to that account, be legal, fully owned, and use an unlocked Leader.                                                 |
+| Friend invites                                                                           | Host plus exactly one guest; codes expire after 15 minutes and start one match only.                                                                     |
+| Replays                                                                                  | Participants see the public view and their own seat; opponents' hands stay hidden. Admins may view any perspective. Unfinished matches are not viewable. |
+| Rewards and ranked settlement                                                            | Only the room awards them, once per (match, account) and once per match, inside database transactions.                                                   |
 
 ## Rate limits
 

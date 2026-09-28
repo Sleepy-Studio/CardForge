@@ -52,7 +52,11 @@ void describe("additive live-ops revisions", () => {
   });
 
   void it("computes UTC quest reset windows", () => {
-    const season = { seasonId: "s1", startsAt: "2026-08-16T00:00:00.000Z", endsAt: "2026-11-16T00:00:00.000Z" };
+    const season = {
+      seasonId: "s1",
+      startsAt: "2026-08-16T00:00:00.000Z",
+      endsAt: "2026-11-16T00:00:00.000Z",
+    };
     assert.deepEqual(questPeriod("daily", now, season), {
       periodKey: "d:2026-09-30",
       startsAt: "2026-09-30T00:00:00.000Z",

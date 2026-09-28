@@ -23,7 +23,11 @@ export function RuntimeConfigProvider({
   readonly value: RuntimeConfig;
   readonly children: ReactNode;
 }) {
-  return <RuntimeConfigContext.Provider value={value}>{children}</RuntimeConfigContext.Provider>;
+  return (
+    <RuntimeConfigContext.Provider value={value}>
+      {children}
+    </RuntimeConfigContext.Provider>
+  );
 }
 
 export function useRuntimeConfig(): RuntimeConfig {

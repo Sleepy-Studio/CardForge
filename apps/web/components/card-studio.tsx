@@ -135,7 +135,7 @@ export function CardStudio() {
         <div className="studio-hashes">
           <span>GAMEPLAY {pack.gameplayHash.slice(0, 12)}</span>
           <span>PRESENTATION {presentation.presentationHash.slice(0, 12)}</span>
-          <a className="button button--quiet" href="/">
+          <a className="button button--quiet" href="/lab">
             Match lab
           </a>
         </div>

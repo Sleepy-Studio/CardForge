@@ -72,5 +72,7 @@ export const server = new Server({
 server.define("tempofront", TempoFrontRoom);
 server.define("tempofront-ranked", TempoFrontRankedRoom);
 // Friend rooms are keyed by invite code so both players land in one room.
-server.define("tempofront-friend", TempoFrontFriendRoom).filterBy(["inviteCode"]);
+server
+  .define("tempofront-friend", TempoFrontFriendRoom)
+  .filterBy(["inviteCode"]);
 server.define("tempofront-training", TempoFrontTrainingRoom);

@@ -168,7 +168,8 @@ export function missingCards(
 ): readonly OwnedCard[] {
   const have = new Map(owned.map((card) => [card.cardId, card.quantity]));
   const need = new Map<string, number>();
-  for (const cardId of deckCardIds) need.set(cardId, (need.get(cardId) ?? 0) + 1);
+  for (const cardId of deckCardIds)
+    need.set(cardId, (need.get(cardId) ?? 0) + 1);
   return [...need.entries()]
     .map(([cardId, quantity]) => ({
       cardId,

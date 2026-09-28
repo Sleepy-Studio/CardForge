@@ -18,6 +18,11 @@ export interface BoardIntent {
   readonly entityId?: string;
 }
 
+export type BoardHitTest = (
+  clientX: number,
+  clientY: number,
+) => BoardIntent | null;
+
 interface BoardCanvasProps {
   readonly state: Pick<GameState, "fronts">;
   readonly viewerId: PlayerId;
@@ -29,6 +34,12 @@ interface BoardCanvasProps {
   readonly reducedMotion: boolean;
   readonly themePalette?: Readonly<Record<string, string>>;
   readonly onIntent: (intent: BoardIntent) => void;
+  /** Receives a hit-test function for drag-and-drop from the DOM hand. */
+  readonly onHitTest?: (hitTest: BoardHitTest) => void;
+  /** Draw aiming lines from this source to every legal target. */
+  readonly aimFrom?: string | null;
+  /** Draw an aiming line to the enemy Leader as well. */
+  readonly aimAtLeader?: boolean;
 }
 
 const fronts = ["left", "center", "right"] as const;
@@ -63,12 +74,41 @@ export function BoardCanvas({
   reducedMotion,
   themePalette,
   onIntent,
+  onHitTest,
+  aimFrom = null,
+  aimAtLeader = false,
 }: BoardCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const intentRef = useRef(onIntent);
+  const hitAreasRef = useRef<
+    { x: number; y: number; w: number; h: number; intent: BoardIntent }[]
+  >([]);
+  const layoutRef = useRef({ scale: 1, offsetX: 0 });
   const [canvasRevision, setCanvasRevision] = useState(0);
   intentRef.current = onIntent;
+
+  useEffect(() => {
+    onHitTest?.((clientX, clientY) => {
+      const host = hostRef.current;
+      if (!host) return null;
+      const bounds = host.getBoundingClientRect();
+      const { scale, offsetX } = layoutRef.current;
+      const x = (clientX - bounds.left - offsetX) / scale;
+      const y = (clientY - bounds.top) / scale;
+      // Slots are listed after lanes, so prefer the most specific area.
+      const hit = [...hitAreasRef.current]
+        .reverse()
+        .find(
+          (area) =>
+            x >= area.x &&
+            x <= area.x + area.w &&
+            y >= area.y &&
+            y <= area.y + area.h,
+        );
+      return hit?.intent ?? null;
+    });
+  }, [onHitTest]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -113,8 +153,21 @@ export function BoardCanvas({
     const app = appRef.current;
     if (!app) return;
     destroyChildren(app);
+    // Lay out at a readable logical size and scale down to fit, instead of
+    // clipping, so tablets, Steam Deck, and landscape phones see the board.
     const width = Math.max(app.screen.width, 720);
     const height = Math.max(app.screen.height, 500);
+    const scale = Math.min(
+      app.screen.width / width,
+      app.screen.height / height,
+      1,
+    );
+    app.stage.scale.set(scale);
+    // Center the scaled board horizontally when height is the limit.
+    const offsetX = Math.max(0, (app.screen.width - width * scale) / 2);
+    app.stage.position.set(offsetX, 0);
+    layoutRef.current = { scale, offsetX };
+    hitAreasRef.current = [];
     const laneGap = 18;
     const outer = 24;
     const laneWidth = (width - outer * 2 - laneGap * 2) / 3;
@@ -192,6 +245,13 @@ export function BoardCanvas({
           width: isLegalFront ? 3 : 1,
           alpha: isLegalFront ? 0.95 : 0.35,
         });
+      hitAreasRef.current.push({
+        x,
+        y: 24,
+        w: laneWidth,
+        h: height - 48,
+        intent: { front },
+      });
       lane.eventMode = isLegalFront ? "static" : "none";
       lane.cursor = isLegalFront ? "pointer" : "default";
       lane.on("pointertap", () => intentRef.current({ front }));
@@ -249,6 +309,18 @@ export function BoardCanvas({
               width: isTarget || isLegalSlot || isSelected ? 3 : 1,
               alpha: 0.95,
             });
+          hitAreasRef.current.push({
+            x: x + 12,
+            y,
+            w: laneWidth - 24,
+            h: slotHeight,
+            intent: {
+              front,
+              slot,
+              playerId,
+              ...(instance ? { entityId: instance.instanceId } : {}),
+            },
+          });
           const interactive = isLegalSlot || isTarget || Boolean(instance);
           frame.eventMode = interactive ? "static" : "none";
           frame.cursor = interactive ? "pointer" : "default";
@@ -271,12 +343,22 @@ export function BoardCanvas({
             label.x = x + 24;
             label.y = y + 10;
             app.stage.addChild(label);
+            const statuses = [
+              ...(instance.barrier ? ["Barrier"] : []),
+              ...instance.statuses.map(
+                (status) =>
+                  `${status.statusId[0].toUpperCase()}${status.statusId.slice(1)}${status.value > 1 ? ` ${status.value}` : ""}`,
+              ),
+            ];
             const stats = new Text({
-              text: `${definition?.power ?? 0} PWR  •  ${(definition?.vitality ?? 0) - instance.damage} VIT  •  ${definition?.presence ?? 0} PRE`,
+              text: `⚔ ${definition?.power ?? 0}   ♥ ${(definition?.vitality ?? 0) - instance.damage}   ◆ ${definition?.presence ?? 0}${
+                instance.ready ? "" : "   · spent"
+              }${statuses.length ? `\n${statuses.join(", ")}` : ""}`,
               style: metaStyle,
             });
             stats.x = x + 24;
-            stats.y = y + 40;
+            stats.y = y + (statuses.length ? 30 : 40);
+            if (!instance.ready) label.alpha = 0.7;
             app.stage.addChild(stats);
           } else {
             const empty = new Text({
@@ -289,6 +371,56 @@ export function BoardCanvas({
           }
         }
       }
+    }
+
+    if (aimFrom || aimAtLeader) {
+      const sourceAnchor = (() => {
+        for (const front of fronts)
+          for (const playerId of ["p1", "p2"] as const)
+            for (const slot of slots)
+              if (
+                state.fronts[front].slots[playerId][slot]?.instanceId ===
+                aimFrom
+              )
+                return anchorPoint({ front, playerId, slot });
+        return { x: width / 2, y: height - 8 };
+      })();
+      const aim = new Graphics();
+      const aimColor = themeColor(themePalette?.danger, 0xff6e91);
+      const targetPoints: { x: number; y: number }[] = [];
+      for (const front of fronts)
+        for (const playerId of ["p1", "p2"] as const)
+          for (const slot of slots) {
+            const instance = state.fronts[front].slots[playerId][slot];
+            if (instance && legalTargets.has(instance.instanceId))
+              targetPoints.push(anchorPoint({ front, playerId, slot }));
+          }
+      if (aimAtLeader) {
+        const enemy = viewerId === "p1" ? "p2" : "p1";
+        const leaderPoint = anchorPoint({
+          playerId: enemy,
+          leader: true,
+          front: "center",
+        });
+        targetPoints.push(leaderPoint);
+        aim
+          .circle(leaderPoint.x, leaderPoint.y + 6, 16)
+          .stroke({ color: aimColor, width: 3, alpha: 0.9 });
+      }
+      for (const point of targetPoints) {
+        const dx = point.x - sourceAnchor.x;
+        const dy = point.y - sourceAnchor.y;
+        const length = Math.hypot(dx, dy);
+        for (let offset = 0; offset < length - 8; offset += 14) {
+          const from = offset / length;
+          const to = Math.min(1, (offset + 7) / length);
+          aim
+            .moveTo(sourceAnchor.x + dx * from, sourceAnchor.y + dy * from)
+            .lineTo(sourceAnchor.x + dx * to, sourceAnchor.y + dy * to);
+        }
+      }
+      aim.stroke({ color: aimColor, width: 2, alpha: 0.75 });
+      app.stage.addChild(aim);
     }
 
     const centerLine = new Graphics()
@@ -348,14 +480,16 @@ export function BoardCanvas({
           cueLayer.pivot.set(width / 2, height / 2);
           cueLayer.position.set(width / 2, height / 2);
           if (progress >= 1 && animateCueLayer)
-            app.ticker.remove(animateCueLayer);
+            app.ticker?.remove(animateCueLayer);
         };
         app.ticker.add(animateCueLayer);
       }
     }
 
     return () => {
-      if (animateCueLayer) app.ticker.remove(animateCueLayer);
+      // The app may already be destroyed when the component unmounts.
+      if (animateCueLayer && appRef.current === app)
+        app.ticker?.remove(animateCueLayer);
     };
   }, [
     state,
@@ -368,6 +502,8 @@ export function BoardCanvas({
     presentation,
     reducedMotion,
     themePalette,
+    aimFrom,
+    aimAtLeader,
   ]);
 
   return (
