@@ -111,5 +111,8 @@ function configuredLevel(): LogLevel {
 
 export const logger = createLogger({
   level: configuredLevel(),
-  base: { service: "cardforge-match-server" },
+  base: {
+    service: "cardforge-match-server",
+    environment: process.env.CARDFORGE_ENVIRONMENT ?? process.env.NODE_ENV ?? "development",
+  },
 });
